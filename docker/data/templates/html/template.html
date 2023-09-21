@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+        <title>Basic CaTCH report</title>
+        <meta name="description" content="Displays some basic quality check results of the CaTCH experiment">
+        <link rel="icon" type="image/png" href="%LOGO_DATA%">
+
+        <style>
+            table {
+                border-collapse: collapse;
+                margin-bottom: 1rem;
+                width: 100%;
+            }
+            table td {
+                border-top: 1px solid #dee2e6e9;
+                padding: 5px;
+                vertical-align: middle;
+            }
+            table td a {
+                text-decoration: none;
+                color: #0077dd
+            }
+            table tr {
+                border-bottom: 1px solid #dee2e6e9;
+            }
+            table tr:hover {
+                background-color: rgba(0,0,0,.075);
+            }
+            table td:first-child {
+                text-align: left;
+                overflow: hidden;
+            }
+            table td:nth-child(2) {
+                text-align: right;
+            }
+            .qc-plot-wrapper {
+                float: left;
+                width: 100%;
+                height: 500px;
+                box-sizing: border-box;
+                border:1px solid rgb(199, 197, 208);
+                border-radius: 5px;
+                margin-bottom: 15px;
+                padding: 1px;
+            }
+            .qc-plot {
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+
+        <script>
+            var tsneRawData = {x: %TSNE_X%, 
+                               y: %TSNE_Y%, 
+                               Samples: %TSNE_SAMPLES%,
+                               Clusters: %TSNE_CLUSTERS%,
+                               CellStages: %TSNE_CELLSTAGES%}
+
+            var qcRawData = {Features: %BOXPLOTRAW_FEATURES%,
+                             Reads: %BOXPLOTRAW_READS%,
+                             QCCategory: %BOXPLOTRAW_QCCATEGORIES%,
+                             CaTCHBCCounts: %BOXPLOTRAW_CATCHBCCOUNTS%,
+                             CaTCHStatus: %BOXPLOTRAW_CATCHSTATUS%}
+                            
+            var icon_samples = {
+                width: 100,
+                height: 300,
+                path: "M89.41,6.98c0,65.89,0,131.78,0,197.67c0.87,19.27-14.29,35.43-32.56,36.05 c-19.09,"+
+                        "0.65-35.76-15.88-34.88-36.05V6.98 M5.11,6.98h101.16 M21.96,54.07h29.78 M21.96,"+
+                        "74.42h14.89 M21.93,95.35h14.92 M21.96,116.86h29.78"
+            };
+
+            var colors = {'Good': 'lime',
+                          'Damaged': 'red',
+                          'Few features': 'blue',
+                          'Damaged AND few features': 'brown',
+                        
+                          'No data': 'grey',
+                          'Multiplet': 'orange',
+                          'Singlet': 'lime'}
+
+            var btnToHide = ['zoom2d', 'pan2d', 'select2d', 
+                             'lasso2d', 'zoomIn2d', 'zoomOut2d', 
+                             'autoScale2d', 'resetScale2d', 'sendDataToCloud',
+                             'toggleSpikelines']
+                               
+
+            function init() {
+                links = document.getElementsByClassName("popup-link")
+                for (let i = 0; i < links.length; i++) {
+                    links[i].addEventListener("click", function(e){
+                        src = e.currentTarget.getAttribute("src")
+                        document.getElementById("cr-report").src = src
+                        document.getElementById("popup-wrapper").style.visibility = "visible"
+                        e.preventDefault()
+                        e.stopPropagation()
+                    }, true)
+                }
+                document.getElementById("popup-wrapper").addEventListener("click", function(e){
+                    document.getElementById("popup-wrapper").style.visibility = "hidden"
+                    e.preventDefault()
+                    e.stopPropagation()
+                }, true)
+                drawTsnePlot("Samples")
+                drawCellsPerCategory("Samples", "QCCategory")
+                drawCellsPerCategory("Samples", "CellCycleStage")
+                drawCellsPerCategory("Samples", "CaTCHStatus")
+
+                drawViolinplot("Samples", 'Reads')
+                drawViolinplot("Samples", 'Features')
+                drawViolinplot("Samples", 'CaTCHBCCounts')
+            }
+
+            function switchTsnePlot(plotType) {
+                drawTsnePlot(plotType)
+                drawCellsPerCategory(plotType, "QCCategory")
+                drawCellsPerCategory(plotType, "CellCycleStage")
+                drawCellsPerCategory(plotType, "CaTCHStatus")
+                drawViolinplot(plotType, 'CaTCHBCCounts')
+            }
+
+            function drawTsnePlot(plotType) {
+                counts = {}
+                plotData = []
+                tsneRawData[plotType].forEach(val => counts[val] = counts[val] ? counts[val] + 1 : 1)
+                let nCells = 0
+                for (let name in counts) {
+                    let n = counts[name]
+                    cells = {x: new Array(n),
+                             y: new Array(n),
+                             ptr: 0,
+                             name: name,
+                             mode: 'markers',
+                             type: 'scattergl',
+                             opacity: 0.5,
+                             marker: {size: 3}}
+                    plotData[name] = cells
+                    nCells += n
+                }
+                for (let i = 0; i < nCells; i++) {
+                    key = tsneRawData[plotType][i]
+                    tmp = plotData[key]
+                    plotData[key]['x'][tmp.ptr] = tsneRawData['x'][i]
+                    plotData[key]['y'][tmp.ptr] = tsneRawData['y'][i]
+                    tmp.ptr += 1
+                }
+
+                tmp = []
+                for ([key, value] of Object.entries(plotData)) {
+                    tmp.push(value)
+                }
+                plotData = tmp;
+
+                // If the plot exists, change the data
+                graphDiv = document.getElementById('tsne-samples')
+
+                Plotly.newPlot(graphDiv, 
+                               plotData, 
+                               {title: {text: "tSNE projection with " + plotType}, 
+                                        hovermode: 'closest'},
+                               {modeBarButtonsToRemove: btnToHide,
+                                modeBarButtonsToAdd: [
+                                {
+                                    name: "Color by sample",
+                                    icon: icon_samples,
+                                    click: function(gd){switchTsnePlot("Samples")}
+                                },
+                                {
+                                    name: "Color by cluster",
+                                    icon: icon_samples,
+                                    click: function(gd){switchTsnePlot("Clusters")}
+                                },
+                                {
+                                    name: "Color by cell stage",
+                                    icon: icon_samples,
+                                    click: function(gd){switchTsnePlot("CellStages")}
+                                }
+                            ]});
+            }
+
+            /*
+                plotType - Samples, Clusters, CellStages
+                values - y values - Reads, Features, CaTCHBCCounts
+            */
+            function drawViolinplot(plotType, values) {
+                counts = {}
+                plotData = {}
+                tsneRawData[plotType].forEach(val => counts[val] = counts[val] ? counts[val] + 1 : 1)
+                let nCells = 0
+                for (let name in counts) {
+                    let n = counts[name]
+                    cells = {x: name,
+                             y: new Array(n),
+                             ptr: 0,
+                             name: name,
+                             points: 'none',
+                             box: { visible: true },
+                             meanline: { visible: false },
+                             showlegend: false,
+                             type: 'violin'}
+                    plotData[name] = cells
+                    nCells += n
+                }
+                for (let i = 0; i < nCells; i++) {
+                    key = tsneRawData[plotType][i]
+                    tmp = plotData[key]
+                    plotData[key]['y'][tmp.ptr] = qcRawData[values][i]
+                    tmp.ptr += 1
+                }
+                tmp = []
+                for ([key, value] of Object.entries(plotData)) {
+                    tmp.push(value)
+                }
+                plotData = tmp;
+
+                graphDiv = document.getElementById("qc-" + values)
+                Plotly.newPlot(graphDiv, 
+                               plotData, 
+                               { title: (values == "CaTCHBCCounts" ? "CaTCH barcodes reads counts" : values),
+                                 yaxis: { zeroline: false }},
+                               {staticPlot: true})
+            }
+
+            /*
+                category - Samples, Clusters, CellStages
+                valuesType - QCCategory, CellCycleStage, CaTCHStatus
+            */
+            function drawCellsPerCategory(category, valuesType) {
+                counts = {}
+                src = undefined
+                title = ""
+                switch (valuesType) {
+                    case "QCCategory":
+                        src = qcRawData["QCCategory"]
+                        title = "Cells per category: "
+                        break
+                    case "CellCycleStage":
+                        src = tsneRawData["CellStages"]
+                        title = "Cells cycle stage per category: "
+                        break
+                    case "CaTCHStatus":
+                        src = qcRawData["CaTCHStatus"]
+                        title = "CaTCH status per category: "
+                        break
+                } 
+                for (let i = 0; i < tsneRawData[category].length; i++) {
+                    cellCategory = src[i]
+                    barName = tsneRawData[category][i]
+                    if (!counts[cellCategory]) {
+                        counts[cellCategory] = {}
+                    }
+                    counts[cellCategory][barName] = counts[cellCategory][barName] ? counts[cellCategory][barName] + 1 : 1
+                }
+                plotData = []
+                keys = Object.keys(counts)
+                for (let i = 0; i < keys.length; i++) {
+                    trace = {
+                        type: 'bar',
+                        name: keys[i],
+                        x: Object.keys(counts[keys[i]]),
+                        y: Object.values(counts[keys[i]]),
+                        marker: { color: colors[keys[i]] }
+                    }
+                    plotData.push(trace)
+                }
+                graphDiv = document.getElementById("qc-cells-" + valuesType)
+                Plotly.newPlot(graphDiv, 
+                               plotData,
+                               { title: title + category,
+                                 barmode: 'stack' },
+                               { modeBarButtonsToRemove: btnToHide })
+            }
+
+            function drawCellStagesPerCategory(category) {
+            }
+        </script>
+    </head>
+
+    <body onload="init()" style="margin:0;padding:0">
+        <div id="header" style="width:100%;height:100px;line-height:100px;background-color:#063970;color:white">
+            <div id="logo-wrapper" style="width:1200px;padding:5px 50px 5px 100px;margin:0 auto">
+                <div id="logo" style="float:left"><img src="%LOGO_DATA%" width="96" height="96" alt="CaTCH logo" /></div>
+                <div id="logo-name" style="float:left;font-size: 35px">CaTCH v2.0</div>
+                <div id="logo-text" style="float:right">Single cell summary</div>
+            </div>
+        </div>
+
+        <div id="content" style="width:1100px;margin:0 auto;padding:0">
+            <div id="exp-name" style="padding:20px 0 20px 0;font-size: 25px;margin:0">%EXP_NAME%</div>
+            <div id="main-statistics" style="width:100%;margin:0 auto;overflow-y: auto;">
+                <div id="summary" style="display:block;width:100%">
+                    <div id="col-statistics" style="float:left;width:280px">
+                        <div id="summary-block" style="width:100%;padding:10px;border:1px solid rgb(199, 197, 208);border-radius: 5px;box-sizing:border-box;margin: 0 0 10px 0">
+                            <div id="total-cell-count" style="text-align:center;font-size:3rem;color:#71be4b">%TOTAL_CELLS%</div>
+                            <div id="total-cell-count-label" style="text-align:center;font-size:1rem">Cells in all samples</div>
+                        </div>
+                        <div id="samples-block" style="width:100%;padding:10px;border:1px solid rgb(199, 197, 208);border-radius: 5px;box-sizing:border-box">
+                            <h3 style="margin:5px;padding:0 0 5px 0">Individual samples</h3>
+                            <table>
+                                <tbody>%SAMPLES_TABLE%</tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="col-plots" style="float:right;width:800px">
+                        <div id="tsne-samples-container" style="width:100%;height:600px;border:1px solid rgb(199, 197, 208);border-radius:5px;padding:10px;box-sizing:border-box">
+                            <div id="tsne-samples" style="width:100%;height:580px"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="specific-plots-wrapper" style="margin-top: 25px">
+                <div class="qc-plot-wrapper">
+                    <div id="qc-cells-QCCategory" class="qc-plot"></div>
+                </div>
+                <div class="qc-plot-wrapper">
+                    <div id="qc-cells-CellCycleStage" class="qc-plot"></div>
+                </div>
+                <div class="qc-plot-wrapper">
+                    <div id="qc-cells-CaTCHStatus" class="qc-plot"></div>
+                </div>
+                <div class="qc-plot-wrapper">
+                    <div id="qc-Reads" class="qc-plot"></div>
+                </div>
+                <div class="qc-plot-wrapper">
+                    <div id="qc-Features" class="qc-plot"></div>
+                </div>
+                <div class="qc-plot-wrapper">
+                    <div id="qc-CaTCHBCCounts" class="qc-plot"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="popup-wrapper" style="visibility:hidden;position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;background-color:rgba(0,0,0,0.5)">
+            <div id="popup-content" style="width:80%;height:80%;margin:0 auto;padding:50px 25px 25px 25px">
+                <iframe id="cr-report" src="" width="100%" height="100%"></iframe>
+            </div>
+        </div>
+
+    </body>
+</html>

@@ -1,0 +1,16 @@
+tidyverse
+optparse
+Seurat
+gridExtra
+circlize
+ggrepel
+BiocManager
+
+# BioConductor packages installed through BiocManager
+BioConductor::SingleCellExperiment
+BioConductor::scran
+BioConductor::scater
+BioConductor::DESeq2
+BioConductor::dorothea
+BioConductor::progeny
+BioConductor::ComplexHeatmap

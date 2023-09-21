@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 207.62 222.52">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #1d1d1b;
+      }
+
+      .cls-1, .cls-2 {
+        stroke: #1d1d1b;
+        stroke-miterlimit: 10;
+        stroke-width: 5px;
+      }
+
+      .cls-2 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <g id="Ebene_1" data-name="Ebene 1">
+    <path class="cls-2" d="m142.65,13.01L12.13,161.46c-13.97,14.57-12.37,37.98,2.4,50.1,14.13,11.6,36.18,9.47,48.25-5.57,43.51-49.49,87.02-98.97,130.52-148.46"/>
+    <line class="cls-2" x1="129.99" y1="1.88" x2="205.97" y2="68.67"/>
+    <line class="cls-2" x1="111.56" y1="48.38" x2="133.92" y2="68.04"/>
+    <line class="cls-2" x1="98.12" y1="63.66" x2="109.31" y2="73.49"/>
+    <line class="cls-2" x1="84.28" y1="79.36" x2="95.49" y2="89.21"/>
+    <line class="cls-2" x1="70.1" y1="95.53" x2="92.46" y2="115.2"/>
+    <path class="cls-1" d="m11.86,161.73c-12.99,14.82-11.53,37.36,3.27,50.37h0c13.19,11.59,33.27,10.3,44.86-2.88l41.3-46.97-.59-.52H11.86Z"/>
+  </g>
+</svg>
