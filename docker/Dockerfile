@@ -10,7 +10,7 @@ RUN     apt-get install -y python3-pip r-base libxml2-dev libssl-dev libcurl4-op
 
 # Install the required Python packages and add the CaTCH package
 RUN     pip install pandas numpy biopython
-RUN     mkdir -p /packages/CaTCH && mkdir -p /tools
+RUN     mkdir -p /packages/CaTCH && mkdir -p /tools/{data,scripts}
 COPY    CaTCH /packages/CaTCH
 COPY    data /tools/data
 COPY    scripts /tools/scripts
