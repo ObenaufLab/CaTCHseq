@@ -22,5 +22,5 @@ ENV     PATH $PATH:/tools/scripts/python/
 RUN     R -e "source('/tools/scripts/R/setup_R_env.R')"
               
 LABEL   maintainer="sergej.nowoshilow@boehringer-ingelheim.com"
-LABEL   version="2.1"
-LABEL   release-date="2023-03-27"
+LABEL   version="2.2"
+LABEL   release-date="2023-10-04"

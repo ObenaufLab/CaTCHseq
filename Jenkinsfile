@@ -1,4 +1,4 @@
-buildDockerImage([imageName: "sccatch", dockerFile: "docker/Dockerfile", pushRegistryNamespace: "loben", pushRegistry: "clip-docker.artifactory.imp.ac.at", testCmd: null, pushBranches:["dev_jenkins"]])
+buildDockerImage([imageName: "sccatch", dockerContext: "docker", dockerFile: "Dockerfile", pushRegistryNamespace: "oebauf", pushRegistry: "docker.artifactory.imp.ac.at", testCmd: null, pushBranches:["dev_jenkins"]])
 
 //pipeline{
 //    agent {
