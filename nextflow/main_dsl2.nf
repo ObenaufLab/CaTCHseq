@@ -127,7 +127,7 @@ process runCellrangerCount {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'copy', overwrite: true,
+    publishDir "${workflow.workDir}/../" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("filtered_feature_bc_matrix")       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/${sampleName}/CellRanger/tSNEs/gene_expression_2_components/projection.csv"
@@ -190,7 +190,7 @@ process useCellrangerData {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'copy'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("filtered_feature_bc_matrix")       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/${sampleName}/CellRanger/tSNEs/gene_expression_2_components/projection.csv"
@@ -223,7 +223,7 @@ process countBarcodesInChunks {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'copy'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename == "counts")       "OUTPUT/${sampleName}/CellRanger/counts/counts"
         else if (filename == "reads")          "OUTPUT/${sampleName}/CellRanger/counts/reads"
@@ -261,7 +261,7 @@ process mergeBarcodesInChunks {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/unfiltered/${file(filename).getName()}"
         else if (filename.indexOf(".stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/unfiltered/${file(filename).getName()}"
@@ -299,7 +299,7 @@ process collapseAndFilterBarcodes {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".collapsed.sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/collapsed/${file(filename).getName()}"
         else if (filename.indexOf(".collapsed.stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/collapsed/${file(filename).getName()}"
@@ -335,7 +335,7 @@ process resolveMultiplets {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".resolved_multiplets.sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/resolved_multiplets/${file(filename).getName()}"
         else if (filename.indexOf(".resolved_multiplets.stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/resolved_multiplets/${file(filename).getName()}"
@@ -371,7 +371,7 @@ process generateReports {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".CaTCHbarcodes") > 0)       "OUTPUT/${sampleName}/CellRanger/reports/${file(filename).getName()}"
         else if (filename.indexOf(".cells") > 0)             "OUTPUT/${sampleName}/CellRanger/reports/${file(filename).getName()}"
@@ -406,7 +406,7 @@ process generateAnalyticsPlots {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".png") > 0)       "OUTPUT/${sampleName}/CellRanger/analytics/plots/${file(filename).getName()}"
         else                                     "OUTPUT/${sampleName}/CellRanger/analytics/plots/${file(filename).getName()}"
@@ -436,7 +436,7 @@ process preprocessSingleCellData {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".rda") > 0)       "OUTPUT/${sampleName}/CellRanger/sce/unfiltered/${file(filename).getName()}"
         else                                     "OUTPUT/${sampleName}/CellRanger/sce/unfiltered/${file(filename).getName()}"
@@ -473,7 +473,7 @@ process createOverviewPlots {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
         else                                     "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
@@ -503,7 +503,7 @@ process createBarcodeEnrichmentPlots {
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link'
+    publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".jpeg") > 0)       "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
         else                                     "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
