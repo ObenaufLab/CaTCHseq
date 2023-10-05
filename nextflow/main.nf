@@ -15,8 +15,7 @@ params.maxDist = 2
 params.minReads = 10
 params.majorityVote = 90
 params.refName = "Day0"
-//params.crindex = "/data/gcbds/vie/bioinf/nowoshilow/Data/indices/CellRanger/GRCh38_no_alt/"
-params.crindex = "/data/gcbds/users/nowoshil/Projects/CaTCH2.0/KRASi_ON_vs_OFF/cellranger_reference/GRCh38_no_alt_CaTCH/"
+params.crindex = "GENOMES/Human/INDICES/cellranger_t2t"
 params.max_mt_percent = 10
 params.min_detected_features = 500
 params.hvg_cutoff = 0.1
@@ -51,12 +50,12 @@ def helpMessage() {
                                     R1              path to the R1 read
                                     R2              path to the corresponding R2 read  
 
-        --chunkSize             number of reads per chunk (default: ${params.chunkSize})
-
       Optional arguments:
-
+        --chunkSize             number of reads per chunk (default: ${params.chunkSize})
+        --index                 Path to cellranger index file (default: ${params.crindex})
+        --baseline              Name of reference day/condition (default: ${params.refName})
+        --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
         --help                  print this help message
-
         --outputDir             specifies the output directory. Default: ${params.outputDir}
         --reportsDir            specifies the reports directory. Default: ${params.reportsDir}
 
