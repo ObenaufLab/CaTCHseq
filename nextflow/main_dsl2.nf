@@ -34,7 +34,7 @@ max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
 hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
 reportsDir = get_always('reportsDir') ?: "${workflow.workDir}/../REPORTS"
-
+outputDir = get_always('outputDir') ?: "${workflow.workDir}/../scCaTCH_nf_OUTPUT"
 
 stopOnWarnings = get_always('stopOnWarnings') ?: true
 
