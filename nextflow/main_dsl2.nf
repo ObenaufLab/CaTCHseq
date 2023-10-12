@@ -23,18 +23,19 @@ def get_always(parameter){
 }
 
 //Params from CL
+absDir = workflow.launchDir
 libraries = get_always('libraries')
 chunkSize = get_always('chunkSize') ?: 1_000_000
 maxDist = get_always('maxDist') ?: 2
 miReads = get_always('minReads') ?: 10
 majorityVote = get_always('majorityVote') ?: 90
 refName = get_always('refName') ?: "Day0"
-crindex = get_always('crindex') ?: "${workflow.workDir}/../GENOMES/Human/INDICES/cellranger_t2t"
+crindex = get_always('crindex') ?: "${absDir}/GENOMES/Human/INDICES/cellranger_t2t"
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
 hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
-reportsDir = get_always('reportsDir') ?: "${workflow.workDir}/../REPORTS"
-outputDir = get_always('outputDir') ?: "${workflow.workDir}/../scCaTCH_nf_OUTPUT"
+reportsDir = get_always('reportsDir') ?: "${absDir}/REPORTS"
+outputDir = get_always('outputDir') ?: "${absDir}/scCaTCH_nf_OUTPUT"
 
 stopOnWarnings = get_always('stopOnWarnings') ?: true
 
@@ -138,7 +139,7 @@ process runCellrangerCount{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../" , mode: 'link',
+    publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("filtered_feature_bc_matrix") > 0)       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/${sampleName}/CellRanger/tSNEs/gene_expression_2_components/projection.csv"
@@ -202,7 +203,7 @@ process useCellrangerData{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("filtered_feature_bc_matrix") >0)       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/${sampleName}/CellRanger/tSNEs/gene_expression_2_components/projection.csv"
@@ -235,7 +236,7 @@ process countBarcodesInChunks{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename == "counts")       "OUTPUT/${sampleName}/CellRanger/counts/counts"
         else if (filename == "reads")          "OUTPUT/${sampleName}/CellRanger/counts/reads"
@@ -243,10 +244,10 @@ process countBarcodesInChunks{
     }
 
     input:
-        tuple val(sampleName), file(r1), file(r2), file(cellIDs)
+        tuple val(sampleName), path(r1), path(r2), path(cellIDs)
 
     output:
-        tuple val(sampleName), file('counts'), file('reads'), emit: counts_chunks_out
+        tuple val(sampleName), path('counts'), path('reads'), emit: counts_chunks_out
 
     script:
     """
@@ -273,7 +274,7 @@ process mergeBarcodesInChunks{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/unfiltered/${file(filename).getName()}"
         else if (filename.indexOf(".stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/unfiltered/${file(filename).getName()}"
@@ -281,11 +282,11 @@ process mergeBarcodesInChunks{
     }
 
     input:
-        tuple val(sampleName), file("counts/file*"), file("reads/file*")
+        tuple val(sampleName), path("counts/file*"), path("reads/file*")
 
     output:
-        tuple val(sampleName), file('*.sclib'), emit: merged_libraries
-        tuple val(sampleName), file('*.stats'), emit: unfiltered_stats
+        tuple val(sampleName), path('*.sclib'), emit: merged_libraries
+        tuple val(sampleName), path('*.stats'), emit: unfiltered_stats
 
     script:
     """
@@ -311,7 +312,7 @@ process collapseAndFilterBarcodes{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".collapsed.sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/collapsed/${file(filename).getName()}"
         else if (filename.indexOf(".collapsed.stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/collapsed/${file(filename).getName()}"
@@ -319,11 +320,11 @@ process collapseAndFilterBarcodes{
     }
     
     input:
-        tuple val(sampleName), file(library)
+        tuple val(sampleName), path(library)
 
     output:
-        tuple val(sampleName), file('*.collapsed.sclib'), emit: collapsed_libraries
-        tuple val(sampleName), file('*.collapsed.stats'), emit: collapsed_stats
+        tuple val(sampleName), path('*.collapsed.sclib'), emit: collapsed_libraries
+        tuple val(sampleName), path('*.collapsed.stats'), emit: collapsed_stats
 
     script:
     """
@@ -347,7 +348,7 @@ process resolveMultiplets{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".resolved_multiplets.sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/resolved_multiplets/${file(filename).getName()}"
         else if (filename.indexOf(".resolved_multiplets.stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/resolved_multiplets/${file(filename).getName()}"
@@ -355,11 +356,11 @@ process resolveMultiplets{
     }
     
     input:
-        tuple val(sampleName), file(library)
+        tuple val(sampleName), path(library)
 
     output:
-        tuple val(sampleName), file("*.resolved_multiplets.sclib"), emit: resolved_multiplets_libraries
-        tuple val(sampleName), file("*.resolved_multiplets.stats"), emit: resolved_stats
+        tuple val(sampleName), path("*.resolved_multiplets.sclib"), emit: resolved_multiplets_libraries
+        tuple val(sampleName), path("*.resolved_multiplets.stats"), emit: resolved_stats
 
     script:
     """
@@ -383,7 +384,7 @@ process generateReports{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".CaTCHbarcodes") > 0)       "OUTPUT/${sampleName}/CellRanger/reports/${file(filename).getName()}"
         else if (filename.indexOf(".cells") > 0)             "OUTPUT/${sampleName}/CellRanger/reports/${file(filename).getName()}"
@@ -391,11 +392,11 @@ process generateReports{
     }
 
     input:
-        tuple val(sampleName), file(library)
+        tuple val(sampleName), path(library)
 
     output:
-        file('*.CaTCHbarcodes'), emit: report_CaTCHbarcodes
-        tuple val(sampleName), file('*.cells'), emit: report_cells
+        path('*.CaTCHbarcodes'), emit: report_CaTCHbarcodes
+        tuple val(sampleName), path('*.cells'), emit: report_cells
 
     script:
     """
@@ -418,17 +419,17 @@ process generateAnalyticsPlots{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".png") > 0)       "OUTPUT/${sampleName}/CellRanger/analytics/plots/${file(filename).getName()}"
         else                                     "OUTPUT/${sampleName}/CellRanger/analytics/plots/${file(filename).getName()}"
     }
 
     input:
-        tuple val(sampleName), file(cell_ids), file(unfiltered), file(collapsed), file(resolved)
+        tuple val(sampleName), path(cell_ids), path(unfiltered), path(collapsed), path(resolved)
 
     output:
-        tuple val(sampleName), file("*.png"), emit: analytics_out
+        tuple val(sampleName), path("*.png"), emit: analytics_out
 
     script:
     """
@@ -448,17 +449,17 @@ process preprocessSingleCellData{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".rda") > 0)       "OUTPUT/${sampleName}/CellRanger/sce/unfiltered/${file(filename).getName()}"
         else                                     "OUTPUT/${sampleName}/CellRanger/sce/unfiltered/${file(filename).getName()}"
     }
 
     input:
-        tuple val(sampleName), path(featureMatrix), file(catchBarcodes), file(script)
+        tuple val(sampleName), path(featureMatrix), path(catchBarcodes), path(script)
 
     output:
-        file("*.sce.unfiltered.rda"), emit: basic_sce
+        path("*.sce.unfiltered.rda"), emit: basic_sce
 
     script:
     """
@@ -485,17 +486,17 @@ process createOverviewPlots{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
         else                                     "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
     }
 
     input:
-        file(sce)
+        path(sce)
 
     output:
-        file("overview.pdf"), emit: pdf
+        path("overview.pdf"), emit: pdf
 
     script:
     """
@@ -515,17 +516,17 @@ process createBarcodeEnrichmentPlots{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${workflow.workDir}/../", mode: 'link',
+    publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".jpeg") > 0)       "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
         else                                     "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
     }
 
     input:
-        file(sce)
+        path(sce)
 
     output:
-        file("*.jpeg")
+        path("*.jpeg")
 
     script:
     """
@@ -550,9 +551,9 @@ workflow{
                 STEP 0: Prepare Input
         ***********************************************************/
         
-        (Ch_csv_GEX, Ch_csv_scCaTCH, Ch_csv_preprocess) = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
+        Ch_csv = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
 
-        Ch_csv_GEX_split = Ch_csv_GEX.filter { it.LibraryType == "GEX" }.branch{
+        Ch_csv_GEX_split = Ch_csv.filter { it.LibraryType == "GEX" }.branch{
                 raw: (new File(it.R1)).isFile()
                 precomputed: (new File(it.R1)).isDirectory()
             }
@@ -562,7 +563,7 @@ workflow{
                 STEP 1: Run CellRanger count
         ***********************************************************/
 
-        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(crindex) ).set {  }
+        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(crindex) )
 
         runCellrangerCount(Ch_cellranger_input)
 
@@ -575,7 +576,7 @@ workflow{
                 STEP 2: Count CaTCH barcodes in chunks separately
         ***************************************************************/
         
-        Ch_count_input = Ch_csv_scCaTCH.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(Ch_cell_ids, by: 0)
+        Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_from_raw.mix(useCellrangerData.out.cell_ids_from_precomputed), by: 0)
 
         countBarcodesInChunks(Ch_count_input)
 
@@ -629,7 +630,8 @@ workflow{
         ***************************************************************/
 
         //Ch_script = Channel.fromPath("/home/nowoshil/Repositories/nf-pipelines/pipelines-singlecell-catch-nf/docker/scripts/R/preprocessData.R").set { Ch_script }
-        Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).combine('/tools/scripts/R/preprocessData.R')
+        Ch_script = Channel.fromPath("${absDir}/sccatch/tools/scripts/R/preprocessData.R")
+        Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).combine(Ch_script)
 
         preprocessSingleCellData(Ch_preprocess_input)
 
