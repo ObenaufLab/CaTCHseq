@@ -10,20 +10,33 @@ Authors
 - Joerg Fallmann (joerg.fallmann@imp.ac.at)
 ************************************************************************/
 
+//Version Check
+nextflowVersion = '>=20.01.0.5264'
 nextflow.enable.dsl=2
 
-params.libraries = ""
-params.chunkSize = 1_000_000
-params.maxDist = 2
-params.minReads = 10
-params.majorityVote = 90
-params.refName = "Day0"
-params.crindex = "GENOMES/Human/INDICES/cellranger_t2t"
-params.max_mt_percent = 10
-params.min_detected_features = 500
-params.hvg_cutoff = 0.1
+//define unset Params
+def get_always(parameter){
+    if (!params.containsKey(parameter)){
+        params.put(parameter, null)
+    }
+    return params[parameter]
+}
 
-params.stopOnWarnings = true
+//Params from CL
+libraries = get_always('libraries')
+chunkSize = get_always('chunkSize') ?: 1_000_000
+maxDist = get_always('maxDist') ?: 2
+miReads = get_always('minReads') ?: 10
+majorityVote = get_always('majorityVote') ?: 90
+refName = get_always('refName') ?: "Day0"
+crindex = get_always('crindex') ?: "${workflow.workDir}/../GENOMES/Human/INDICES/cellranger_t2t"
+max_mt_percent = get_always('max_mt_percent') ?: 10
+min_detected_features = get_always('min_detected_features') ?: 500
+hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
+reportsDir = get_always('reportsDir') ?: "${workflow.workDir}/../REPORTS"
+
+
+stopOnWarnings = get_always('stopOnWarnings') ?: true
 
 
 def helpMessage() {
@@ -39,8 +52,7 @@ def helpMessage() {
     ======================================================================
 
       Usage:
-      nextflow run PIPELINES/singlecell-catch-nf/main.nf --libraries <list of libraries and FASTQ files> 
-                                                         -profile ${params.profileList}
+      nextflow run sccatch/nextflow/main_dsl2.nf --libraries <list of libraries and FASTQ files> 
 
       Mandatory arguments:
         --libraries             CSV file with the following columns: 
@@ -58,11 +70,10 @@ def helpMessage() {
         --index                 Path to cellranger index file (default: ${params.crindex})
         --baseline              Name of reference day/condition (default: ${params.refName})
         --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
-        --outputDir             specifies the output directory. Default: ${params.outputDir}
-        --reportsDir            specifies the reports directory. Default: ${params.reportsDir}
+        --outputDir             specifies the output directory (default: ${params.outputDir})
+        --reportsDir            specifies the reports directory.(default: ${params.reportsDir})
         --help                  print this help message
 
-      ${params.profileDescription}
     """.stripIndent()
 }
 
@@ -73,7 +84,7 @@ if (params.help) {
     exit 0
 }
 
-if (!params.libraries) {
+if (!libraries) {
     log.info("ERROR: --libraries is not specified")
     helpMessage()
     exit 1
@@ -82,8 +93,8 @@ if (!params.libraries) {
 
 // Check all required input files before they are fed to a channel because this 
 // causes the pipeline to fail immediately on AWS before starting up the machines
-if(!file(params.libraries).exists()) {
-    log.info("ERROR: the file '${params.libraries}' does not exist")
+if(!file(libraries).exists()) {
+    log.info("ERROR: the file '${libraries}' does not exist")
     exit 2
 }
 
@@ -97,12 +108,12 @@ log.info """
  ----------------------------------------------------------------------
  |
  | Mandatory arguments
- |   libraries           : ${params.libraries}
- |   chunk size          : ${params.chunkSize}
+ |   libraries           : ${libraries}
+ |   chunk size          : ${chunkSize}
  |
  | Optional arguments
- |   outputDir           : ${params.outputDir}
- |   reportsDir          : ${params.reportsDir}
+ |   outputDir           : ${outputDir}
+ |   reportsDir          : ${reportsDir}
  |
  ======================================================================
 """.stripIndent()
@@ -113,8 +124,7 @@ log.info """
 // ---------------------------------------------------------------------
 
 // For more information about syntax, please refer to the nextflow documentation at https://www.nextflow.io/docs/latest/index.html
-stopOnWarn = (params.stopOnWarnings) ? "yes" : "no"
-
+stopOnWarn = (stopOnWarnings) ? "yes" : "no"
 
 
 /************************************************************************
@@ -122,6 +132,7 @@ stopOnWarn = (params.stopOnWarnings) ? "yes" : "no"
 ************************************************************************/
 
 process runCellrangerCount{
+
     //conda "cellranger.yaml"
     cache 'lenient'
     //label 'big_mem'
@@ -129,7 +140,7 @@ process runCellrangerCount{
 
     publishDir "${workflow.workDir}/../" , mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("filtered_feature_bc_matrix")       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
+        if (filename.indexOf("filtered_feature_bc_matrix") > 0)       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/${sampleName}/CellRanger/tSNEs/gene_expression_2_components/projection.csv"
         else                                                     "OUTPUT/${sampleName}/CellRanger/${file(filename).getName()}"
     }
@@ -137,13 +148,14 @@ process runCellrangerCount{
     //publishDir "outputs/cellranger/", mode: "copy"
 
     input:
-        tuple val(sampleName), file("inputs/R1_*"), file("inputs/R2_*"), path(index)
-
+        tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), path(index)
+    
+    
     output:
         path "${sampleName}", emit: name
-        tuple val(sampleName), path "${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv", emit: cell_ids_from_raw
+        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_from_raw
         tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix"), emit: cell_data_from_raw
-
+    
     script:
     """
     # Find all reads, sort them by name to ensure that the paired files are on the consecutive lines,
@@ -192,7 +204,7 @@ process useCellrangerData{
 
     publishDir "${workflow.workDir}/../", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("filtered_feature_bc_matrix")       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
+        if (filename.indexOf("filtered_feature_bc_matrix") >0)       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/${sampleName}/CellRanger/tSNEs/gene_expression_2_components/projection.csv"
         else                                                     "OUTPUT/${sampleName}/CellRanger/${file(filename).getName()}"
     }
@@ -202,7 +214,7 @@ process useCellrangerData{
 
     output:
         path "${sampleName}", emit: name
-        tuple val(sampleName), file("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_from_precomputed
+        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_from_precomputed
         tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix"), emit: cell_data_from_precomputed
 
     script:
@@ -317,8 +329,8 @@ process collapseAndFilterBarcodes{
     """
     collapseCaTCHbarcodes.py \
         --library ${library} \
-        --maxdist ${params.maxDist} \
-        --minsupport ${params.minReads} \
+        --maxdist ${maxDist} \
+        --minsupport ${minReads} \
         --outlib ${sampleName}.collapsed.sclib \
     | tee ${sampleName}.collapsed.stats
     """
@@ -353,7 +365,7 @@ process resolveMultiplets{
     """
     resolveMultiplets.py \
         --library ${library} \
-        --majority ${params.majorityVote} \
+        --majority ${majorityVote} \
         --outlib ${sampleName}.resolved_multiplets.sclib \
     | tee ${sampleName}.resolved_multiplets.stats
     """
@@ -455,9 +467,9 @@ process preprocessSingleCellData{
        --sample ${sampleName} \
        --data10X ${featureMatrix} \
        --catchBC ${catchBarcodes} \
-       --max_mt ${params.max_mt_percent} \
-       --min_features ${params.min_detected_features} \
-       --hvg_cutoff ${params.hvg_cutoff} \
+       --max_mt ${max_mt_percent} \
+       --min_features ${min_detected_features} \
+       --hvg_cutoff ${hvg_cutoff} \
        --out ${sampleName}.sce.unfiltered.rda
     """
 }
@@ -537,20 +549,20 @@ workflow{
         /**********************************************************
                 STEP 0: Prepare Input
         ***********************************************************/
-
-        Ch_csv_GEX, Ch_csv_scCaTCH, Ch_csv_preprocess = Channel.fromPath(params.libraries).splitCsv(sep: "\t", header: true)
+        
+        (Ch_csv_GEX, Ch_csv_scCaTCH, Ch_csv_preprocess) = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
 
         Ch_csv_GEX_split = Ch_csv_GEX.filter { it.LibraryType == "GEX" }.branch{
-            raw: (new File(it.R1)).isFile() \
-            precomputed: (new File(it.R1)).isDirectory() \
+                raw: (new File(it.R1)).isFile()
+                precomputed: (new File(it.R1)).isDirectory()
             }
-
+        
 
         /**********************************************************
                 STEP 1: Run CellRanger count
         ***********************************************************/
 
-        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(params.crindex) ).set {  }
+        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(crindex) ).set {  }
 
         runCellrangerCount(Ch_cellranger_input)
 
@@ -563,7 +575,7 @@ workflow{
                 STEP 2: Count CaTCH barcodes in chunks separately
         ***************************************************************/
         
-        Ch_count_input = Ch_csv_scCaTCH.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(Ch_cell_ids, by: 0)
+        Ch_count_input = Ch_csv_scCaTCH.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(Ch_cell_ids, by: 0)
 
         countBarcodesInChunks(Ch_count_input)
 
@@ -630,7 +642,9 @@ workflow{
         createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce)
 
         
+    /*
     emit:
     createOverviewPlots.out.pdf
     createBarcodeEnrichmentPlots.out.jpeg
+    */
 }
