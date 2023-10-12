@@ -121,7 +121,7 @@ stopOnWarn = (params.stopOnWarnings) ? "yes" : "no"
                 STEP 1: Run CellRanger count
 ************************************************************************/
 
-process runCellrangerCount {
+process runCellrangerCount{
     //conda "cellranger.yaml"
     cache 'lenient'
     //label 'big_mem'
@@ -183,7 +183,7 @@ process runCellrangerCount {
 }
 
 
-process useCellrangerData {
+process useCellrangerData{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -216,7 +216,7 @@ process useCellrangerData {
                 STEP 2: Count CaTCH barcodes in chunks separately
 ************************************************************************/
 
-process countBarcodesInChunks {
+process countBarcodesInChunks{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -254,7 +254,7 @@ process countBarcodesInChunks {
                 STEP 3: Merge the chunks data
 ************************************************************************/
 
-process mergeBarcodesInChunks {
+process mergeBarcodesInChunks{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -292,7 +292,7 @@ process mergeBarcodesInChunks {
 /************************************************************************
     STEP 4: Collapse similar barcodes and remove the background noise
 ************************************************************************/
-process collapseAndFilterBarcodes {
+process collapseAndFilterBarcodes{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -328,7 +328,7 @@ process collapseAndFilterBarcodes {
 /************************************************************************
                     STEP 5: Resolve multiplets
 ************************************************************************/
-process resolveMultiplets {
+process resolveMultiplets{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -364,7 +364,7 @@ process resolveMultiplets {
                     STEP 6: Generate reports
 ************************************************************************/
 
-process generateReports {
+process generateReports{
     
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -399,7 +399,7 @@ process generateReports {
                     STEP 7: Analytics report
 ************************************************************************/
 
-process generateAnalyticsPlots {
+process generateAnalyticsPlots{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -429,7 +429,7 @@ process generateAnalyticsPlots {
                     STEP 8: Generate SingleCellExperiment object
 ************************************************************************/
 
-process preprocessSingleCellData {
+process preprocessSingleCellData{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -466,7 +466,7 @@ process preprocessSingleCellData {
 /************************************************************************
                     STEP 9: Generate overview plots
 ************************************************************************/
-process createOverviewPlots {
+process createOverviewPlots{
     
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -496,7 +496,7 @@ process createOverviewPlots {
     """
 }
 
-process createBarcodeEnrichmentPlots {
+process createBarcodeEnrichmentPlots{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -531,7 +531,7 @@ process createBarcodeEnrichmentPlots {
                         MAIN WORKFLOW
 ************************************************************************/
 
-workflow {
+workflow{
     main:
 
         /**********************************************************
