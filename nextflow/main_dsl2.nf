@@ -170,11 +170,11 @@ process runCellrangerCount{
 
         R1=\$(echo \${LINE} | cut -f1)
         NEW_NAME=${sampleName}_S1_R1_\${SUFFIX}.fastq.gz
-        ln -s \${R1} inputs/\${NEW_NAME}
+        ln -sf \${R1} inputs/\${NEW_NAME}
 
         R2=\$(echo \${LINE} | cut -f2)
         NEW_NAME=${sampleName}_S1_R2_\${SUFFIX}.fastq.gz
-        ln -s \${R2} inputs/\${NEW_NAME}
+        ln -sf \${R2} inputs/\${NEW_NAME}
 
         IDX=\$((IDX + 1))
     done
