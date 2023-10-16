@@ -238,9 +238,9 @@ process countBarcodesInChunks{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename == "counts")       "OUTPUT/Counts/${sampleName}/Chunks/counts"
-        else if (filename == "reads")          "OUTPUT/Counts/${sampleName}/Chunks/reads"
-        else                                                     "OUTPUT/Counts/${sampleName}/Chunks/${file(filename).getName()}"
+        if (filename == "counts")       "OUTPUT/counts/${sampleName}/Chunks/counts"
+        else if (filename == "reads")          "OUTPUT/counts/${sampleName}/Chunks/reads"
+        else                                                     "OUTPUT/counts/${sampleName}/Chunks/${file(filename).getName()}"
     }
 
     input:
