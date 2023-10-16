@@ -630,7 +630,7 @@ workflow{
         ***************************************************************/
 
         //Ch_script = Channel.fromPath("/home/nowoshil/Repositories/nf-pipelines/pipelines-singlecell-catch-nf/docker/scripts/R/preprocessData.R").set { Ch_script }
-        Ch_script = Channel.fromPath("${absDir}/sccatch/tools/scripts/R/preprocessData.R")
+        Ch_script = Channel.fromPath("${absDir}/sccatch/docker/scripts/R/preprocessData.R")
         Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).combine(Ch_script)
 
         preprocessSingleCellData(Ch_preprocess_input)
