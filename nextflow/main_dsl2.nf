@@ -463,7 +463,7 @@ process preprocessSingleCellData{
 
     script:
     """
-    #Rscript --vanilla /tools/scripts/R/preprocessData.R 
+    # Rscript --vanilla /tools/scripts/R/preprocessData.R 
     Rscript --vanilla ${script} \
        --sample ${sampleName} \
        --data10X ${featureMatrix} \
@@ -493,14 +493,15 @@ process createOverviewPlots{
     }
 
     input:
-        path(sce)
+        tuple path(sce), path(script)
 
     output:
         path("overview.pdf"), emit: pdf
 
     script:
     """
-    Rscript --vanilla /tools/scripts/R/create_overview_plots.R \
+    # Rscript --vanilla /tools/scripts/R/create_overview_plots.R \
+    Rscript --vanilla ${script} \
         --sce ${sce} \
         --out overview.pdf \
         --format pdf \
@@ -523,14 +524,15 @@ process createBarcodeEnrichmentPlots{
     }
 
     input:
-        path(sce)
+        tuple path(sce), path(script)
 
     output:
         path("*.jpeg")
 
     script:
     """
-    Rscript --vanilla /tools/scripts/R/plot_enriched_and_depleted_BCs.R \
+    # Rscript --vanilla /tools/scripts/R/plot_enriched_and_depleted_BCs.R \
+    Rscript --vanilla ${script} \
         --sce ${sce} \
         --plots_per_row 5 \
         --format jpeg \
@@ -640,8 +642,8 @@ workflow{
                 STEP 9: Generate overview plots
         ***************************************************************/
 
-        createOverviewPlots(preprocessSingleCellData.out.basic_sce)
-        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce)
+        createOverviewPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/create_overview_plots.R")))
+        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/plot_enriched_and_depleted_BCs.R")))
 
         
     /*
