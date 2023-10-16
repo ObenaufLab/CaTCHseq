@@ -141,9 +141,9 @@ process runCellrangerCount{
 
     publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("filtered_feature_bc_matrix") > 0)       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
-        else if (filename.indexOf("projection.csv") >0)          "OUTPUT/${sampleName}/CellRanger/tSNEs/gene_expression_2_components/projection.csv"
-        else                                                     "OUTPUT/${sampleName}/CellRanger/${file(filename).getName()}"
+        if (filename.indexOf("filtered_feature_bc_matrix") > 0)       "OUTPUT/CellRanger/${sampleName}/filtered_feature_bc_matrix"
+        else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
+        else                                                     "OUTPUT/CellRanger/${sampleName}/${file(filename).getName()}"
     }
 
     //publishDir "outputs/cellranger/", mode: "copy"
@@ -205,9 +205,9 @@ process useCellrangerData{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("filtered_feature_bc_matrix") >0)       "OUTPUT/${sampleName}/CellRanger/filtered_feature_bc_matrix"
-        else if (filename.indexOf("projection.csv") >0)          "OUTPUT/${sampleName}/CellRanger/tSNEs/gene_expression_2_components/projection.csv"
-        else                                                     "OUTPUT/${sampleName}/CellRanger/${file(filename).getName()}"
+        if (filename.indexOf("filtered_feature_bc_matrix") >0)       "OUTPUT/CellRanger/${sampleName}/filtered_feature_bc_matrix"
+        else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
+        else                                                     "OUTPUT/CellRanger/${sampleName}/${file(filename).getName()}"
     }
 
     input:
@@ -238,9 +238,9 @@ process countBarcodesInChunks{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename == "counts")       "OUTPUT/${sampleName}/CellRanger/counts/counts"
-        else if (filename == "reads")          "OUTPUT/${sampleName}/CellRanger/counts/reads"
-        else                                                     "OUTPUT/${sampleName}/CellRanger/counts/${file(filename).getName()}"
+        if (filename == "counts")       "OUTPUT/Counts/${sampleName}/Chunks/counts"
+        else if (filename == "reads")          "OUTPUT/Counts/${sampleName}/Chunks/reads"
+        else                                                     "OUTPUT/Counts/${sampleName}/Chunks/${file(filename).getName()}"
     }
 
     input:
@@ -276,9 +276,9 @@ process mergeBarcodesInChunks{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/unfiltered/${file(filename).getName()}"
-        else if (filename.indexOf(".stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/unfiltered/${file(filename).getName()}"
-        else                                                     "OUTPUT/${sampleName}/CellRanger/libraries/unfiltered/${file(filename).getName()}"
+        if (filename.indexOf(".sclib") > 0)       "OUTPUT/libraries/unfiltered/${file(filename).getName()}"
+        else if (filename.indexOf(".stats") > 0)             "OUTPUT/libraries/unfiltered/${file(filename).getName()}"
+        else                                                     "OUTPUT/libraries/unfiltered/${file(filename).getName()}"
     }
 
     input:
@@ -314,9 +314,9 @@ process collapseAndFilterBarcodes{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".collapsed.sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/collapsed/${file(filename).getName()}"
-        else if (filename.indexOf(".collapsed.stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/collapsed/${file(filename).getName()}"
-        else                                                     "OUTPUT/${sampleName}/CellRanger/libraries/collapsed/${file(filename).getName()}"
+        if (filename.indexOf(".collapsed.sclib") > 0)       "OUTPUT/libraries/collapsed/${file(filename).getName()}"
+        else if (filename.indexOf(".collapsed.stats") > 0)             "OUTPUT/libraries/collapsed/${file(filename).getName()}"
+        else                                                     "OUTPUT/libraries/collapsed/${file(filename).getName()}"
     }
     
     input:
@@ -350,9 +350,9 @@ process resolveMultiplets{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".resolved_multiplets.sclib") > 0)       "OUTPUT/${sampleName}/CellRanger/libraries/resolved_multiplets/${file(filename).getName()}"
-        else if (filename.indexOf(".resolved_multiplets.stats") > 0)             "OUTPUT/${sampleName}/CellRanger/libraries/resolved_multiplets/${file(filename).getName()}"
-        else                                                     "OUTPUT/${sampleName}/CellRanger/libraries/resolved_multiplets/${file(filename).getName()}"
+        if (filename.indexOf(".resolved_multiplets.sclib") > 0)       "OUTPUT/libraries/resolved_multiplets/${file(filename).getName()}"
+        else if (filename.indexOf(".resolved_multiplets.stats") > 0)             "OUTPUT/libraries/resolved_multiplets/${file(filename).getName()}"
+        else                                                     "OUTPUT/libraries/resolved_multiplets/${file(filename).getName()}"
     }
     
     input:
@@ -386,9 +386,9 @@ process generateReports{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".CaTCHbarcodes") > 0)       "OUTPUT/${sampleName}/CellRanger/reports/${file(filename).getName()}"
-        else if (filename.indexOf(".cells") > 0)             "OUTPUT/${sampleName}/CellRanger/reports/${file(filename).getName()}"
-        else                                                     "OUTPUT/${sampleName}/CellRanger/libraries/resolved_multiplets/${file(filename).getName()}"
+        if (filename.indexOf(".CaTCHbarcodes") > 0)       "OUTPUT/reports/${file(filename).getName()}"
+        else if (filename.indexOf(".cells") > 0)             "OUTPUT/reports/${file(filename).getName()}"
+        else                                                     "OUTPUT/reports/${file(filename).getName()}"
     }
 
     input:
@@ -421,8 +421,8 @@ process generateAnalyticsPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".png") > 0)       "OUTPUT/${sampleName}/CellRanger/analytics/plots/${file(filename).getName()}"
-        else                                     "OUTPUT/${sampleName}/CellRanger/analytics/plots/${file(filename).getName()}"
+        if (filename.indexOf(".png") > 0)       "OUTPUT/analytics/plots/${file(filename).getName()}"
+        else                                     "OUTPUT/analytics/plots/${file(filename).getName()}"
     }
 
     input:
@@ -433,7 +433,7 @@ process generateAnalyticsPlots{
 
     script:
     """
-    touch dummy.png
+    touch ${sampleName}_dummy.png
     """
 }
 
@@ -451,8 +451,8 @@ process preprocessSingleCellData{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".rda") > 0)       "OUTPUT/${sampleName}/CellRanger/sce/unfiltered/${file(filename).getName()}"
-        else                                     "OUTPUT/${sampleName}/CellRanger/sce/unfiltered/${file(filename).getName()}"
+        if (filename.indexOf(".rda") > 0)       "OUTPUT/sce/unfiltered/${file(filename).getName()}"
+        else                                     "OUTPUT/sce/unfiltered/${file(filename).getName()}"
     }
 
     input:
@@ -488,22 +488,22 @@ process createOverviewPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".pdf") > 0)       "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
-        else                                     "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
+        if (filename.indexOf(".pdf") > 0)       "OUTPUT/plots/${file(filename).getName()}"
+        else                                     "OUTPUT/plots/${file(filename).getName()}"
     }
 
     input:
         tuple path(sce), path(script)
 
     output:
-        path("overview.pdf"), emit: pdf
+        path("*overview.pdf"), emit: pdf
 
     script:
     """
     # Rscript --vanilla /tools/scripts/R/create_overview_plots.R \
     Rscript --vanilla ${script} \
         --sce ${sce} \
-        --out overview.pdf \
+        --out ${sce}_overview.pdf \
         --format pdf \
         --width 25 \
         --height 10
@@ -519,8 +519,8 @@ process createBarcodeEnrichmentPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".jpeg") > 0)       "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
-        else                                     "OUTPUT/${sampleName}/CellRanger/plots/${file(filename).getName()}"
+        if (filename.indexOf(".jpeg") > 0)       "OUTPUT/plots/${file(filename).getName()}"
+        else                                     "OUTPUT/plots/${file(filename).getName()}"
     }
 
     input:
@@ -541,6 +541,7 @@ process createBarcodeEnrichmentPlots{
         --outdir .
     """
 }
+
 
 /***********************************************************************
                         MAIN WORKFLOW
@@ -640,11 +641,11 @@ workflow{
 
         /**************************************************************
                 STEP 9: Generate overview plots
-        ***************************************************************/
+        **************************************************************
 
         createOverviewPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/create_overview_plots.R")))
         createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/plot_enriched_and_depleted_BCs.R")))
-
+        */
         
     /*
     emit:
