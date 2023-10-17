@@ -566,11 +566,11 @@ workflow{
                 STEP 1: Run CellRanger count
         ***********************************************************/
 
-        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(crindex) )
+        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(crindex) )
 
         runCellrangerCount(Ch_cellranger_input)
 
-        Ch_cellranger_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName, file(row.R1)) }
+        Ch_cellranger_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1)) }
         
         useCellrangerData(Ch_cellranger_precomputed)
 
@@ -579,7 +579,7 @@ workflow{
                 STEP 2: Count CaTCH barcodes in chunks separately
         ***************************************************************/
         
-        Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_from_raw.mix(useCellrangerData.out.cell_ids_from_precomputed), by: 0)
+        Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_from_raw.mix(useCellrangerData.out.cell_ids_from_precomputed), by: 0)
 
         countBarcodesInChunks(Ch_count_input)
 
