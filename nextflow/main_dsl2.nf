@@ -238,16 +238,16 @@ process countBarcodesInChunks{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename == "counts")       "OUTPUT/counts/${sampleName}/Chunks/counts"
-        else if (filename == "reads")          "OUTPUT/counts/${sampleName}/Chunks/reads"
-        else                                                     "OUTPUT/counts/${sampleName}/Chunks/${file(filename).getName()}"
+        if (filename == "Counts")       "OUTPUT/Counts/${sampleName}/Chunks/counts"
+        else if (filename == "Reads")          "OUTPUT/Counts/${sampleName}/Chunks/reads"
+        else                                                     "OUTPUT/Counts/${sampleName}/Chunks/${file(filename).getName()}"
     }
 
     input:
         tuple val(sampleName), path(r1), path(r2), path(cellIDs)
 
     output:
-        tuple val(sampleName), path('counts'), path('reads'), emit: counts_chunks_out
+        tuple val(sampleName), path('Counts'), path('Reads'), emit: counts_chunks_out
 
     script:
     """
@@ -255,10 +255,10 @@ process countBarcodesInChunks{
         --r1 ${r1} \
         --r2 ${r2} \
         --cellIDs ${cellIDs} \
-        --counts counts \
+        --counts Counts \
     | tee log \
     | grep -Po "Read [0-9,]+ single cell entries" \
-    | cut -d" " -f2 > reads 
+    | cut -d" " -f2 > Reads 
     """
 }
 
@@ -276,13 +276,13 @@ process mergeBarcodesInChunks{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".sclib") > 0)       "OUTPUT/libraries/unfiltered/${file(filename).getName()}"
-        else if (filename.indexOf(".stats") > 0)             "OUTPUT/libraries/unfiltered/${file(filename).getName()}"
-        else                                                     "OUTPUT/libraries/unfiltered/${file(filename).getName()}"
+        if (filename.indexOf(".sclib") > 0)       "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
+        else if (filename.indexOf(".stats") > 0)             "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
+        else                                                     "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
     }
 
     input:
-        tuple val(sampleName), path("counts/file*"), path("reads/file*")
+        tuple val(sampleName), path("Counts/file*"), path("Reads/file*")
 
     output:
         tuple val(sampleName), path('*.sclib'), emit: merged_libraries
@@ -290,8 +290,8 @@ process mergeBarcodesInChunks{
 
     script:
     """
-    find counts -name "file*" > librarieslist
-    find reads -name "file*" > readcountslist
+    find Counts -name "file*" > librarieslist
+    find Reads -name "file*" > readcountslist
 
     mergeChunkCounts.py \
         --libraries librarieslist \
@@ -314,9 +314,9 @@ process collapseAndFilterBarcodes{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".collapsed.sclib") > 0)       "OUTPUT/libraries/collapsed/${file(filename).getName()}"
-        else if (filename.indexOf(".collapsed.stats") > 0)             "OUTPUT/libraries/collapsed/${file(filename).getName()}"
-        else                                                     "OUTPUT/libraries/collapsed/${file(filename).getName()}"
+        if (filename.indexOf(".collapsed.sclib") > 0)       "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
+        else if (filename.indexOf(".collapsed.stats") > 0)             "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
+        else                                                     "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
     }
     
     input:
@@ -350,9 +350,9 @@ process resolveMultiplets{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".resolved_multiplets.sclib") > 0)       "OUTPUT/libraries/resolved_multiplets/${file(filename).getName()}"
-        else if (filename.indexOf(".resolved_multiplets.stats") > 0)             "OUTPUT/libraries/resolved_multiplets/${file(filename).getName()}"
-        else                                                     "OUTPUT/libraries/resolved_multiplets/${file(filename).getName()}"
+        if (filename.indexOf(".resolved_multiplets.sclib") > 0)       "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
+        else if (filename.indexOf(".resolved_multiplets.stats") > 0)             "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
+        else                                                     "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
     }
     
     input:
@@ -386,9 +386,9 @@ process generateReports{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".CaTCHbarcodes") > 0)       "OUTPUT/reports/${file(filename).getName()}"
-        else if (filename.indexOf(".cells") > 0)             "OUTPUT/reports/${file(filename).getName()}"
-        else                                                     "OUTPUT/reports/${file(filename).getName()}"
+        if (filename.indexOf(".CaTCHbarcodes") > 0)       "OUTPUT/Reports/${file(filename).getName()}"
+        else if (filename.indexOf(".cells") > 0)             "OUTPUT/Reports/${file(filename).getName()}"
+        else                                                     "OUTPUT/Reports/${file(filename).getName()}"
     }
 
     input:
@@ -421,8 +421,8 @@ process generateAnalyticsPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".png") > 0)       "OUTPUT/analytics/plots/${file(filename).getName()}"
-        else                                     "OUTPUT/analytics/plots/${file(filename).getName()}"
+        if (filename.indexOf(".png") > 0)       "OUTPUT/Analytics/plots/${file(filename).getName()}"
+        else                                     "OUTPUT/Analytics/plots/${file(filename).getName()}"
     }
 
     input:
@@ -451,8 +451,8 @@ process preprocessSingleCellData{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".rda") > 0)       "OUTPUT/sce/unfiltered/${file(filename).getName()}"
-        else                                     "OUTPUT/sce/unfiltered/${file(filename).getName()}"
+        if (filename.indexOf(".rda") > 0)       "OUTPUT/SCE/unfiltered/${file(filename).getName()}"
+        else                                     "OUTPUT/SCE/unfiltered/${file(filename).getName()}"
     }
 
     input:
@@ -488,8 +488,8 @@ process createOverviewPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".pdf") > 0)       "OUTPUT/plots/${file(filename).getName()}"
-        else                                     "OUTPUT/plots/${file(filename).getName()}"
+        if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
+        else                                     "OUTPUT/Plots/${file(filename).getName()}"
     }
 
     input:
@@ -519,8 +519,8 @@ process createBarcodeEnrichmentPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".jpeg") > 0)       "OUTPUT/plots/${file(filename).getName()}"
-        else                                     "OUTPUT/plots/${file(filename).getName()}"
+        if (filename.indexOf(".jpeg") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
+        else                                     "OUTPUT/Plots/${file(filename).getName()}"
     }
 
     input:

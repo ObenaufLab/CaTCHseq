@@ -102,6 +102,7 @@ library(tidyverse)
 library(scater)
 library(scran)
 library(SingleCellExperiment)
+library(Seurat)
 
 load("/tools/data/R/stagemarkers_xue2020.rda")
 #load("/home/nowoshil/Repositories/nf-pipelines/pipelines-singlecell-catch-nf/docker/data/R/stagemarkers_xue2020.rda")
