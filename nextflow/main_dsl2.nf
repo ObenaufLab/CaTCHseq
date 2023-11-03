@@ -24,6 +24,8 @@ def get_always(parameter){
 
 //Params from CL
 absDir = workflow.launchDir
+scriptDirR = get_always('scriptDirR') ?: '/tools/scripts/R'
+scriptDirPy = get_always('scriptDirPy') ?: '/tools/scripts/python'
 libraries = get_always('libraries')
 chunkSize = get_always('chunkSize') ?: 1_000_000
 maxDist = get_always('maxDist') ?: 2
@@ -73,6 +75,8 @@ def helpMessage() {
         --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
         --outputDir             specifies the output directory (default: ${params.outputDir})
         --reportsDir            specifies the reports directory.(default: ${params.reportsDir})
+        --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/R/ for instances not running docker)
+        --scriptDirPy            specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/python/ for instances not running docker)
         --help                  print this help message
 
     """.stripIndent()
@@ -459,11 +463,12 @@ process preprocessSingleCellData{
         tuple val(sampleName), path(featureMatrix), path(catchBarcodes), path(script)
 
     output:
-        path("*.sce.unfiltered.rda"), emit: basic_sce
+        path("*.sce.unfiltered.rda.gz"), emit: basic_sce
+        path("*.sce.unfiltered.tsne.gz"), emit: basic_sce_tsne
+        path("*.sce.unfiltered.metadata.gz"), emit: basic_sce_metadata
 
     script:
     """
-    # Rscript --vanilla /tools/scripts/R/preprocessData.R 
     Rscript --vanilla ${script} \
        --sample ${sampleName} \
        --data10X ${featureMatrix} \
@@ -471,7 +476,7 @@ process preprocessSingleCellData{
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
-       --out ${sampleName}.sce.unfiltered.rda
+       --out ${sampleName}.sce.unfiltered
     """
 }
 
@@ -500,10 +505,9 @@ process createOverviewPlots{
 
     script:
     """
-    # Rscript --vanilla /tools/scripts/R/create_overview_plots.R \
     Rscript --vanilla ${script} \
         --sce ${sce} \
-        --out ${sce}_overview.pdf \
+        --out ${sce}_overview \
         --format pdf \
         --width 25 \
         --height 10
@@ -531,7 +535,6 @@ process createBarcodeEnrichmentPlots{
 
     script:
     """
-    # Rscript --vanilla /tools/scripts/R/plot_enriched_and_depleted_BCs.R \
     Rscript --vanilla ${script} \
         --sce ${sce} \
         --plots_per_row 5 \
@@ -632,8 +635,7 @@ workflow{
                 STEP 8: Generate SingleCellExperiment object
         ***************************************************************/
 
-        //Ch_script = Channel.fromPath("/home/nowoshil/Repositories/nf-pipelines/pipelines-singlecell-catch-nf/docker/scripts/R/preprocessData.R").set { Ch_script }
-        Ch_script = Channel.fromPath("${absDir}/sccatch/docker/scripts/R/preprocessData.R")
+        Ch_script = Channel.fromPath("${absDir}/sccatch/docker/scripts/R/preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
         Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).combine(Ch_script)
 
         preprocessSingleCellData(Ch_preprocess_input)
@@ -641,11 +643,10 @@ workflow{
 
         /**************************************************************
                 STEP 9: Generate overview plots
-        **************************************************************
+        ***************************************************************/
 
         createOverviewPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/create_overview_plots.R")))
-        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/plot_enriched_and_depleted_BCs.R")))
-        */
+        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/plot_enriched_and_depleted_BCs.R")))        
         
     /*
     emit:
