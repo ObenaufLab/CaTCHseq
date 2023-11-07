@@ -147,7 +147,7 @@ process runCellrangerCount{
     saveAs: {filename ->
         if (filename.indexOf("filtered_feature_bc_matrix") > 0)       "OUTPUT/CellRanger/${sampleName}/filtered_feature_bc_matrix"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
-        else                                                     "OUTPUT/CellRanger/${sampleName}/${file(filename).getName()}"
+        else                                                     "OUTPUT/CellRanger/${file(filename).getName()}"
     }
 
     //publishDir "outputs/cellranger/", mode: "copy"
@@ -211,7 +211,7 @@ process useCellrangerData{
     saveAs: {filename ->
         if (filename.indexOf("filtered_feature_bc_matrix") >0)       "OUTPUT/CellRanger/${sampleName}/filtered_feature_bc_matrix"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
-        else                                                     "OUTPUT/CellRanger/${sampleName}/${file(filename).getName()}"
+        else                                                     "OUTPUT/CellRanger/${file(filename).getName()}"
     }
 
     input:
@@ -242,9 +242,9 @@ process countBarcodesInChunks{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename == "Counts")       "OUTPUT/Counts/${sampleName}/Chunks/counts"
-        else if (filename == "Reads")          "OUTPUT/Counts/${sampleName}/Chunks/reads"
-        else                                                     "OUTPUT/Counts/${sampleName}/Chunks/${file(filename).getName()}"
+        if (filename == "Counts")       "OUTPUT/Counts/Chunks/${sampleName}/counts"
+        else if (filename == "Reads")          "OUTPUT/Counts/Chunks/${sampleName}/reads"
+        else                                                     "OUTPUT/Counts/Chunks/${sampleName}/${file(filename).getName()}"
     }
 
     input:
