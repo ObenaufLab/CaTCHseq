@@ -231,28 +231,46 @@ for (i in 1:length(sce.list)){
     } else {
       pdf(file = out, width = opt$width, height = opt$height)
     }
-    print(grid.arrange(#p.tsne_treatments,            # 1
-             p.tsne_clusters,              # 2
-             p.cluster_size,               # 3
-             #p.treatment_distr,            # 4
-             p.tsne_per_sample,            # 5
-             p.tsne_cellstage,             # 6
-             p.tsne_cellstatus,            # 7
-             p.cellstage_distr,            # 8
-             p.status_distr_cluster,       # 9
-             p.unique_bc_distr,            # 10
-             p.status_distr,               # 11
-             #p.tsne_vpr,                   # 12
-             #p.tsne_gfp,                   # 13
-             #p.tsne_bfp,                   # 14
-             #p.tsne_ki67,                  # 15
-             layout_matrix = rbind(c(1, 1, 2, 2, 5, 5, 5, 5),
-                                   c(1, 1, 2, 2, 5, 5, 5, 5),
-                                   c(3, 3, 4, 4, 5, 5, 5, 5),
-                                   c(6, 6, 7, 7, 8, 8,10,10),
-                                   c(6, 6, 7, 7, 9, 9,11,11),
-                                   c(12,12,13,13,14,14,15,15),
-                                   c(12,12,13,13,14,14,15,15))))
+    print(grid.arrange(
+        p.tsne_clusters,              # 1
+        p.cluster_size,               # 2
+        p.tsne_per_sample,            # 3
+        p.tsne_cellstage,             # 4
+        p.tsne_cellstatus,            # 5
+        p.cellstage_distr,            # 6
+        p.status_distr_cluster,       # 7
+        p.unique_bc_distr,            # 8
+        p.status_distr,               # 9
+        layout_matrix = rbind(c(1, 1, 1, 1, 3, 3, 3, 3),
+                              c(1, 1, 1, 1, 3, 3, 3, 3),
+                              c(1, 1, 1, 1, 3, 3, 3, 3),
+                              c(2, 2, 4, 4, 5, 5, 5, 5),
+                              c(2, 2, 4, 4, 5, 5, 5, 5),
+                              c(6, 6, 7, 7, 8, 8, 9, 9),
+                              c(6, 6, 7, 7, 8, 8, 9, 9)
+                              )))
+    #print(grid.arrange(p.tsne_treatments,            # 1
+    #         p.tsne_clusters,              # 2
+    #         p.cluster_size,               # 3
+    #         p.treatment_distr,            # 4
+    #         p.tsne_per_sample,            # 5
+    #         p.tsne_cellstage,             # 6
+    #         p.tsne_cellstatus,            # 7
+    #         p.cellstage_distr,            # 8
+    #         p.status_distr_cluster,       # 9
+    #         p.unique_bc_distr,            # 10
+    #         p.status_distr,               # 11
+    #         p.tsne_vpr,                   # 12
+    #         p.tsne_gfp,                   # 13
+    #         p.tsne_bfp,                   # 14
+    #         p.tsne_ki67,                  # 15
+    #         layout_matrix = rbind(c(1, 1, 2, 2, 5, 5, 5, 5),
+    #                               c(1, 1, 2, 2, 5, 5, 5, 5),
+    #                               c(3, 3, 4, 4, 5, 5, 5, 5),
+    #                               c(6, 6, 7, 7, 8, 8,10,10),
+    #                               c(6, 6, 7, 7, 9, 9,11,11),
+    #                               c(12,12,13,13,14,14,15,15),
+    #                               c(12,12,13,13,14,14,15,15))))
 
     dev.off()
 }

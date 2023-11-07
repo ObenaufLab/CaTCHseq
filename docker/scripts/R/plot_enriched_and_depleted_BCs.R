@@ -78,6 +78,94 @@ generatePaletteColors <- function(n) {
 }
 
 
+run_deseq <- function(contrast, sampleData_all, countData_all){
+    
+    contrast_name <- contrast
+    contrast_groups <- strsplit(contrast, "-vs-")
+    print(paste("Comparing ", contrast_name, sep = ""))
+    
+    # determine contrast
+    A <- unlist(strsplit(contrast_groups[[1]][1], "\\+"), use.names = FALSE)
+    B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
+    
+    # subset Datasets for pairwise comparison
+    countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
+    sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
+    
+    sampleData <- sampleData %>% add_column(type = 'none')
+    sampleData <- sampleData %>% add_column(batch = 'none')
+    
+    ## Create design-table considering different types (paired, unpaired) and batches
+    if (length(unique(subset(sampleData, A == Condition)$type)) > 1 | length(unique(subset(sampleData, B == Condition)$type)) > 1) {
+        if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
+            design <- ~ type + batch + Condition
+        } else {
+            design <- ~ type + Condition
+        }
+    } else {
+        if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
+            design <- ~ batch + Condition
+        } else {
+            design <- ~ Condition
+        }
+    }
+    print(design)
+    
+    # Create DESeqDataSet
+    dds <- DESeqDataSetFromMatrix(countData = countData, colData = sampleData, design = design)
+    
+    # filter low counts
+    #keep <- rowSums(counts(dds)) >= 10
+    #dds <- dds[keep, ]
+    
+    # drop unused samples
+    dds$Condition <- droplevels(dds$Condition)
+    
+    # relevel to base condition B
+    dds$Condition <- relevel(dds$Condition, ref = B[[1]])
+    
+    # run for each pair of conditions
+    dds <- tryCatch({
+            DESeq(dds, parallel = TRUE, betaPrior = FALSE)
+    },error = function(e){
+        dds <- estimateSizeFactors(dds)
+        dds <- estimateDispersionsGeneEst(dds)
+        dispersions(dds) <- mcols(dds)$dispGeneEst
+        return(nbinomWaldTest(dds))
+    }
+    )
+    print(resultsNames(dds))
+    
+    # Now we want to transform the raw discretely distributed counts so that we can do clustering. (Note: when you expect a large treatment effect you should actually set blind=FALSE (see https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html).
+    
+    rld <- rlogTransformation(dds, blind = TRUE)
+    vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
+    
+    # We also write the normalized counts to file
+    write.table(as.data.frame(assay(rld)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "rld.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
+    write.table(as.data.frame(assay(vsd)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "vsd.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
+    
+    # initialize empty objects
+    res <- ""
+    resOrdered <- ""
+    res <- results(dds, contrast = c("Condition", A, B), parallel = TRUE)
+    resn <- res
+    res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
+    
+    # sort and output
+    resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
+    
+    # write the table to a tsv file
+    write.table(as.data.frame(resOrdered), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
+    
+    # sort and output
+    res <- resn[order(resn$log2FoldChange), ]
+    
+    write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
+    
+    return(dds)
+}   
+
 ########################################################
 library(tidyverse)
 library(scater)
@@ -150,125 +238,135 @@ bc.counts <- colData(sce) %>%
              ungroup() %>%
              distinct() %>%
              pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
-             filter(rowSums(across(starts_with(ref.Condition))) > 0)
+             filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
+             drop_na()
 
 
 ### Select metadata ###
 idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "BC_ID")))
 metadata <- metadata[idx, ]
 
+#combos <- t(combn(sort(unique(metadata$Condition)),2))
+#if (!as.factor(ref.Condition) %in% combos[,2]){
+#    combos <- combos[,c(2,1)]    
+#}
 
-### Run DE Analysis for BCs ### 
-dds <- DESeqDataSetFromMatrix(countData = bc.counts %>%
-                                  select(-CaTCH.BCs) %>%
-                                  column_to_rownames(var = "BC_ID"),
-                                  colData = metadata,
-                                  design= ~ Condition)
-dds <- DESeq(dds)
+#combis <- gsub("\\s+", "", apply(format(combos), 1, paste0, collapse='-vs-'))
+
+##### Generate plots ####
+#cs.color <- list("G0" = "darkblue",
+#                 "G1S" = "#FDB916",
+#                 "G2M" = "#11B09C",
+#                 "M" = "#D22248",
+#                 "MG1" = "#F17724",
+#                 "S" = "#BECE2D")
+#cs.color.ex <- cs.color
+#cs.color.ex[["Another barcode"]] = "grey85"
+#
+#points <- reducedDim(sce, type = "TSNE") %>%
+#    as_tibble(rownames = "CellID") %>%
+#    plyr::rename(replace = c("V1" = "X", "V2" = "Y")) 
+#points$CellStage <- sce$CellStage
+#points$CaTCH.BCs <- sce$CaTCH.BCs
+#points$Cluster <- sce$Cluster
+#points$Condition <- sce$Condition
+#common.bcs <- c()
 
 
-    #### Generate plots ####
-    cs.color <- list("G0" = "darkblue",
-                     "G1S" = "#FDB916",
-                     "G2M" = "#11B09C",
-                     "M" = "#D22248",
-                     "MG1" = "#F17724",
-                     "S" = "#BECE2D")
-    cs.color.ex <- cs.color
-    cs.color.ex[["Another barcode"]] = "grey85"
-    
-    points <- reducedDim(sce, type = "TSNE") %>%
-              as_tibble(rownames = "CellID") %>%
-              plyr::rename(replace = c("V1" = "X", "V2" = "Y")) 
-    points$CellStage <- sce$CellStage
-    points$CaTCH.BCs <- sce$CaTCH.BCs
-    points$Cluster <- sce$Cluster
-    #points$Condition <- sce$Condition
-    common.bcs <- c()
-    for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
-      print(sprintf("Processing the Condition '%s'...", t))
-      r <- results(dds, 
-                   alpha = 0.05,
-                   contrast = c("Condition", t, ref.Condition)) %>%
-           as_tibble(rownames = NA) %>% 
-           rownames_to_column("BC_ID") %>%
-           filter(!is.na(padj), padj <= 0.05) %>%
-           mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
-           arrange(desc(Type), desc(abs(log2FoldChange)))
+### Run pairwise DE Analysis for BCs ### 
+countData <- bc.counts %>%
+    select(-CaTCH.BCs) %>%
+    column_to_rownames(var = "BC_ID")
+
+for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
+    print(sprintf("Processing the Condition '%s'...", t))
+
+    dds <- run_deseq(paste(t, ref.Condition, sep='-vs-'), metadata, countData)
   
-  print("   Plotting the over- and underrepresented CaTCH barcodes...")
-  plots <- list()
-  for (i in 1:nrow(r)) {
-    bc.id <- r$BC_ID[i]
-    bc <- bc.counts$CaTCH.BCs[which(bc.counts$BC_ID == bc.id)]
-    common.bcs <- c(common.bcs, bc.id)
-    
-    tmp <- bc.counts %>%
-           filter(CaTCH.BCs == bc) %>%
-           select(starts_with(c(ref.Condition, t))) %>%
-           mutate(MeanRef = rowMeans(across(starts_with(ref.Condition))),
-                  MeanCondition = rowMeans(across(starts_with(t)))) %>%
-           select(MeanRef, MeanCondition) %>%
-           as.matrix()
-    p <- points %>%
-         mutate(Highlight = if_else(CaTCH.BCs == bc & Condition %in% c(t, ref.Condition), CellStage, "Another barcode")) %>%
-         arrange(Highlight) %>%
-         ggplot(aes(x = X, y = Y, color = Highlight)) + 
-          geom_point() + 
-          scale_color_manual(values = cs.color.ex, na.value = "white") +
-          #ggtitle(sprintf("Barcode %s. log2FC: %.1f (%d vs %d)", bc.id, r$log2FoldChange[i], round(tmp[1]), round(tmp[2]))) + 
-          xlab("tSNE1") + 
-          ylab("tSNE2") + 
-          theme(legend.position = "none")
-    plots[[length(plots) + 1]] <- p
-    
-    p <- points %>%
-         filter(CaTCH.BCs == bc, Condition %in% c(t, ref.Condition)) %>%
-         ggplot(aes(x = Cluster, fill = CellStage)) + 
-          geom_bar() + 
-          scale_fill_manual(values = cs.color, name = "Cell cycle stage") + 
-          ylab("Cell count")
-    plots[[length(plots) + 1]] <- p
-    
-  }
+    r <- results(dds, 
+               alpha = 0.05,
+               contrast = c("Condition", t, ref.Condition)) %>%
+       as_tibble(rownames = NA) %>% 
+       rownames_to_column("BC_ID") %>%
+       filter(!is.na(padj), padj <= 0.05) %>%
+       mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
+       arrange(desc(Type), desc(abs(log2FoldChange)))
   
-  print("   Saving the plots...")
-  nPlotsPerRow = opt$plots_per_row * 2
-  jpeg(filename = paste0(opt$outdir, "/", t, ".jpeg"), 
-       width = nPlotsPerRow * opt$width, 
-       height = ceiling(length(plots) / nPlotsPerRow) * opt$height)
-  do.call("grid.arrange", c(plots, ncol = nPlotsPerRow))
-  dev.off()
+    write.table(as.data.frame(r), gzfile(paste("DE", "DESEQ2", paste(t, ref.Condition, sep='-vs-'), "BCs", "fdr005.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
 }
+    #print("   Plotting the over- and underrepresented CaTCH barcodes...")
+    #plots <- list()
+    #for (i in 1:nrow(r)) {
+    #    bc.id <- r$BC_ID[i]
+    #    bc <- bc.counts$CaTCH.BCs[which(bc.counts$BC_ID == bc.id)]
+    #    common.bcs <- c(common.bcs, bc.id)
+        
+       #tmp <- bc.counts %>%
+       #       filter(CaTCH.BCs == bc) %>%
+       #       select(starts_with(c(ref.Condition, t))) %>%
+       #       mutate(MeanRef = rowMeans(across(starts_with(ref.Condition))),
+       #              MeanCondition = rowMeans(across(starts_with(t)))) %>%
+       #       select(MeanRef, MeanCondition) %>%
+       #       as.matrix()
+       #p <- points %>%
+       #     mutate(Highlight = if_else(CaTCH.BCs == bc & Condition %in% c(t, ref.Condition), CellStage, "Another barcode")) %>%
+       #     arrange(Highlight) %>%
+       #     ggplot(aes(x = X, y = Y, color = Highlight)) + 
+       #      geom_point() + 
+       #      scale_color_manual(values = cs.color.ex, na.value = "white") +
+       #      #ggtitle(sprintf("Barcode %s. log2FC: %.1f (%d vs %d)", bc.id, r$log2FoldChange[i], round(tmp[1]), round(tmp[2]))) + 
+       #      xlab("tSNE1") + 
+       #      ylab("tSNE2") + 
+       #      theme(legend.position = "none")
+       #plots[[length(plots) + 1]] <- p
+       #
+       #p <- points %>%
+       #     filter(CaTCH.BCs == bc, Condition %in% c(t, ref.Condition)) %>%
+       #     ggplot(aes(x = Cluster, fill = CellStage)) + 
+       #      geom_bar() + 
+       #      scale_fill_manual(values = cs.color, name = "Cell cycle stage") + 
+       #      ylab("Cell count")
+       #plots[[length(plots) + 1]] <- p
+        
+    #}
+    
+    #print("   Saving the plots...")
+    #nPlotsPerRow = opt$plots_per_row * 2
+    #jpeg(filename = paste0(opt$outdir, "/DE_DESEQ2_", t, "_BCs.jpeg"), 
+    #   width = nPlotsPerRow * opt$width, 
+    #   height = ceiling(length(plots) / nPlotsPerRow) * opt$height)
+    #do.call("grid.arrange", c(plots, ncol = nPlotsPerRow))
+    #dev.off()
+#}
   
 
-bc.stats <- tibble(BC_ID = common.bcs) %>%
-            group_by(BC_ID) %>%
-            mutate(Count = n()) %>%
-            ungroup() %>%
-            filter(Count == length(levels(metadata$Condition)) - 1) %>%
-            distinct()
-
-t.colors <- generatePaletteColors(length(levels(metadata$Condition)) + 1)
-names(t.colors) <- c(levels(metadata$Condition), " Another barcode")
-t.colors[" Another barcode"] <- "grey85"
-plots <- list()
-for (i in 1:nrow(bc.stats)) {
-  bc.id <- bc.stats$BC_ID[i]
-  bc <- bc.counts$CaTCH.BCs[which(bc.counts$BC_ID == bc.id)]
-  p <- points %>%
-       mutate(Highlight = if_else(CaTCH.BCs == bc, as.character(Condition), " Another barcode")) %>%
-       arrange(Highlight) %>%
-       ggplot(aes(x = X, y = Y, color = Highlight)) + 
-        geom_point() + 
-        scale_color_manual(values = t.colors, name = "Condition", na.value = "white") +
-        ggtitle(sprintf("Barcode %s", bc.id)) + 
-        xlab("tSNE1") + 
-        ylab("tSNE2")
-  plots[[length(plots) + 1]] <- p
-}
-jpeg(filename = paste0(opt$outdir, "/common.jpeg"), 
-     width = opt$plots_per_row * opt$width, 
-     height = ceiling(length(plots) / opt$plots_per_row) * opt$height)
-do.call("grid.arrange", c(plots, ncol = opt$plots_per_row))
-dev.off()
+#bc.stats <- tibble(BC_ID = common.bcs) %>%
+#            group_by(BC_ID) %>%
+#            mutate(Count = n()) %>%
+#            ungroup() %>%
+#            filter(Count == length(levels(metadata$Condition)) - 1) %>%
+#            distinct()
+#
+#t.colors <- generatePaletteColors(length(levels(metadata$Condition)) + 1)
+#names(t.colors) <- c(levels(metadata$Condition), " Another barcode")
+#t.colors[" Another barcode"] <- "grey85"
+#plots <- list()
+#for (i in 1:nrow(bc.stats)) {
+#  bc.id <- bc.stats$BC_ID[i]
+#  bc <- bc.counts$CaTCH.BCs[which(bc.counts$BC_ID == bc.id)]
+#  p <- points %>%
+#       mutate(Highlight = if_else(CaTCH.BCs == bc, as.character(Condition), " Another barcode")) %>%
+#       arrange(Highlight) %>%
+#       ggplot(aes(x = X, y = Y, color = Highlight)) + 
+#        geom_point() + 
+#        scale_color_manual(values = t.colors, name = "Condition", na.value = "white") +
+#        ggtitle(sprintf("Barcode %s", bc.id)) + 
+#        xlab("tSNE1") + 
+#        ylab("tSNE2")
+#  plots[[length(plots) + 1]] <- p
+#}
+#jpeg(filename = paste0(opt$outdir, "/common.jpeg"), 
+#     width = opt$plots_per_row * opt$width, 
+#     height = ceiling(length(plots) / opt$plots_per_row) * opt$height)
+#do.call("grid.arrange", c(plots, ncol = opt$plots_per_row))
+#dev.off()

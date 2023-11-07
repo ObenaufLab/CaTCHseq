@@ -14,7 +14,7 @@ option_list = list(
   make_option(c("--min_features"), type = "numeric", default = 500, 
               help = "minimum number of detected features in a valid cell"),
   make_option(c("--hvg_cutoff"), type = "numeric", default = 0.1, 
-              help = "cutoff value to call high variable genes (must be between 0 and 1)"),
+              help = "cutoff value to call percentage of high variable genes (must be between 0 and 1)"),
   make_option(c("--out"), type="character", default = NULL, 
               help = "path to the output file"),
   make_option(c("--marker"), type="character", default = '/tools/data/R/stagemarkers_xue2020.rda', 
@@ -257,5 +257,16 @@ for (i in 1:length(sce.list)){
 }
 
 sce <- merge(sce.list[[1]], y=sce.list[-1], add.cell.ids=names(sce.list), merge.data=TRUE, merge.dr=TRUE)
+
+### Reduce Dims for overall sce ###
+gene.var <- scran::modelGeneVar(sce)
+hvg <- scran::getTopHVGs(stats = gene.var, prop = opt$hvg_cutoff)
+sce <- scater::runPCA(sce, subset_row = hvg)
+
+set.seed(101)
+
+print("Run tSNE and UMAP analyses ...")
+sce <- scater::runTSNE(sce, dimred = "PCA")
+sce <- scater::runUMAP(sce, dimred = "PCA")
 
 save(sce, sce.list, file = paste0(opt$out,'SCE.rda.gz'), compress = "gzip")
