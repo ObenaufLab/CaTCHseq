@@ -154,9 +154,9 @@ create_SCEs <- function(smpl, data10X, bc){
         }
         
         sce <- merge(firstsce, scetomerge, add.cell.ids=samplelist)
+        
         rm(firstsce, scetomerge)
         return(sce)
-        #return (list("sce"=firstsce, "merge"=scetomerge))
     }
 }
 
@@ -168,6 +168,34 @@ load_BCs <- function(bc){
                            skip = 1)
     return (data.catch)
     
+}
+
+reduceDims_SCE <- function(sce){
+    print("   Reducing dimensions ...")
+        
+    sce <- FindNeighbors(sce, reduction = "integrated.cca", dims = 1:30)
+    sce <- FindClusters(sce, resolution = 1)
+    return(sce)
+}
+
+cluster_SCE <- function(sce){
+    print("   Clustering ...")
+    
+    
+    return(sce)
+    
+}
+
+
+integrate_SCE <- function(sce){
+    print("   Integrating samples ...")
+    
+    sce <- Seurat::IntegrateLayers(object = sce, method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca",
+                    verbose = FALSE)
+    # re-join layers after integration
+    sce[["RNA"]] <- JoinLayers(sce[["RNA"]])
+    
+    return(sce)
 }
 
 ############################
@@ -182,6 +210,10 @@ library(Seurat)
 load(opt$marker)
 
 sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
+
+sce <- integrate_SCE(sce)
+
+sce <- reduceDims(sce)
 
 #### Normalize the data and assign cell categories ####
 is.mitochondrial <- grepl(pattern = "^MT-",
@@ -259,14 +291,22 @@ for (i in 1:length(sce.list)){
 sce <- merge(sce.list[[1]], y=sce.list[-1], add.cell.ids=names(sce.list), merge.data=TRUE, merge.dr=TRUE)
 
 ### Reduce Dims for overall sce ###
-gene.var <- scran::modelGeneVar(sce)
+gene.var <- scran::modelGeneVar(as.SingleCellExperiment(sce))
 hvg <- scran::getTopHVGs(stats = gene.var, prop = opt$hvg_cutoff)
-sce <- scater::runPCA(sce, subset_row = hvg)
+sce <- scater::runPCA(as.SingleCellExperiment(sce), subset_row = hvg)
 
 set.seed(101)
 
 print("Run tSNE and UMAP analyses ...")
 sce <- scater::runTSNE(sce, dimred = "PCA")
 sce <- scater::runUMAP(sce, dimred = "PCA")
+
+print("Clustering ...")
+g <- scran::buildSNNGraph(sce, use.dimred = "PCA")
+cluster <- igraph::cluster_walktrap(g)$membership
+colData(sce)$Cluster <- factor(cluster)
+
+### Convert to Seurat Object for later
+sce <- as.Seurat(sce)
 
 save(sce, sce.list, file = paste0(opt$out,'SCE.rda.gz'), compress = "gzip")

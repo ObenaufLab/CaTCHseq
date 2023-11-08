@@ -294,6 +294,8 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
   
     write.table(as.data.frame(r), gzfile(paste("DE", "DESEQ2", paste(t, ref.Condition, sep='-vs-'), "BCs", "fdr005.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
 }
+
+
     #print("   Plotting the over- and underrepresented CaTCH barcodes...")
     #plots <- list()
     #for (i in 1:nrow(r)) {
