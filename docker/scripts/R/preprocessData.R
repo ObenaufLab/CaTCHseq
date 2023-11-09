@@ -138,7 +138,10 @@ create_SCEs <- function(smpl, data10X, bc){
                                                                   "No barcode"))) %>%
             select(CaTCH.Status)
         
-        sce <- as.Seurat(sce, data = NULL)
+        sce <- as.Seurat(sce, data=NULL, assay=NULL)
+        sce <- RenameAssays(sce, assay.name = "originalexp", new.assay.name = "RNA")
+        sce[["RNA"]] <- as(object = sce[["RNA"]], Class = "Assay5")
+        
         return (sce)
         
     }else{
@@ -153,9 +156,8 @@ create_SCEs <- function(smpl, data10X, bc){
             }
         }
         
-        sce <- merge(firstsce, scetomerge, add.cell.ids=samplelist)
+        sce <- merge(firstsce, scetomerge, add.cell.ids=samplelist, project = "scCaTCH")
         
-        rm(firstsce, scetomerge)
         return(sce)
     }
 }
@@ -173,19 +175,30 @@ load_BCs <- function(bc){
 reduceDims_SCE <- function(sce){
     print("   Reducing dimensions ...")
         
-    sce <- FindNeighbors(sce, reduction = "integrated.cca", dims = 1:30)
-    sce <- FindClusters(sce, resolution = 1)
+    sce <- RunPCA(sce)
     return(sce)
 }
 
 cluster_SCE <- function(sce){
     print("   Clustering ...")
     
+    sce <- FindNeighbors(sce, reduction = "integrated.cca", dims = 1:30)
+    sce <- FindClusters(sce, resolution = 1)
     
     return(sce)
     
 }
 
+normalize_SCE <- function(sce){
+    print("   Normalizing and scaling SCE ...")
+        
+    sce <- NormalizeData(sce)
+    sce <- FindVariableFeatures(sce)
+    sce <- ScaleData(sce)
+    
+    return(sce)
+    
+}
 
 integrate_SCE <- function(sce){
     print("   Integrating samples ...")
@@ -198,22 +211,62 @@ integrate_SCE <- function(sce){
     return(sce)
 }
 
-############################
+umap_SCE <- function(sce){
+    print("   Preparing UMAP ...")
+    
+    sce <- RunUMAP(sce, reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca")
+    return(sce)
+}
 
+# Split for integrated analysis
+split_SCE <- function(sce){
+    print("   Splitting SCE by Sample ...")
+    
+    sce[["RNA"]] <- split(sce[["RNA"]], f=sce$Sample)
+    return(sce)
+}
+
+# Join for DE
+join_SCE <- function(sce){
+    print("   Joining SCE layers  ...")
+    
+    sce <- JoinLayers(sce)
+    return(sce)
+}
+
+############################
 
 library(tidyverse)
 library(scater)
 library(scran)
 library(SingleCellExperiment)
 library(Seurat)
+library(SeuratWrappers)
+#options(future.globals.maxSize = 1e9)
+options(Seurat.object.assay.version = "v5")
 
 load(opt$marker)
 
+### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
 sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
 
+### Split SCE for integrative analysis
+### ALREADY DONE BY MERGE
+# sce <- split_SCE(sce)
+
+### Normalize and scale counts
+sce <- normalize_SCE(sce)
+
+### Run initial dim reduction
+sce <- reduceDims_SCE(sce)
+
+### Integrate the SCE layers for integrative analysis
 sce <- integrate_SCE(sce)
 
-sce <- reduceDims(sce)
+### Cluster SCE for plotting
+sce <- cluster_SCE(sce)
+
+
 
 #### Normalize the data and assign cell categories ####
 is.mitochondrial <- grepl(pattern = "^MT-",

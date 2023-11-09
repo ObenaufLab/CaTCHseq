@@ -10,11 +10,18 @@ packages <- packages[nchar(packages) > 0]
 packages <- unique(packages)
 
 # Install standalone packages
-install.packages(packages[!grepl(pattern = "^BioConductor::", x = packages)], 
-                 dependencies = TRUE, 
-                 repos = 'http://cran.rstudio.com/')
+setRepositories(ind = 1:3, addURLs = c("https://satijalab.r-universe.dev", "https://bnprks.r-universe.dev/"))
+install.packages(packages[!grepl(pattern = "^BioConductor::", x = packages) & !grepl(pattern = "^Seurat", x = packages) & !grepl(pattern = "^remotes::", x = packages)],
+    dependencies = TRUE,
+    repos = "http://cran.rstudio.com/"
+)
 
 # Install Bioconductor packages
 bc.packages <- packages[grepl(pattern = "^BioConductor::", x = packages)]
 bc.packages <- sub(pattern = "^BioConductor::", replacement = "", x = bc.packages)
 BiocManager::install(bc.packages)
+
+# Install Seurat helpers
+re.packages <- packages[grepl(pattern = "^remotes::", x = packages)]
+re.packages <- sub(pattern = "^remotes::install_github", replacement = "", x = bc.packages)
+remotes::install_github(c(re.packages))

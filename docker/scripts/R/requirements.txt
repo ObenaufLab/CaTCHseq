@@ -1,10 +1,21 @@
 tidyverse
 optparse
-Seurat
+devtools
 gridExtra
 circlize
 ggrepel
 BiocManager
+Seurat
+Signac
+remotes
+
+#Seurats little helpers
+BPCells
+presto
+glmGamPoi
+remotes::install_github("satijalab/seurat-data", quiet = TRUE)
+remotes::install_github("satijalab/seurat-wrappers", quiet = TRUE)
+#remotes::install_github("satijalab/azimuth", ref = "master", quiet = TRUE)
 
 # BioConductor packages installed through BiocManager
 BioConductor::SingleCellExperiment
