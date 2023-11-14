@@ -44,5 +44,5 @@ ENV PATH /home/.local/bin:${PATH}
 RUN     R -e "source('/tools/scripts/R/setup_R_env.R')"
               
 LABEL   maintainer="sergej.nowoshilow@boehringer-ingelheim.com"
-LABEL   version="2.2"
+LABEL   version="3.0"
 LABEL   release-date="2023-10-04"

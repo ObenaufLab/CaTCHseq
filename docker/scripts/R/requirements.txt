@@ -1,3 +1,4 @@
+remotes
 tidyverse
 optparse
 devtools
@@ -6,19 +7,22 @@ circlize
 ggrepel
 BiocManager
 Seurat
-Signac
-remotes
+#Signac
 
 #Seurats little helpers
-BPCells
-presto
-glmGamPoi
 remotes::install_github("satijalab/seurat-data", quiet = TRUE)
 remotes::install_github("satijalab/seurat-wrappers", quiet = TRUE)
+remotes::install_github("immunogenomics/presto", quiet = TRUE)
+remotes::install_github("bnprks/BPCells", quiet = TRUE)
+remotes::install_github(, quiet = TRUE)
 #remotes::install_github("satijalab/azimuth", ref = "master", quiet = TRUE)
 
 # BioConductor packages installed through BiocManager
+BiocConductor::glmGamPoi
 BioConductor::SingleCellExperiment
+BioConductor::BPCells
+BioConductor::presto
+BioConductor::glmGamPoi
 BioConductor::scran
 BioConductor::scater
 BioConductor::DESeq2

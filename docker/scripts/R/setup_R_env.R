@@ -10,7 +10,7 @@ packages <- packages[nchar(packages) > 0]
 packages <- unique(packages)
 
 # Install standalone packages
-setRepositories(ind = 1:3, addURLs = c("https://satijalab.r-universe.dev", "https://bnprks.r-universe.dev/"))
+setRepositories(ind = 1:3, addURLs = c("https://satijalab.r-universe.dev", "https://bnprks.r-universe.dev/")) # needed to automatically install Bioconductor dependencies
 install.packages(packages[!grepl(pattern = "^BioConductor::", x = packages) & !grepl(pattern = "^Seurat", x = packages) & !grepl(pattern = "^remotes::", x = packages)],
     dependencies = TRUE,
     repos = "http://cran.rstudio.com/"
@@ -25,3 +25,5 @@ BiocManager::install(bc.packages)
 re.packages <- packages[grepl(pattern = "^remotes::", x = packages)]
 re.packages <- sub(pattern = "^remotes::install_github", replacement = "", x = bc.packages)
 remotes::install_github(c(re.packages))
+
+# Now we could install Signac
