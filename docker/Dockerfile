@@ -21,7 +21,7 @@ ENV     PATH $PATH:/tools/scripts/python/
 # Install STAR mapper for STARsolo mapping option
 ARG STAR_VERSION=2.7.11a
 
-ENV PACKAGES gcc g++ make wget zlib1g-dev unzip
+ENV PACKAGES gcc g++ make wget zlib1g-dev unzip vim
 
 RUN set -ex
 
