@@ -32,9 +32,12 @@ maxDist = get_always('maxDist') ?: 2
 minReads = get_always('minReads') ?: 10
 majorityVote = get_always('majorityVote') ?: 90
 mapperbin = get_always('mapper') ?: "CellRanger"
+starparams = get_always('starparams') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
+idxparams = = get_always('idxparams') ?: ""
 refName = get_always('refName') ?: "Day0"
 mapindex = get_always('index') ?: null
 mapref = get_always('reference') ?: null
+mapanno = get_always('annotation') ?: null
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
 hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
@@ -68,11 +71,16 @@ def helpMessage() {
                                                     cannot be missing or be empty)
                                     LibraryType     either GEX or scCaTCH
                                     R1              path to the R1 read
-                                    R2              path to the corresponding R2 read  
+                                    R2              path to theOptional parameters for STAR mapping corresponding R2 read  
 
       Optional arguments:
         --chunkSize             number of reads per chunk (default: ${params.chunkSize})
-        --index                 Path to cellranger index file (default: ${params.mapindex})
+        --index                 Path to mapper index file (default: ${params.mapindex})
+        --mapper                Which mapper to run (default: CellRanger, optional: STAR)
+        --reference             Path to reference fasta.gz for STAR
+        --annotation            Path to annotation gtf.gz for STAR
+        --starparams            Optional parameters for STAR mapping
+        --idxparams             Optional parameters for STAR index generation
         --baseline              Name of reference day/condition (default: ${params.refName})
         --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
         --outputDir             specifies the output directory (default: ${params.outputDir})
@@ -236,17 +244,17 @@ process useCellrangerData{
 
 
 process star_idx{
-    conda "$MAPENV"+".yaml"
-    cpus THREADS
+
+    //conda "$MAPENV"+".yaml"
+    //cpus THREADS
 	cache 'lenient'
     label 'big_mem'
     //validExitStatus 0,1
 
-    publishDir "${absDir}/" , mode: 'link',
+    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
-        if (filename.indexOf(".log") > 0)       "GENOMES/INDICES/STARsolo/${sampleName}/filtered_feature_bc_matrix"
-        else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
-        else                                                     "OUTPUT/CellRanger/${file(filename).getName()}"
+        if (filename.indexOf("Log.out") > 0)       "OUTPUT/STAR/LOGS/${file(filename).getName()}"
+        else                                                     "OUTPUT/STAR/INDICES/${file(filename).getName()}"
     }
 
     input:
@@ -254,89 +262,64 @@ process star_idx{
     path anno
 
     output:
-    path "$MAPUIDXNAME", emit: idx
+    path "${IDX}", emit: idx
     path "*.out", emit: idxlog
-    path "*.idx", emit: tmpidx
 
     script:
     gen =  genome.getName()
     an  = anno.getName()
-
+    IDX = file(gen).getSimpleName()+'_idx'
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $MAPUIDXNAME && $MAPBIN $IDXPARAMS --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $MAPUIDXNAME --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && touch $MAPUIDXNAME && ln -s $MAPUIDXNAME star.idx && rm -f tmp.fa tmp_anno && ln -fs $MAPUIDXNAME/* .
+    zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $IDX && STAR $idxparams --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $IDX --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f *.out ${IDX}.Log.out
     """
 }
 
 process star_mapping{
-    conda "$MAPENV"+".yaml"
-    cpus THREADS
+    //conda "$MAPENV"+".yaml"
+    //cpus THREADS
 	cache 'lenient'
     label 'big_mem'
+    tag "${sampleName}"
     //validExitStatus 0,1
 
     publishDir "${workflow.workDir}/../" , mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("_unmapped") > 0)       "UNMAPPED/${COMBO}/${CONDITION}/"+"${file(filename).getName()}"
-        //else if (filename.indexOf(".sam.gz") >0)     "MAPPED/${COMBO}/${CONDITION}/"+"${filename.replaceAll(/\Q.Aligned.out.sam.gz\E/,"")}_mapped.sam.gz"
-        else if (filename.indexOf(".out") >0)        "LOGS/${COMBO}/${CONDITION}/MAPPING/star_"+"${filename.replaceAll(/\Q.out\E/,"")}.log"
-        else if (filename.indexOf(".tab") >0)        "MAPPED/${COMBO}/${CONDITION}/"+"${filename}"
-        else null
+        if (filename.indexOf("_unmapped") > 0)       "OUTPUT/STAR/UNMAPPED/"+"${file(filename).getName()}"
+        else if (filename.indexOf(".sam.gz") >0)     "OUTPUT/STAR/MAPPED/"+"${filename.replaceAll(/\Q.Aligned.out.sam.gz\E/,"")}_mapped.sam.gz"
+        else if (filename.indexOf("Aligned.sortedByCoord.out.bam.bam") >0)     "OUTPUT/STAR/MAPPED/"+"${filename.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"")}_mapped.bam"
+        else if (filename.indexOf(".tab") >0)        "OUTPUT/STAR/MAPPED/"+"${filename}"
+        else if (filename.indexOf("Log.out") >0)        "OUTPUT/STAR/LOGS/${file(filename).getName()}"
+        else if (filename.indexOf("Summary.csv") >0)        "OUTPUT/STAR/SUMMARY/${sampleName}_${file(filename).getName()}"
+        else "OUTPUT/STAR/${file(filename).getName()}"
     }
 
     input:
-    path reads
-
+    tuple val(sampleName), path(reads), path(whitelist), path(idx)
+    
     output:
-    path "*_mapped.sam.gz", emit: maps
-    path "*.out", emit: logs
-    path "*.tab", emit: sjtab
-    path "*_unmapped.fastq.gz", includeInputs:false, emit: unmapped
+    path "${sampleName}", emit: name
+    tuple val(sampleName), path("${sampleName}.Solo.out"), emit: out
+    tuple val(sampleName), path("${sampleName}.Solo.out/raw/Gene/filtered"), emit: filtered
+    tuple val(sampleName), path("${sampleName}.Solo.out/raw/Gene/raw"), emit: raw
+    tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
+    tuple val(sampleName), path("*.bam"), emit: bam
+    tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
+    tuple val(sampleName), path("*Log.out"), emit: logs
+    tuple val(sampleName), path("*.tab"), emit: sjtab
+    tuple val(sampleName), path("*_unmapped.fastq.gz"), includeInputs:false, emit: unmapped
+    tuple val(sampleName), path("Summary.csv"), emit: qc
 
     script:
-    idx = reads[0]
     idxdir = idx.toRealPath()
-    if (PAIRED == 'paired'){
-        r1 = reads[1]
-        r2 = reads[2]
-        a = "Trimming_report.txt"
-        fn = file(r1).getSimpleName().replaceAll(/\Q_R1_trimmed\E/,"")+"."
-        of = fn+'Aligned.out.sam'
-        gf = of.replaceAll(/\Q.Aligned.out.sam\E/,"_mapped.sam.gz")
-        """
-        $MAPBIN $MAPPARAMS --runThreadN ${task.cpus} --genomeDir $idxdir --readFilesCommand zcat --readFilesIn $r1 $r2 --outFileNamePrefix $fn --outReadsUnmapped Fastx && gzip -c $of > $gf && rm -f $of && gzip *Unmapped.out* && for f in *mate*.gz; do mv "\$f" "\$(echo "\$f" | sed -r 's/.mate([1|2]).gz/_R\\1.gz/'| sed -r 's/\\.Unmapped.out_R([1|2]).gz/_R\\1_unmapped.fastq.gz/')"; done && for f in *.Log.final.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.final.out/.out/')"; done
-        """
-    }
-    else{
-        if (PAIRED != 'singlecell'){
-            read = reads[1]
-            fn = file(reads[1]).getSimpleName().replaceAll(/\Q_trimmed\E/,"")+"."
-            of = fn+'Aligned.out.sam'
-            gf = of.replaceAll(/\Q.Aligned.out.sam\E/,"_mapped.sam.gz")
-            """
-            $MAPBIN $MAPPARAMS --runThreadN ${task.cpus} --genomeDir $idxdir --readFilesCommand zcat --readFilesIn $read --outFileNamePrefix $fn --outReadsUnmapped Fastx && gzip -c $of > $gf && rm -f $of && gzip *Unmapped.out* && for f in *mate*.gz; do mv "\$f" "\$(echo "\$f" | sed -r 's/\\.Unmapped.out.mate1.gz/_unmapped.fastq.gz/')"; done && for f in *.Log.final.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.final.out/.out/')"; done
-            """
-        }
-        else{
-            if (STRANDED == 'fr'){
-                stranded = '--soloStrand Forward'
-            }else if (STRANDED == 'rf'){
-                stranded = '--soloStrand Reverse'
-            }else{
-                stranded = '--soloStrand Unstranded'
-            }
-            read = reads[1]
-            fn = file(reads[1]).getSimpleName().replaceAll(/\Q_trimmed\E/,"")
-            umis = "${workflow.workDir}/../FASTQ/${CONDITION}/"+file(reads[1]).getSimpleName().replaceAll(/\QR2_trimmed\E/,"R1.fastq.gz")
-            of = fn+'.Aligned.sortedByCoord.out.bam'
-            gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
-            uf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_unmapped.fastq.gz")
-            od = "${workflow.workDir}/../MAPPED/${COMBO}/${CONDITION}"
+    
+    of = sampleName+'.Aligned.sortedByCoord.out.bam'
+    gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
+    uf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_unmapped.fastq.gz")
 
-            """
-            $MAPBIN --soloType CB_UMI_Simple $MAPPARAMS $stranded --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --runThreadN ${task.cpus} --genomeDir $idxdir --readFilesCommand zcat --readFilesIn $read $umis --outFileNamePrefix ${fn}. --outReadsUnmapped Fastx && samtools view -h ${of} | gzip > $gf && rm -f $of ; paste <(cat ${fn}.Unmapped.out.mate1 | paste - - - -) <(cat ${fn}.Unmapped.out.mate2| paste - - - -) |tr \"\\t\" \"\\n\"| gzip > ${uf} && for f in *.Log.final.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.final.out/.out/')"; done && mkdir -p $od && rsync -auv ${fn}.Solo.out $od
-            """
-        }
-    }
+    """
+    STAR $starparams --runThreadN ${task.cpus} --genomeDir $idxdir --readFilesCommand zcat --readFilesIn $reads --soloCBwhitelist $whitelist --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx && samtools view -h ${of} | gzip > $gf && paste <(cat ${sampleName}.Unmapped.out.mate1 | paste - - - -) <(cat ${sampleName}.Unmapped.out.mate2| paste - - - -) |tr \"\\t\" \"\\n\"| gzip > ${uf}
+    """
+
 }
 
 workflow MAPPING{
@@ -704,7 +687,7 @@ workflow{
                 STEP 1: Count Reads
         ***********************************************************/
 
-        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(crindex) )
+        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(mapindex) )
 
         if (mapper == 'CellRanger'){
             runCellrangerCount(Ch_cellranger_input)
@@ -712,10 +695,18 @@ workflow{
             Ch_cellranger_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1)) }
         
             useCellrangerData(Ch_cellranger_precomputed)
-        }else{
-            
-        }
+        }else if (mapper == 'STAR'){
 
+            if (checkIfExists(mapindex)){
+                Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(mapindex) )
+                star_mapping(Ch_star_input)
+            }
+            else{
+                star_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
+                Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine(star_idx.out.idx)
+                star_mapping(Ch_star_input)
+            }
+        }
     
         /**************************************************************
                 STEP 2: Count CaTCH barcodes in chunks separately

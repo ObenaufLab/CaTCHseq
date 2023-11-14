@@ -18,6 +18,28 @@ ENV     PYTHONPATH /packages/
 RUN     chmod +x /tools/scripts/python/*.py
 ENV     PATH $PATH:/tools/scripts/python/
 
+# Install STAR mapper for STARsolo mapping option
+ARG STAR_VERSION=2.7.11a
+
+ENV PACKAGES gcc g++ make wget zlib1g-dev unzip
+
+RUN set -ex
+
+RUN apt-get install -y --no-install-recommends ${PACKAGES} && \
+    apt-get clean && \
+    g++ --version && \
+    cd /home && \
+    wget --no-check-certificate https://github.com/alexdobin/STAR/archive/${STAR_VERSION}.zip && \
+    unzip ${STAR_VERSION}.zip && \
+    cd STAR-${STAR_VERSION}/source && \
+    make STARstatic && \
+    mkdir -p /home/.local/bin && \
+    cp STAR /home/.local/bin && \
+    cd /home && \
+    'rm' -rf STAR-${STAR_VERSION}
+
+ENV PATH /home/.local/bin:${PATH}
+
 # Install the required R packages
 RUN     R -e "source('/tools/scripts/R/setup_R_env.R')"
               
