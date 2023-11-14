@@ -183,7 +183,7 @@ cluster_SCE <- function(sce){
     print("   Clustering ...")
     
     sce <- FindNeighbors(sce, reduction = "integrated.cca", dims = 1:30)
-    sce <- FindClusters(sce, resolution = 1)
+    sce <- FindClusters(sce, resolution = 2, cluster.name = "cca_cluster")
     
     return(sce)
     
@@ -266,7 +266,16 @@ sce <- integrate_SCE(sce)
 ### Cluster SCE for plotting
 sce <- cluster_SCE(sce)
 
+## Run UMAP
+sce <- umap_SCE(sce)
 
+
+DimPlot(
+    sce,
+    reduction = "umap.cca",
+    group.by = c("Sample", "cca_cluster"),
+    combine = FALSE, label.size = 2
+)
 
 #### Normalize the data and assign cell categories ####
 is.mitochondrial <- grepl(pattern = "^MT-",
@@ -274,8 +283,9 @@ is.mitochondrial <- grepl(pattern = "^MT-",
                           ignore.case = FALSE)
 cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
 
-#### Split into subobjects ####
-sce.list <- SplitObject(sce, split.by = "Sample")
+
+
+
 
 print("Normalize the counts ...")
 sce.list <- lapply(X = sce.list, FUN = function(x) {
