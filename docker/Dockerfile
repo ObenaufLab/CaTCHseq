@@ -2,6 +2,9 @@ FROM    public.ecr.aws/lts/ubuntu:latest
 
 ENV     DEBIAN_FRONTEND noninteractive
 
+## Otherwise timedatectl will get called which leads to 'no systemd' inside Docker
+ENV TZ UTC
+
 ## Install dependencies for Python and R (following the official Rocker docs)
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
@@ -25,16 +28,8 @@ RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
 ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 
-## Use Debian unstable via pinning -- new style via APT::Default-Release
-RUN echo "deb http://http.debian.net/debian sid main" > /etc/apt/sources.list.d/debian-unstable.list \
-        && echo 'APT::Default-Release "testing";' > /etc/apt/apt.conf.d/default \
-        && echo 'APT::Install-Recommends "false";' > /etc/apt/apt.conf.d/90local-no-recommends
-
+## Install R in pinned version
 ENV R_BASE_VERSION 4.3.2
-
-# ## During the freeze, new (source) packages are in experimental and we place the binaries in our PPA
-# RUN echo "deb http://deb.debian.org/debian experimental main" > /etc/apt/sources.list.d/experimental.list \
-#    && echo "deb [trusted=yes] https://eddelbuettel.github.io/ppaR400 ./" > /etc/apt/sources.list.d/edd-r4.list
 
 ## Now install R and littler, and create a link for littler in /usr/local/bin
 RUN apt-get update \
