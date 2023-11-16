@@ -1,6 +1,6 @@
-FROM    public.ecr.aws/lts/ubuntu:latest
-
-ENV     DEBIAN_FRONTEND noninteractive
+#FROM    public.ecr.aws/lts/ubuntu:latest
+ARG 	BASE_IMAGE=rocker/tidyverse
+#ENV     DEBIAN_FRONTEND noninteractive
 
 ## Otherwise timedatectl will get called which leads to 'no systemd' inside Docker
 ENV TZ UTC
@@ -61,7 +61,7 @@ ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 
 ## Install R in pinned version
-ENV R_BASE_VERSION 4.3.0
+ENV R_BASE_VERSION 4.3.2
 
 ## Now install R and littler, and create a link for littler in /usr/local/bin
 
