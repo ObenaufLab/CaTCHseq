@@ -17,6 +17,7 @@ install.packages(packages[!grepl(pattern = "^BioConductor::", x = packages) & !g
 )
 
 # Install Bioconductor packages
+BiocManager::install(ask = FALSE)
 bc.packages <- packages[grepl(pattern = "^BioConductor::", x = packages)]
 bc.packages <- sub(pattern = "^BioConductor::", replacement = "", x = bc.packages)
 BiocManager::install(bc.packages)
@@ -25,5 +26,8 @@ BiocManager::install(bc.packages)
 re.packages <- packages[grepl(pattern = "^remotes::", x = packages)]
 re.packages <- sub(pattern = "^remotes::install_github", replacement = "", x = bc.packages)
 remotes::install_github(c(re.packages))
+
+# Install Seurat
+install.packages("Seurat")
 
 # Now we could install Signac

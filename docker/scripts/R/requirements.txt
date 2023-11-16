@@ -6,6 +6,7 @@ gridExtra
 circlize
 ggrepel
 BiocManager
+Cairo
 Seurat
 #Signac
 
@@ -17,11 +18,10 @@ remotes::install_github("bnprks/BPCells", quiet = TRUE)
 #remotes::install_github("satijalab/azimuth", ref = "master", quiet = TRUE)
 
 # BioConductor packages installed through BiocManager
-BiocConductor::glmGamPoi
 BioConductor::SingleCellExperiment
+BiocConductor::glmGamPoi
 BioConductor::BPCells
 BioConductor::presto
-BioConductor::glmGamPoi
 BioConductor::scran
 BioConductor::scater
 BioConductor::DESeq2
