@@ -32,12 +32,13 @@ maxDist = get_always('maxDist') ?: 2
 minReads = get_always('minReads') ?: 10
 majorityVote = get_always('majorityVote') ?: 90
 mapperbin = get_always('mapper') ?: "CellRanger"
-starparams = get_always('starparams') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
+starparams = get_always('starparams') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --soloCBwhitelist None --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
 idxparams = = get_always('idxparams') ?: ""
 refName = get_always('refName') ?: "Day0"
 mapindex = get_always('index') ?: null
 mapref = get_always('reference') ?: null
 mapanno = get_always('annotation') ?: null
+filter = get_always('filter') ?: true
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
 hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
@@ -81,6 +82,7 @@ def helpMessage() {
         --annotation            Path to annotation gtf.gz for STAR
         --starparams            Optional parameters for STAR mapping
         --idxparams             Optional parameters for STAR index generation
+        --filter                Postprocess filtered counts (default: ${params.filter})
         --baseline              Name of reference day/condition (default: ${params.refName})
         --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
         --outputDir             specifies the output directory (default: ${params.outputDir})
@@ -146,6 +148,39 @@ stopOnWarn = (stopOnWarnings) ? "yes" : "no"
                 STEP 1: Run CellRanger count
 ************************************************************************/
 
+process Cellranger_idx{
+
+    //conda "$MAPENV"+".yaml"
+    //cpus THREADS
+	cache 'lenient'
+    label 'big_mem'
+    //validExitStatus 0,1
+
+    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
+    saveAs: {filename ->
+        if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
+        else                                                     "OUTPUT/CellRanger/INDICES/${file(filename).getName()}"
+    }
+
+    input:
+    path genome
+    path anno
+
+    output:
+    path "file(gen).getSimpleName()"+'_idx', emit: idx
+    path "*.out", emit: idxlog
+
+    script:
+    gen =  genome.getName()
+    an  = anno.getName()
+    filt  = file(anno).getSimpleName()+'_filtered.gtf'
+    IDX = file(gen).getSimpleName()+'_idx'
+    """
+    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding && cellranger mkref   --genome=$IDX --fasta tmp.fa --genes=${filt}
+    """
+}
+
+
 process runCellrangerCount{
 
     //conda "cellranger.yaml"
@@ -168,8 +203,10 @@ process runCellrangerCount{
     
     output:
         path "${sampleName}", emit: name
-        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_from_raw
-        tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix"), emit: cell_data_from_raw
+        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_filtered
+        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix/barcodes.tsv.gz"), emit: cell_ids_raw
+        tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix"), emit: cell_data_filtered
+        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix"), emit: cell_data_raw
     
     script:
     """
@@ -229,8 +266,10 @@ process useCellrangerData{
 
     output:
         path "${sampleName}", emit: name
-        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_from_precomputed
-        tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix"), emit: cell_data_from_precomputed
+        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_from_precomputed_filtered
+        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix/barcodes.tsv.gz"), emit: cell_ids_from_precomputed_raw
+        tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix"), emit: cell_data_from_precomputed_filtered
+        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix"), emit: cell_data_from_precomputed_raw        
 
     script:
         """
@@ -239,9 +278,8 @@ process useCellrangerData{
 }
 
 /************************************************************************
-                STEP 1: Run STARsolo count
+                STEP 1 (Optional): Run STARsolo count
 ************************************************************************/
-
 
 process star_idx{
 
@@ -290,7 +328,7 @@ process star_mapping{
         else if (filename.indexOf(".tab") >0)        "OUTPUT/STAR/MAPPED/"+"${filename}"
         else if (filename.indexOf("Log.out") >0)        "OUTPUT/STAR/LOGS/${file(filename).getName()}"
         else if (filename.indexOf("Summary.csv") >0)        "OUTPUT/STAR/SUMMARY/${sampleName}_${file(filename).getName()}"
-        else "OUTPUT/STAR/${file(filename).getName()}"
+        else                                            "OUTPUT/STAR/${filename}"
     }
 
     input:
@@ -299,8 +337,9 @@ process star_mapping{
     output:
     path "${sampleName}", emit: name
     tuple val(sampleName), path("${sampleName}.Solo.out"), emit: out
-    tuple val(sampleName), path("${sampleName}.Solo.out/raw/Gene/filtered"), emit: filtered
-    tuple val(sampleName), path("${sampleName}.Solo.out/raw/Gene/raw"), emit: raw
+    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/filtered"), emit: filtered
+    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/raw"), emit: raw
+    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/filtered/barcodes.tsv"), emit: star_cell_ids_filtered
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*.bam"), emit: bam
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
@@ -312,12 +351,19 @@ process star_mapping{
     script:
     idxdir = idx.toRealPath()
     
-    of = sampleName+'.Aligned.sortedByCoord.out.bam'
+    r1 = reads[1]
+    fn = file(r1)
+    r2 = reads[2]
+    if (starparams.contains('--soloBarcodeMate 1')){
+        t = r2
+        r2 = r1
+        r1 = t
+    }
+    of = fn+'.Aligned.sortedByCoord.out.bam'
     gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
-    uf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_unmapped.fastq.gz")
 
     """
-    STAR $starparams --runThreadN ${task.cpus} --genomeDir $idxdir --readFilesCommand zcat --readFilesIn $reads --soloCBwhitelist $whitelist --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx && samtools view -h ${of} | gzip > $gf && paste <(cat ${sampleName}.Unmapped.out.mate1 | paste - - - -) <(cat ${sampleName}.Unmapped.out.mate2| paste - - - -) |tr \"\\t\" \"\\n\"| gzip > ${uf}
+    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${r1} ${r2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx && && samtools view -h ${of} | gzip > ${gf} && rm -f ${of} && touch ${fn}.Unmapped.out.mate1 ${fn}.Unmapped.out.mate2 && cat ${fn}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R1_unmapped.fastq.gz && at ${fn}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done
     """
 
 }
@@ -672,7 +718,7 @@ workflow{
     main:
 
         /**********************************************************
-                STEP 0: Prepare Input
+                STEP 0: Prepare Input and Indices
         ***********************************************************/
         
         Ch_csv = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
@@ -682,29 +728,46 @@ workflow{
                 precomputed: (new File(it.R1)).isDirectory()
             }
         
+        if (!checkIfExists(mapindex)){
+            if (mapper == 'CellRanger'){
+                Cellranger_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
+                Ch_mapping_idx = Cellranger_idx.out.idx
+            }else if (mapper == 'STAR'){
+                star_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
+                Ch_mapping_idx = star_idx.out.idx
+            }
+        }
+        else{
+            Ch_mapping_idx = Channel.fromPath(mapindex)
+        }
 
         /**********************************************************
                 STEP 1: Count Reads
         ***********************************************************/
 
-        Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(mapindex) )
-
         if (mapper == 'CellRanger'){
+            Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
+
             runCellrangerCount(Ch_cellranger_input)
 
             Ch_cellranger_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1)) }
         
             useCellrangerData(Ch_cellranger_precomputed)
-        }else if (mapper == 'STAR'){
 
-            if (checkIfExists(mapindex)){
-                Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Channel.fromPath(mapindex) )
-                star_mapping(Ch_star_input)
+            if (filter){
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
+            }else{
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
-            else{
-                star_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
-                Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine(star_idx.out.idx)
-                star_mapping(Ch_star_input)
+
+
+        }else if (mapper == 'STAR'){
+            Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx) )
+            star_mapping(Ch_star_input)
+            if (filter){
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_filtered)
+            }else{
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_raw)
             }
         }
     
@@ -712,8 +775,6 @@ workflow{
                 STEP 2: Count CaTCH barcodes in chunks separately
         ***************************************************************/
         
-        Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_from_raw.mix(useCellrangerData.out.cell_ids_from_precomputed), by: 0)
-
         countBarcodesInChunks(Ch_count_input)
 
 
@@ -752,9 +813,9 @@ workflow{
                 STEP 7: Analytics report
         ***************************************************************/
         
-        Ch_cell_ids = runCellrangerCount.out.cell_ids_from_raw.mix(useCellrangerData.out.cell_ids_from_precomputed)
+        Ch_cell_ids = runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed)
 
-        Ch_cell_data = runCellrangerCount.out.cell_data_from_raw.mix(useCellrangerData.out.cell_data_from_precomputed)
+        Ch_cell_data = runCellrangerCount.out.cell_data_filtered.mix(useCellrangerData.out.cell_data_from_precomputed)
 
         Ch_analytics_in =  Ch_cell_ids.join(mergeBarcodesInChunks.out.merged_libraries, by: 0).join(collapseAndFilterBarcodes.out.collapsed_libraries, by: 0).join(resolveMultiplets.out.resolved_multiplets_libraries, by: 0)
 
