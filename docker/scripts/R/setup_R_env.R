@@ -17,15 +17,15 @@ install.packages(packages[!grepl(pattern = "^BioConductor::", x = packages) & !g
 )
 
 # Install Bioconductor packages
-BiocManager::install(ask = FALSE)
-BiocManager::install(version = "devel") # This is needed to stay in sync with R version
+BiocManager::install(ask = FALSE) # Do not update!
+# BiocManager::install(version = "devel") # This is needed to stay in sync with R version
 bc.packages <- packages[grepl(pattern = "^BioConductor::", x = packages)]
 bc.packages <- sub(pattern = "^BioConductor::", replacement = "", x = bc.packages)
 BiocManager::install(bc.packages)
 
 # Install Seurat helpers
 re.packages <- packages[grepl(pattern = "^remotes::", x = packages)]
-re.packages <- sub(pattern = "^remotes::install_github", replacement = "", x = bc.packages)
+re.packages <- sub(pattern = "^remotes::install_github", replacement = "", x = re.packages)
 remotes::install_github(c(re.packages))
 
 # Install Seurat

@@ -7,7 +7,7 @@ circlize
 ggrepel
 BiocManager
 Cairo
-Seurat
+#Seurat
 #Signac
 
 #Seurats little helpers
@@ -19,12 +19,10 @@ remotes::install_github("bnprks/BPCells", quiet = TRUE)
 
 # BioConductor packages installed through BiocManager
 BioConductor::SingleCellExperiment
-BiocConductor::glmGamPoi
-BioConductor::BPCells
-BioConductor::presto
-BioConductor::scran
-BioConductor::scater
 BioConductor::DESeq2
 BioConductor::dorothea
 BioConductor::progeny
-BioConductor::ComplexHeatmap
+BioConductor::scran
+BioConductor::scater
+#BiocConductor::glmGamPoi
+#BioConductor::ComplexHeatmap
