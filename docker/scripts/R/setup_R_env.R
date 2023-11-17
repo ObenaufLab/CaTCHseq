@@ -25,8 +25,11 @@ BiocManager::install(bc.packages)
 
 # Install Seurat helpers
 re.packages <- packages[grepl(pattern = "^remotes::", x = packages)]
-re.packages <- sub(pattern = "^remotes::install_github", replacement = "", x = re.packages)
-remotes::install_github(c(re.packages))
+re.packages <- sub(pattern = "^remotes::", replacement = "", x = re.packages)
+for (rp in re.packages) {
+    print(paste0("Running remotes::install_github(", rp, ")"))
+    remotes::install_github(rp)
+}
 
 # Install Seurat
 install.packages("Seurat")

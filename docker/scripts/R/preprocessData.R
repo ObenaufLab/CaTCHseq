@@ -172,27 +172,10 @@ load_BCs <- function(bc){
     
 }
 
-reduceDims_SCE <- function(sce){
-    print("   Reducing dimensions ...")
-        
-    sce <- RunPCA(sce)
-    return(sce)
-}
-
-cluster_SCE <- function(sce){
-    print("   Clustering ...")
-    
-    sce <- FindNeighbors(sce, reduction = "integrated.cca", dims = 1:30)
-    sce <- FindClusters(sce, resolution = 2, cluster.name = "cca_cluster")
-    
-    return(sce)
-    
-}
-
 normalize_SCE <- function(sce){
     print("   Normalizing and scaling SCE ...")
         
-    sce <- NormalizeData(sce)
+    sce <- NormalizeData(sce, normalization.method = "LogNormalize", scale.factor = 10000)
     sce <- FindVariableFeatures(sce)
     sce <- ScaleData(sce)
     
@@ -200,29 +183,63 @@ normalize_SCE <- function(sce){
     
 }
 
-integrate_SCE <- function(sce){
+sctransform_SCE <- function(sce){
+    sce <- SCTransform(sce, vars.to.regress = "percent.mt", verbose = FALSE)
+    return(sce)
+}
+
+reduceDims_SCE <- function(sce, assay='RNA', reduction.name='pca'){
+    print("   Reducing dimensions ...")
+    
+    sce <- RunPCA(sce, assay = assay, reduction.name = reduction.name)
+    return(sce)
+}
+
+cluster_SCE <- function(sce, assay = 'RNA_integrated.cca', reduction="integrated.cca", cluster.name = "integrated.cca_cluster"){
+    print("   Clustering ...")
+    
+    sce <- FindNeighbors(sce, assay=assay, reduction = reduction, dims = 1:30)
+    sce <- FindClusters(sce, resolution = 2, cluster.name = cluster.name)
+    
+    return(sce)
+    
+}
+
+integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca"){
     print("   Integrating samples ...")
     
-    sce <- Seurat::IntegrateLayers(object = sce, method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca",
+    sce <- Seurat::IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction,
                     verbose = FALSE)
     # re-join layers after integration
-    sce[["RNA"]] <- JoinLayers(sce[["RNA"]])
+    sce[[paste0("RNA_", new.reduction)]] <- JoinLayers(sce[["RNA"]])
     
     return(sce)
 }
 
-umap_SCE <- function(sce){
+integrate_SCE_SCT <- function(sce, new.reduction = "integrated.sct"){
+    print("   Integrating SCT normalized samples ...")
+    features <- SelectIntegrationFeatures(object.list = sce$Sample, nfeatures = 3000)
+    ifnb.list <- PrepSCTIntegration(object.list = sce$Sample, anchor.features = features)
+    anchors <- FindIntegrationAnchors(object.list = ifnb.list, normalization.method = "SCT",
+                                             anchor.features = features)
+    sce[[paste0("RNA_", new.reduction)]] <- IntegrateData(anchorset = immune.anchors, normalization.method = "SCT")
+    
+    return(sce)
+}
+
+
+umap_SCE <- function(sce, assay = 'RNA', reduction = "integrated.cca", dims = "1:30", reduction.name = "umap.cca", n.neighbors = 25){
     print("   Preparing UMAP ...")
     
-    sce <- RunUMAP(sce, reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca")
+    sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors)
     return(sce)
 }
 
 # Split for integrated analysis
-split_SCE <- function(sce){
+split_SCE <- function(sce, by='Sample'){
     print("   Splitting SCE by Sample ...")
     
-    sce[["RNA"]] <- split(sce[["RNA"]], f=sce$Sample)
+    sce[["RNA"]] <- split(sce[["RNA_split"]], f=sce[by])
     return(sce)
 }
 
@@ -242,6 +259,7 @@ library(scran)
 library(SingleCellExperiment)
 library(Seurat)
 library(SeuratWrappers)
+library(sctransform)
 #options(future.globals.maxSize = 1e9)
 options(Seurat.object.assay.version = "v5")
 
@@ -250,6 +268,30 @@ load(opt$marker)
 ### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
 sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
 
+### Run QC
+is.mitochondrial <- grepl(pattern = "^MT-",
+                          x = rownames(sce),
+                          ignore.case = FALSE)
+cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
+
+# calculate percentage of MT reads
+sce[["percent.mt"]] <- PercentageFeatureSet(sce, pattern = "^MT-")
+
+pdf(file = paste0("QC_Violin_MT_content.pdf"), width = 30, height = 10)
+VlnPlot(sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
+dev.off()
+
+pdf(file = paste0("QC_Scatter_MT_content.pdf"), width = 30, height = 10)
+FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "Sample")
+dev.off()
+
+pdf(file = paste0("QC_Scatter_Feature_content.pdf"), width = 30, height = 10)
+FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "Sample")
+dev.off()
+
+### Filter for MT content and min reads
+sce <- subset(sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
+
 ### Split SCE for integrative analysis
 ### ALREADY DONE BY MERGE
 # sce <- split_SCE(sce)
@@ -257,17 +299,27 @@ sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
 ### Normalize and scale counts
 sce <- normalize_SCE(sce)
 
-### Run initial dim reduction
+### SCtransform counts
+sce <- sctransform_SCE(sce)
+
+### Run initial dim reduction for norm
 sce <- reduceDims_SCE(sce)
 
+### Run initial dim reduction for STC
+sce <- reduceDims_SCE(sce, 'SCT', 'pca_sct')
+
 ### Integrate the SCE layers for integrative analysis
-sce <- integrate_SCE(sce)
+#sce <- integrate_SCE(sce, assay='SCT', orig.reduction = "pca_sct", new.reduction = "integrated.stc_cca")
+sce <- integrate_SCE(sce, assay='RNA', orig.reduction = "pca", new.reduction = "integrated.cca")
 
 ### Cluster SCE for plotting
-sce <- cluster_SCE(sce)
+sce <- cluster_SCE(sce, assay = 'SCT', reduction="pca_sct", cluster.name = "sct.cca_cluster")
+
+### Cluster integrated SCE for plotting
+sce <- cluster_SCE(sce, assay = 'RNA_integrated.cca', reduction="integrated.cca", cluster.name = "integrated.cca_cluster")
 
 ## Run UMAP
-sce <- umap_SCE(sce)
+sce <- umap_SCE(sce, assay = 'RNA', reduction = "integrated.cca", dims = "1:30", reduction.name = "umap.cca", n.neighbors = 25)
 
 
 DimPlot(
@@ -277,14 +329,14 @@ DimPlot(
     combine = FALSE, label.size = 2
 )
 
+
+##############################################################################################################################
+##############################################################################################################################
 #### Normalize the data and assign cell categories ####
 is.mitochondrial <- grepl(pattern = "^MT-",
                           x = rownames(sce),
                           ignore.case = FALSE)
 cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
-
-
-
 
 
 print("Normalize the counts ...")

@@ -21,8 +21,7 @@ RUN apt-get update \
 		libpng-dev libtiff5-dev libjpeg-dev software-properties-common dirmngr \
 		&& apt-get clean \
 		&& apt-get autoremove -y \
-		&& apt-get autoclean -y \
-		&& rm -rf /var/lib/apt/lists/*
+		&& apt-get autoclean -y 
 
 # Install the required Python packages and add the CaTCH package
 RUN     pip install pandas numpy biopython
@@ -35,7 +34,9 @@ RUN     chmod +x /tools/scripts/python/*.py
 ENV     PATH $PATH:/tools/scripts/python/
 
 # Install the required R packages
-			
+
+ENV 	R_REMOTES_UPGRADE="never"
+
 RUN		R -e "source('/tools/scripts/R/setup_R_env.R')"
 
 
@@ -48,6 +49,7 @@ RUN set -ex
 
 RUN apt-get install -y --no-install-recommends ${PACKAGES} && \
     	apt-get clean && \
+		rm -rf /var/lib/apt/lists/* \
     	g++ --version && \
     	cd /home && \
     	wget --no-check-certificate https://github.com/alexdobin/STAR/archive/${STAR_VERSION}.zip && \
