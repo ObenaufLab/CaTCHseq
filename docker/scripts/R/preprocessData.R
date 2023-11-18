@@ -227,10 +227,10 @@ integrate_SCE_SCT <- function(sce, new.reduction = "integrated.sct"){
 }
 
 
-umap_SCE <- function(sce, assay = 'RNA', reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L){
+umap_SCE <- function(sce, assay = 'RNA', reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist=0.05, spread = 5 ){
     print("   Preparing UMAP ...")
     
-    sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors)
+    sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors, min.dist = min.dist, spread = spread)
     return(sce)
 }
 
@@ -317,10 +317,10 @@ sce <- cluster_SCE(sce, assay = 'SCT_integrated.cca', reduction="pca_sct", clust
 sce <- cluster_SCE(sce, assay = 'RNA_integrated.cca', reduction="integrated.cca", cluster.name = "integrated.cca_cluster")
 
 ## Run UMAP not integrated
-sce <- umap_SCE(sce, assay = 'SCT_integrated.cca', reduction = "pca_sct", dims = 1:30, reduction.name = "umap_sct.cca", n.neighbors = 25L)
+sce <- umap_SCE(sce, assay = 'SCT_integrated.cca', reduction = "pca_sct", dims = 1:30, reduction.name = "umap_sct.cca", n.neighbors = 30L, min.dist=0.01, spread = 5)
 
 ## Run UMAP integrated
-sce <- umap_SCE(sce, assay = 'RNA_integrated.cca', reduction = "integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 15L)
+sce <- umap_SCE(sce, assay = 'RNA_integrated.cca', reduction = "integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist=0.01, spread = 5)
 
 ### Assign cell stage and categories
 

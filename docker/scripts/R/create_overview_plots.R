@@ -117,17 +117,17 @@ dev.off()
 ## Plot UMAPs
 reduction.name = "umap_sct.cca"  # reduction.name = "umap_integrated.cca"
 
-p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrated.cca_cluster", shape.by = "Sample", label.size = 2, alpha = .2) +
+p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrated.cca_cluster", shape.by = "Sample", label.size = 1, alpha = .2) +
     ggtitle("Overview by cluster") + 
-    guides(colour = guide_legend(override.aes = list(size = 5)))
+    guides(colour = guide_legend(override.aes = list(size = 4)))
 
 status.colors <- list("Singlet" = "forestgreen",
                       "Putative singlet" = "orange",
                       "Multiplet" = "red",
                       "No barcode" = "grey50")
-p.status_distr <- DimPlot(sce, reduction = reduction.name, group.by = "CaTCH.Status") + #, ylab = "Proportion, [%]") +
+p.status_distr <- DimPlot(sce, reduction = reduction.name, group.by = "CaTCH.Status", label.size = 1, alpha = .2) + #, ylab = "Proportion, [%]") +
     ggtitle("CaTCH status per sample") + 
-    guides(colour = guide_legend(override.aes = list(size = 5))) +
+    guides(colour = guide_legend(override.aes = list(size = 4))) +
     scale_color_manual(values = status.colors, name = "Catch.Status")
 
 p.status_distr_cluster <- createValueDistrPlot(sce,
@@ -159,18 +159,18 @@ cs.color <- list("G0" = "gray75",
                  "MG1" = "#F17724",
                  "S" = "#BECE2D")
 
-p.umap_cellstage <- DimPlot(sce, reduction = reduction.name, group.by = "Phase", label.size = 2) +
+p.umap_cellstage <- DimPlot(sce, reduction = reduction.name, group.by = "Phase", label.size = 1, alpha = .2) +
     ggtitle("Overview by cell stage") + 
-    guides(colour = guide_legend(override.aes = list(size = 10))) +
+    guides(colour = guide_legend(override.aes = list(size = 4))) +
     scale_color_manual(values = cs.color, name = "Cell stage") +
     guides(color = guide_legend("Cell stage"))
 
 
 sce@meta.data$CellStatus <- "Proliferating"
 sce@meta.data$CellStatus[sce@meta.data$CellStage == "G0"] <- "Quiescent"  # We have no clear G0, need to fix this somehow, Seurat suggests Cell-types which are very proliferative would have a higher fraction of cells in S/G2M whereas the cell types with low S/G2M fraction would be terminally differentiated, slowly dividing or quiescent cells
-p.umap_cellstatus <- DimPlot(sce, reduction = reduction.name, group.by = "CellStatus", label.size = 2) +
+p.umap_cellstatus <- DimPlot(sce, reduction = reduction.name, group.by = "CellStatus") +
     ggtitle("Overview by cell status") + 
-    guides(colour = guide_legend(override.aes = list(size = 10))) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) + 
     scale_color_manual(values = c("Proliferating" = "forestgreen", "Quiescent" = "gray75"), name = "Cell status")
 
 p.cellstage_distr <- createValueDistrPlot(sce,
