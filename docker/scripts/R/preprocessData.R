@@ -184,7 +184,7 @@ normalize_SCE <- function(sce){
 }
 
 sctransform_SCE <- function(sce){
-    sce <- SCTransform(sce, vars.to.regress = "percent.mt", verbose = FALSE)
+    sce <- SCTransform(sce, vst.flavor = "v2", vars.to.regress = "percent.mt", verbose = FALSE)
     return(sce)
 }
 
@@ -198,18 +198,17 @@ reduceDims_SCE <- function(sce, assay='RNA', reduction.name='pca'){
 cluster_SCE <- function(sce, assay = 'RNA_integrated.cca', reduction="integrated.cca", cluster.name = "integrated.cca_cluster"){
     print("   Clustering ...")
     
-    sce <- FindNeighbors(sce, assay=assay, reduction = reduction, dims = 1:30)
-    sce <- FindClusters(sce, resolution = 2, cluster.name = cluster.name)
+    sce <- FindNeighbors(sce, assay=assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")))
+    sce <- FindClusters(sce, resolution = 2, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"))
     
     return(sce)
     
 }
 
-integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca"){
+integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca",  normalization.method = "LogNormalize"){
     print("   Integrating samples ...")
     
-    sce <- Seurat::IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction,
-                    verbose = FALSE)
+    sce <- IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction, normalization.method = normalization.method, verbose = FALSE)
     # re-join layers after integration
     sce[[paste0("RNA_", new.reduction)]] <- JoinLayers(sce[["RNA"]])
     
@@ -228,7 +227,7 @@ integrate_SCE_SCT <- function(sce, new.reduction = "integrated.sct"){
 }
 
 
-umap_SCE <- function(sce, assay = 'RNA', reduction = "integrated.cca", dims = "1:30", reduction.name = "umap.cca", n.neighbors = 25){
+umap_SCE <- function(sce, assay = 'RNA', reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L){
     print("   Preparing UMAP ...")
     
     sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors)
@@ -269,13 +268,10 @@ load(opt$marker)
 sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
 
 ### Run QC
-is.mitochondrial <- grepl(pattern = "^MT-",
-                          x = rownames(sce),
-                          ignore.case = FALSE)
-cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
-
 # calculate percentage of MT reads
-sce[["percent.mt"]] <- PercentageFeatureSet(sce, pattern = "^MT-")
+sce <- PercentageFeatureSet(sce, pattern = "^MT-", col.name = "percent.mt")
+sce[["is.low_yield"]] <- sce@meta.data %>% pull(nFeature_RNA) %>% {case_when(. < opt$min_features ~ TRUE, .default = FALSE)}
+sce[["is.damaged"]] <- sce@meta.data %>% pull(percent.mt) %>% {case_when(. > opt$max_mt ~ TRUE, .default = FALSE)}
 
 pdf(file = paste0("QC_Violin_MT_content.pdf"), width = 30, height = 10)
 VlnPlot(sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
@@ -309,119 +305,39 @@ sce <- reduceDims_SCE(sce)
 sce <- reduceDims_SCE(sce, 'SCT', 'pca_sct')
 
 ### Integrate the SCE layers for integrative analysis
-#sce <- integrate_SCE(sce, assay='SCT', orig.reduction = "pca_sct", new.reduction = "integrated.stc_cca")
-sce <- integrate_SCE(sce, assay='RNA', orig.reduction = "pca", new.reduction = "integrated.cca")
+sce <- integrate_SCE(sce, assay='RNA', orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
+
+### Integrate the SCE layers after SCT for integrative analysis
+sce <- integrate_SCE(sce, assay='SCT', orig.reduction = "pca_sct", new.reduction = "integrated.cca", normalization.method = 'SCT')
 
 ### Cluster SCE for plotting
-sce <- cluster_SCE(sce, assay = 'SCT', reduction="pca_sct", cluster.name = "sct.cca_cluster")
+sce <- cluster_SCE(sce, assay = 'SCT_integrated.cca', reduction="pca_sct", cluster.name = "sct.cca_cluster")
 
 ### Cluster integrated SCE for plotting
 sce <- cluster_SCE(sce, assay = 'RNA_integrated.cca', reduction="integrated.cca", cluster.name = "integrated.cca_cluster")
 
-## Run UMAP
-sce <- umap_SCE(sce, assay = 'RNA', reduction = "integrated.cca", dims = "1:30", reduction.name = "umap.cca", n.neighbors = 25)
+## Run UMAP not integrated
+sce <- umap_SCE(sce, assay = 'SCT_integrated.cca', reduction = "pca_sct", dims = 1:30, reduction.name = "umap_sct.cca", n.neighbors = 25L)
 
+## Run UMAP integrated
+sce <- umap_SCE(sce, assay = 'RNA_integrated.cca', reduction = "integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 15L)
 
-DimPlot(
-    sce,
-    reduction = "umap.cca",
-    group.by = c("Sample", "cca_cluster"),
-    combine = FALSE, label.size = 2
-)
+### Assign cell stage and categories
 
-
-##############################################################################################################################
-##############################################################################################################################
-#### Normalize the data and assign cell categories ####
-is.mitochondrial <- grepl(pattern = "^MT-",
-                          x = rownames(sce),
-                          ignore.case = FALSE)
-cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
-
-
-print("Normalize the counts ...")
-sce.list <- lapply(X = sce.list, FUN = function(x) {
-    x <- as.SingleCellExperiment(x) %>% 
-        scater::logNormCounts() %>%
-        scater::addPerCellQC(subsets = list(MT = is.mitochondrial)) %>%
-        scater::addPerFeatureQC() %>%
-        assignCategoryByMarker(markers = stagemarkers_xue2020, col.name = "CellStage")
-})
+print("Assign cell stage...")
+s.genes <- stagemarkers_xue2020$S
+g2m.genes <- stagemarkers_xue2020$G2M
+sce <- CellCycleScoring(sce, s.features = s.genes, g2m.features = g2m.genes, set.ident = FALSE)
 
 print("Categorize the cells ...")
-for (i in 1:length(sce.list)){
-    rowData(sce.list[[i]])$is.mitochondrial <- is.mitochondrial
-    colData(sce.list[[i]])$is.damaged <- colData(sce.list[[i]])[, "subsets_MT_percent"] > opt$max_mt
-    colData(sce.list[[i]])$is.low_yield <- colData(sce.list[[i]])[, "detected"] < opt$min_features
-    colData(sce.list[[i]])$Category <- colData(sce.list[[i]]) %>%
-        tibble::as_tibble() %>%
-        dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
-        dplyr::select("tmp") %>%
-        purrr::map(.f = ~ cell.categories[.x + 1]) %>%
-        tibble::as_tibble() %>%
-        dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
-        dplyr::select(Class)
-}
-        
-#### Run PCA, tSNE and UMAP ####
-print("Identify the top variable genes...")
-for (i in 1:length(sce.list)){
-    gene.var <- scran::modelGeneVar(sce.list[[i]])
-    hvg <- scran::getTopHVGs(stats = gene.var, prop = opt$hvg_cutoff)
-    sce.list[[i]] <- scater::runPCA(sce.list[[i]], subset_row = hvg)
-}
+cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
 
-set.seed(101)
+sce@meta.data$Category <- sce@meta.data %>% 
+    dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
+    dplyr::select("tmp") %>%
+    purrr::map(.f = ~ cell.categories[.x + 1]) %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
+    dplyr::select(Class)
 
-print("Run tSNE and UMAP analyses ...")
-for (i in 1:length(sce.list)){
-    sce.list[[i]] <- scater::runTSNE(sce.list[[i]], dimred = "PCA")
-    sce.list[[i]] <- scater::runUMAP(sce.list[[i]], dimred = "PCA")
-}
-
-print("Clustering ...")
-for (i in 1:length(sce.list)){
-    g <- scran::buildSNNGraph(sce.list[[i]], use.dimred = "PCA")
-    cluster <- igraph::cluster_walktrap(g)$membership
-    
-    colData(sce.list[[i]])$Cluster <- factor(cluster)
-}
-
-# Prepare the data for the report plots
-for (i in 1:length(sce.list)){
-    tmp <- reducedDim(sce.list[[i]], "TSNE", withDimnames = FALSE)
-    tibble(tSNE1 = tmp[, 1], 
-                tSNE2 = tmp[, 2], 
-                Sample = sce.list[[i]]$Sample) %>%
-                write.table(x = ., file = gzfile(paste0(opt$out, sce.list[[i]]$Sample[1],".tsne.gz")), quote = FALSE, row.names = FALSE)
-
-    colData(sce.list[[i]]) %>%
-        write.table(x = ., file = gzfile(paste0(opt$out, sce.list[[i]]$Sample[1],".metadata.gz")), quote = FALSE, row.names = FALSE)
-}
-
-for (i in 1:length(sce.list)){
-    sce.list[[i]] <- as.Seurat(sce.list[[i]])    
-}
-
-sce <- merge(sce.list[[1]], y=sce.list[-1], add.cell.ids=names(sce.list), merge.data=TRUE, merge.dr=TRUE)
-
-### Reduce Dims for overall sce ###
-gene.var <- scran::modelGeneVar(as.SingleCellExperiment(sce))
-hvg <- scran::getTopHVGs(stats = gene.var, prop = opt$hvg_cutoff)
-sce <- scater::runPCA(as.SingleCellExperiment(sce), subset_row = hvg)
-
-set.seed(101)
-
-print("Run tSNE and UMAP analyses ...")
-sce <- scater::runTSNE(sce, dimred = "PCA")
-sce <- scater::runUMAP(sce, dimred = "PCA")
-
-print("Clustering ...")
-g <- scran::buildSNNGraph(sce, use.dimred = "PCA")
-cluster <- igraph::cluster_walktrap(g)$membership
-colData(sce)$Cluster <- factor(cluster)
-
-### Convert to Seurat Object for later
-sce <- as.Seurat(sce)
-
-save(sce, sce.list, file = paste0(opt$out,'SCE.rda.gz'), compress = "gzip")
+save(sce, file = paste0(opt$out,'SCE.rda.gz'), compress = "gzip")

@@ -31,9 +31,11 @@ chunkSize = get_always('chunkSize') ?: 1_000_000
 maxDist = get_always('maxDist') ?: 2
 minReads = get_always('minReads') ?: 10
 majorityVote = get_always('majorityVote') ?: 90
+qcparams = get_always('fastqc_params') ?: ''
 mapperbin = get_always('mapper') ?: "CellRanger"
-starparams = get_always('starparams') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --soloCBwhitelist None --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
-idxparams = = get_always('idxparams') ?: ""
+starparams = get_always('star_params') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --soloCBwhitelist None --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
+idxparams = get_always('idx_params') ?: ""
+whitelist = get_always('whitelist') ?: null
 refName = get_always('refName') ?: "Day0"
 mapindex = get_always('index') ?: null
 mapref = get_always('reference') ?: null
@@ -80,8 +82,10 @@ def helpMessage() {
         --mapper                Which mapper to run (default: CellRanger, optional: STAR)
         --reference             Path to reference fasta.gz for STAR
         --annotation            Path to annotation gtf.gz for STAR
-        --starparams            Optional parameters for STAR mapping
-        --idxparams             Optional parameters for STAR index generation
+        --whitelist             Path to barcode whitelist
+        --fastqc_params         Optional parameters for FASTQC
+        --star_params           Optional parameters for STAR mapping
+        --idx_params            Optional parameters for STAR index generation
         --filter                Postprocess filtered counts (default: ${params.filter})
         --baseline              Name of reference day/condition (default: ${params.refName})
         --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
@@ -145,6 +149,67 @@ stopOnWarn = (stopOnWarnings) ? "yes" : "no"
 
 
 /************************************************************************
+                STEP 0: Run read QC
+************************************************************************/
+
+process qc_raw{
+   
+    //conda "$MAPENV"+".yaml"
+    //cpus THREADS
+	cache 'lenient'
+    //label 'big_mem'
+    //validExitStatus 0,1
+    tag "${sampleName}"
+
+    publishDir "${absDir}/" , mode: 'link', overwrite: true,
+    saveAs: {filename ->
+        if (filename.indexOf("zip") > 0)          "OUTPUT/QC/FASTQC/${file(filename).getName()}"
+        else if (filename.indexOf("html") > 0)    "OUTPUT/QC/FASTQC/${file(filename).getName()}"
+        else null
+    }
+    
+    input:
+    tuple val(sampleName), path(read1), path(read2)
+
+    output:
+    path "*.{zip,html}", emit: fastqc_results
+
+    script:
+    """
+    fastqc --quiet -t ${task.cpus} $qcparams --noextract -f fastq $read1 $read2
+    """
+}
+
+
+process mqc{
+    //conda "$MAPENV"+".yaml"
+    //cpus THREADS
+	cache 'lenient'
+    //label 'big_mem'
+    //validExitStatus 0,1
+    tag "${sampleName}"
+
+    publishDir "${absDir}/" , mode: 'link', overwrite: true,
+    saveAs: {filename ->
+        if (filename.indexOf("zip") > 0)          "OUTPUT/QC/MULTI/${file(filename).getName()}"
+        else if (filename.indexOf("html") > 0)    "OUTPUT/QC/MULTI/${file(filename).getName()}"
+        else null
+    }
+
+    input:
+    path fastqcs
+
+    output:
+    path "*.zip", emit: mqc
+    path "*.html", emit: html
+
+    script:
+    """
+    touch $fastqcs; export LC_ALL=en_US.utf8; export LC_ALL=C.UTF-8; multiqc -f -k json -z -o \${PWD} .
+    """
+}
+
+/************************************************************************
                 STEP 1: Run CellRanger count
 ************************************************************************/
 
@@ -176,7 +241,7 @@ process Cellranger_idx{
     filt  = file(anno).getSimpleName()+'_filtered.gtf'
     IDX = file(gen).getSimpleName()+'_idx'
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding && cellranger mkref   --genome=$IDX --fasta tmp.fa --genes=${filt}
+    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding && cellranger mkref   --genome=$IDX --fasta tmp.fa --genes=${filt} && rm -f tmp.fa tmp_anno
     """
 }
 
@@ -363,6 +428,28 @@ process star_mapping{
     gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
 
     """
+    # Find all reads, sort them by name to ensure that the paired files are on the consecutive lines,
+    # and then create symlinks with proper names (SampleName_S1_R1_xxx.fastq.gz)
+    IDX=1
+    BKP=\${IFS}
+    IFS=\$'\\n'
+    for LINE in \$(find inputs/ -name "R[12]_*" -exec readlink -f {} \\; | sort | paste - -);
+    do
+        SUFFIX=\$(printf "%03d" \${IDX})
+
+        R1=\$(echo \${LINE} | cut -f1)
+        NEW_NAME=${sampleName}_S1_R1_\${SUFFIX}.fastq.gz
+        ln -sf \${R1} inputs/\${NEW_NAME}
+
+        R2=\$(echo \${LINE} | cut -f2)
+        NEW_NAME=${sampleName}_S1_R2_\${SUFFIX}.fastq.gz
+        ln -sf \${R2} inputs/\${NEW_NAME}
+
+        IDX=\$((IDX + 1))
+    done
+
+    IFS=\${BKP}
+
     STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${r1} ${r2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx && && samtools view -h ${of} | gzip > ${gf} && rm -f ${of} && touch ${fn}.Unmapped.out.mate1 ${fn}.Unmapped.out.mate2 && cat ${fn}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R1_unmapped.fastq.gz && at ${fn}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done
     """
 
@@ -619,17 +706,18 @@ process preprocessSingleCellData{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".rda") > 0)       "OUTPUT/SCE/unfiltered/${file(filename).getName()}"
-        else                                     "OUTPUT/SCE/unfiltered/${file(filename).getName()}"
+        if (filename.indexOf(".rda") > 0)       "OUTPUT/SCE/filtered/${file(filename).getName()}"
+        else                                     "OUTPUT/SCE/filtered/${file(filename).getName()}"
     }
 
     input:
         tuple val(sampleName), path(featureMatrix), path(catchBarcodes), path(script)
 
     output:
-        path("*.sce.unfiltered.rda.gz"), emit: basic_sce
-        path("*.sce.unfiltered.tsne.gz"), emit: basic_sce_tsne
-        path("*.sce.unfiltered.metadata.gz"), emit: basic_sce_metadata
+        path("*.sce.prefiltered.rda.gz"), emit: basic_sce
+        path("*.sce.prefiltered.tsne.gz"), emit: basic_sce_tsne
+        path("*.sce.prefiltered.metadata.gz"), emit: basic_sce_metadata
+        path("*.pdf"), emit: basic_sce_qc
 
     script:
     """
@@ -640,7 +728,7 @@ process preprocessSingleCellData{
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
-       --out ${sampleName}.sce.unfiltered
+       --out ${sampleName}.sce.prefiltered
     """
 }
 
@@ -718,7 +806,7 @@ workflow{
     main:
 
         /**********************************************************
-                STEP 0: Prepare Input and Indices
+                STEP 0: Prepare Input and Indices and run QC
         ***********************************************************/
         
         Ch_csv = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
@@ -728,24 +816,40 @@ workflow{
                 precomputed: (new File(it.R1)).isDirectory()
             }
         
-        if (!checkIfExists(mapindex)){
-            if (mapper == 'CellRanger'){
-                Cellranger_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
-                Ch_mapping_idx = Cellranger_idx.out.idx
-            }else if (mapper == 'STAR'){
-                star_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
-                Ch_mapping_idx = star_idx.out.idx
+        Ch_csv_QC_split = Ch_csv.filter { new File(it.R1).isFile() }
+
+        if (mapindex != null){
+            if (!mapindex.exists()){
+                if (mapperbin == 'CellRanger'){
+                    Cellranger_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
+                    Ch_mapping_idx = Cellranger_idx.out.idx
+                }else if (mapperbin == 'STAR'){
+                    star_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
+                    Ch_mapping_idx = star_idx.out.idx
+                }
+            } else{
+                Ch_mapping_idx = Channel.fromPath(mapindex)
             }
+        } else {
+            Ch_mapping_idx = Channel.empty()
         }
-        else{
-            Ch_mapping_idx = Channel.fromPath(mapindex)
+
+        if (whitelist != null){
+            if (whitelist.exists()){
+                Ch_whitelist = Channel.fromPath(whitelist)
+            }
+        } else{
+            Ch_whitelist = Channel.empty()
         }
+
+        qc_raw(Ch_csv_QC_split)
+        mqc(qc_raw.out.fastqc_results.collect())
 
         /**********************************************************
                 STEP 1: Count Reads
         ***********************************************************/
 
-        if (mapper == 'CellRanger'){
+        if (mapperbin == 'CellRanger'){
             Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
 
             runCellrangerCount(Ch_cellranger_input)
@@ -761,8 +865,8 @@ workflow{
             }
 
 
-        }else if (mapper == 'STAR'){
-            Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx) )
+        }else if (mapperbin == 'STAR'){
+            Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_whitelist.combine( Ch_mapping_idx ))
             star_mapping(Ch_star_input)
             if (filter){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_filtered)
@@ -813,9 +917,9 @@ workflow{
                 STEP 7: Analytics report
         ***************************************************************/
         
-        Ch_cell_ids = runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed)
+        Ch_cell_ids = runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered)
 
-        Ch_cell_data = runCellrangerCount.out.cell_data_filtered.mix(useCellrangerData.out.cell_data_from_precomputed)
+        Ch_cell_data = runCellrangerCount.out.cell_data_filtered.mix(useCellrangerData.out.cell_data_from_precomputed_filtered)
 
         Ch_analytics_in =  Ch_cell_ids.join(mergeBarcodesInChunks.out.merged_libraries, by: 0).join(collapseAndFilterBarcodes.out.collapsed_libraries, by: 0).join(resolveMultiplets.out.resolved_multiplets_libraries, by: 0)
 
