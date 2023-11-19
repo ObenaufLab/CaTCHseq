@@ -43,7 +43,7 @@ RUN		R -e "source('/tools/scripts/R/setup_R_env.R')"
 # Install STAR mapper for STARsolo mapping option
 ARG STAR_VERSION=2.7.11a
 
-ENV PACKAGES build-essential g++ wget zlib1g-dev unzip
+ENV PACKAGES build-essential g++ wget zlib1g-dev unzip default-jre
 
 RUN set -ex
 
@@ -62,6 +62,18 @@ RUN apt-get install -y --no-install-recommends ${PACKAGES} && \
     	'rm' -rf STAR-${STAR_VERSION}
 
 ENV PATH /home/.local/bin:${PATH}              
+
+# Install FASTQC
+ARG FASTQC_VERSION=0.12.1
+RUN cd /home && \
+	wget --no-check-certificate https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v${FASTQC_VERSION}.zip && \
+	mkdir -p ~/.local/bin/FASTQC && \
+	unzip -d ~/.local/bin/ fastqc_v${FASTQC_VERSION}.zip && \
+	ln -s ~/.local/bin/FastQC/fastqc ~/.local/bin/. &&\
+	rm -rf fastqc_v${FASTQC_VERSION}.zip
+
+# Install MultiQC
+RUN     pip install multiqc
 
 LABEL   maintainer="sergej.nowoshilow@boehringer-ingelheim.com; joerg.fallmann@imp.ac.at"
 LABEL   version="3.0"

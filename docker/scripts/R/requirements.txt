@@ -16,6 +16,7 @@ remotes::satijalab/seurat-wrappers
 remotes::immunogenomics/presto
 remotes::bnprks/BPCells
 remotes::satijalab/sctransform
+remotes::kevinblighe/EnhancedVolcano
 #remotes::install_github("satijalab/azimuth", ref = "master", quiet = TRUE)
 
 # BioConductor packages installed through BiocManager

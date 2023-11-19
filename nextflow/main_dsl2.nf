@@ -402,9 +402,10 @@ process star_mapping{
     output:
     path "${sampleName}", emit: name
     tuple val(sampleName), path("${sampleName}.Solo.out"), emit: out
-    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/filtered"), emit: filtered
-    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/raw"), emit: raw
-    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/filtered/barcodes.tsv"), emit: star_cell_ids_filtered
+    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/filtered"), emit: cell_data_filtered
+    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/raw"), emit: cell_data_raw
+    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/filtered/barcodes.tsv"), emit: cell_ids_filtered
+    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/raw/barcodes.tsv"), emit: cell_ids_raw
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*.bam"), emit: bam
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
@@ -776,19 +777,21 @@ process createBarcodeEnrichmentPlots{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".jpeg") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
-        else                                     "OUTPUT/Plots/${file(filename).getName()}"
+        else                                     "OUTPUT/DE/DESEQ2/${file(filename).getName()}"
     }
 
     input:
         tuple path(sce), path(script)
 
     output:
-        path("*.jpeg")
+        path "*.jpeg", emit: jpeg
+        path "*.tsv.gz", emit: tables
 
     script:
     """
     Rscript --vanilla ${script} \
         --sce ${sce} \
+        --baseCond ${refName} \
         --plots_per_row 5 \
         --format jpeg \
         --width 400 \
@@ -916,11 +919,29 @@ workflow{
         /**************************************************************
                 STEP 7: Analytics report
         ***************************************************************/
-        
-        Ch_cell_ids = runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered)
 
-        Ch_cell_data = runCellrangerCount.out.cell_data_filtered.mix(useCellrangerData.out.cell_data_from_precomputed_filtered)
+        if (mapperbin == 'CellRanger'){
+            if (filter){
+                Ch_cell_ids = runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered)
 
+                Ch_cell_data = runCellrangerCount.out.cell_data_filtered.mix(useCellrangerData.out.cell_data_from_precomputed_filtered)
+            } else {
+                Ch_cell_ids = runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw)
+
+                Ch_cell_data = runCellrangerCount.out.cell_data_raw.mix(useCellrangerData.out.cell_data_from_precomputed_raw)
+            }
+        } else if (mapperbin == 'STAR'){            
+            if (filter){
+                Ch_cell_ids = star_mapping.out.cell_ids_filtered
+
+                Ch_cell_data = star_mapping.out.cell_data_filtered                
+            } else {
+                Ch_cell_ids = star_mapping.out.cell_ids_raw
+
+                Ch_cell_data = star_mapping.out.cell_data_raw
+            }
+        }
+    
         Ch_analytics_in =  Ch_cell_ids.join(mergeBarcodesInChunks.out.merged_libraries, by: 0).join(collapseAndFilterBarcodes.out.collapsed_libraries, by: 0).join(resolveMultiplets.out.resolved_multiplets_libraries, by: 0)
 
         generateAnalyticsPlots(Ch_analytics_in)
@@ -934,7 +955,6 @@ workflow{
         Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).combine(Ch_script)
 
         preprocessSingleCellData(Ch_preprocess_input)
-
 
         /**************************************************************
                 STEP 9: Generate overview plots
