@@ -1,12 +1,27 @@
-FROM    public.ecr.aws/lts/ubuntu:latest
+#FROM    public.ecr.aws/lts/ubuntu:latest
+#FROM 	 rocker/tidyverse
+#ENV     DEBIAN_FRONTEND noninteractive
+FROM 	bioconductor/bioconductor_docker:RELEASE_3_18
 
-RUN     apt-get update && \
-        apt-get upgrade -y
+## Otherwise timedatectl will get called which leads to 'no systemd' inside Docker
+ENV TZ UTC
 
-ENV     DEBIAN_FRONTEND noninteractive
-RUN     apt-get install -y python3-pip r-base libxml2-dev libssl-dev libcurl4-openssl-dev \
-        libv8-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev \
-        libpng-dev libtiff5-dev libjpeg-dev
+## Install dependencies for Python and R (following the official Rocker docs)
+RUN apt-get update \
+		&& apt-get install -y --no-install-recommends \
+		ed \
+		less \
+		locales \
+		vim-tiny \
+		wget \
+		ca-certificates \
+		fonts-texgyre \
+		python3-pip libxml2-dev libssl-dev libcurl4-openssl-dev \
+		libv8-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev \
+		libpng-dev libtiff5-dev libjpeg-dev software-properties-common dirmngr \
+		&& apt-get clean \
+		&& apt-get autoremove -y \
+		&& apt-get autoclean -y 
 
 # Install the required Python packages and add the CaTCH package
 RUN     pip install pandas numpy biopython
@@ -19,8 +34,47 @@ RUN     chmod +x /tools/scripts/python/*.py
 ENV     PATH $PATH:/tools/scripts/python/
 
 # Install the required R packages
-RUN     R -e "source('/tools/scripts/R/setup_R_env.R')"
-              
-LABEL   maintainer="sergej.nowoshilow@boehringer-ingelheim.com"
-LABEL   version="2.2"
+
+ENV 	R_REMOTES_UPGRADE="never"
+
+RUN		R -e "source('/tools/scripts/R/setup_R_env.R')"
+
+
+# Install STAR mapper for STARsolo mapping option
+ARG STAR_VERSION=2.7.11a
+
+ENV PACKAGES build-essential g++ wget zlib1g-dev unzip default-jre
+
+RUN set -ex
+
+RUN apt-get install -y --no-install-recommends ${PACKAGES} && \
+    	apt-get clean && \
+		rm -rf /var/lib/apt/lists/* \
+    	g++ --version && \
+    	cd /home && \
+    	wget --no-check-certificate https://github.com/alexdobin/STAR/archive/${STAR_VERSION}.zip && \
+    	unzip ${STAR_VERSION}.zip && \
+    	cd STAR-${STAR_VERSION}/source && \
+    	make STARstatic && \
+    	mkdir -p /home/.local/bin && \
+    	cp STAR /home/.local/bin && \
+    	cd /home && \
+    	'rm' -rf STAR-${STAR_VERSION}
+
+ENV PATH /home/.local/bin:${PATH}              
+
+# Install FASTQC
+ARG FASTQC_VERSION=0.12.1
+RUN cd /home && \
+	wget --no-check-certificate https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v${FASTQC_VERSION}.zip && \
+	mkdir -p ~/.local/bin/FASTQC && \
+	unzip -d ~/.local/bin/ fastqc_v${FASTQC_VERSION}.zip && \
+	ln -s ~/.local/bin/FastQC/fastqc ~/.local/bin/. &&\
+	rm -rf fastqc_v${FASTQC_VERSION}.zip
+
+# Install MultiQC
+RUN     pip install multiqc
+
+LABEL   maintainer="sergej.nowoshilow@boehringer-ingelheim.com; joerg.fallmann@imp.ac.at"
+LABEL   version="3.0"
 LABEL   release-date="2023-10-04"
