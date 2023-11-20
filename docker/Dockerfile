@@ -68,7 +68,7 @@ ARG FASTQC_VERSION=0.12.1
 RUN cd /home && \
 	wget --no-check-certificate https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v${FASTQC_VERSION}.zip && \
 	unzip -d /home/.local/bin/ fastqc_v${FASTQC_VERSION}.zip && \
-	ln -s /home/.local/bin/FastQC/fastqc ~/.local/bin/. &&\
+	ln -s /home/.local/bin/FastQC/fastqc /home/.local/bin/. &&\
 	rm -rf fastqc_v${FASTQC_VERSION}.zip
 
 # Install MultiQC
