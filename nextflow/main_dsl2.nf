@@ -850,6 +850,7 @@ workflow{
         } else {
             Ch_mapping_idx = Channel.empty()
         }
+        Ch_mapping_idx.subscribe {  println "IDX: $it"  }
 
         if (whitelist != null){
             if (whitelist.exists()){
@@ -858,6 +859,17 @@ workflow{
         } else{
             Ch_whitelist = Channel.empty()
         }
+        Ch_whitelist.subscribe {  println "Whitelist: $it"  }
+
+        if (mapperbin == 'CellRanger'){
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
+            
+
+            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1)) }
+        }else if (mapperbin == 'STAR'){
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_whitelist.combine( Ch_mapping_idx ))
+        }
+        Ch_map_input.subscribe {  println "INPUT: $it"  }
 
         if(runqc){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
@@ -870,14 +882,7 @@ workflow{
         ***********************************************************/
 
         if (mapperbin == 'CellRanger'){
-            Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
-
-            Ch_cellranger_input.subscribe {  println "INPUT: $it"  }
-
             runCellrangerCount(Ch_cellranger_input)
-
-            Ch_cellranger_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1)) }
-        
             useCellrangerData(Ch_cellranger_precomputed)
 
             if (filter){
@@ -885,11 +890,8 @@ workflow{
             }else{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
-
-
         }else if (mapperbin == 'STAR'){
-            Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_whitelist.combine( Ch_mapping_idx ))
-            star_mapping(Ch_star_input)
+            star_mapping(Ch_map_input)
 
             if (filter){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_filtered)
