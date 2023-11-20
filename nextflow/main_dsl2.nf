@@ -882,8 +882,8 @@ workflow{
         ***********************************************************/
 
         if (mapperbin == 'CellRanger'){
-            runCellrangerCount(Ch_cellranger_input)
-            useCellrangerData(Ch_cellranger_precomputed)
+            runCellrangerCount(Ch_map_input)
+            useCellrangerData(Ch_map_precomputed)
 
             if (filter){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
