@@ -56,8 +56,7 @@ RUN apt-get install -y --no-install-recommends ${PACKAGES} && \
     	unzip ${STAR_VERSION}.zip && \
     	cd STAR-${STAR_VERSION}/source && \
     	make STARstatic && \
-    	mkdir -p /home/.local/bin && \
-    	cp STAR /home/.local/bin && \
+    	cp STAR /usr/local/bin && \
     	cd /home && \
     	'rm' -rf STAR-${STAR_VERSION}
 
@@ -67,8 +66,9 @@ ENV PATH /home/.local/bin:${PATH}
 ARG FASTQC_VERSION=0.12.1
 RUN cd /home && \
 	wget --no-check-certificate https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v${FASTQC_VERSION}.zip && \
-	unzip -d /home/.local/bin/ fastqc_v${FASTQC_VERSION}.zip && \
-	ln -s /home/.local/bin/FastQC/fastqc /home/.local/bin/. &&\
+	unzip -d /usr/local/lib/ fastqc_v${FASTQC_VERSION}.zip && \
+	ln -s /usr/local/lib/FastQC/fastqc /usr/local/bin/. &&\
+	cd /home && \
 	rm -rf fastqc_v${FASTQC_VERSION}.zip
 
 # Install MultiQC
