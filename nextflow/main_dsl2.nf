@@ -26,6 +26,7 @@ def get_always(parameter){
 absDir = workflow.launchDir
 scriptDirR = get_always('scriptDirR') ?: '/tools/scripts/R'
 scriptDirPy = get_always('scriptDirPy') ?: '/tools/scripts/python'
+binDir = get_always('BinDir') ?: '/usr/local/bin'
 libraries = get_always('libraries')
 chunkSize = get_always('chunkSize') ?: 1_000_000
 maxDist = get_always('maxDist') ?: 2
@@ -93,6 +94,7 @@ def helpMessage() {
         --reportsDir            specifies the reports directory.(default: ${params.reportsDir})
         --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/R/ for instances not running docker)
         --scriptDirPy            specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/python/ for instances not running docker)
+        --BinDir            specifies the path to the binary directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /usr/bin/local which is valid for docker instance; set to '' for instances not running docker)
         --help                  print this help message
 
     """.stripIndent()
@@ -175,8 +177,13 @@ process qc_raw{
     path "*.{zip,html}", emit: fastqc_results
 
     script:
+    if (${binDir} != ''){
+        fqc = "${binDir}"+"fastqc"
+    } else{
+        fqc = "fastqc"
+    }
     """
-    fastqc --quiet -t ${task.cpus} $qcparams --noextract -f fastq $read1 $read2
+    ${fqc} --quiet -t ${task.cpus} $qcparams --noextract -f fastq $read1 $read2
     """
 }
 
@@ -204,8 +211,13 @@ process mqc{
     path "*.html", emit: html
 
     script:
+    if (${binDir} != ''){
+        mqc = "${binDir}"+"multiqc"
+    } else{
+        fqc = "multiqc"
+    }
     """
-    touch $fastqcs; export LC_ALL=en_US.utf8; export LC_ALL=C.UTF-8; multiqc -f -k json -z -o \${PWD} .
+    touch $fastqcs; export LC_ALL=en_US.utf8; export LC_ALL=C.UTF-8; ${mqc} -f -k json -z -o \${PWD} .
     """
 }
 
