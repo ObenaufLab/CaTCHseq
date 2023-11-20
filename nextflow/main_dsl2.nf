@@ -818,8 +818,6 @@ workflow{
                 raw: (new File(it.R1)).isFile()
                 precomputed: (new File(it.R1)).isDirectory()
             }
-        
-        Ch_csv_QC_split = Ch_csv.filter { new File(it.R1).isFile() }
 
         if (mapindex != null){
             if (!mapindex.exists()){
@@ -845,7 +843,8 @@ workflow{
             Ch_whitelist = Channel.empty()
         }
 
-        qc_raw(Ch_csv_QC_split)
+        Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
+        qc_raw(Ch_QC_input)
         mqc(qc_raw.out.fastqc_results.collect())
 
         /**********************************************************
