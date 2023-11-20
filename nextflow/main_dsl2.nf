@@ -207,7 +207,6 @@ process mqc{
 
     input:
     path fastqcs
-    path dummy    
 
     output:
     path "*.zip", emit: mqc
@@ -861,6 +860,7 @@ workflow{
         if(runqc){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
             qc_raw(Ch_QC_input)
+            mqc(qc_raw.out.fastqc_results.collect())
         }
 
         /**********************************************************
@@ -869,6 +869,9 @@ workflow{
 
         if (mapperbin == 'CellRanger'){
             Ch_cellranger_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
+
+            Ch_cellranger_input.subscribe {  println "INPUT: $it"  }
+
 
             runCellrangerCount(Ch_cellranger_input)
 
@@ -893,10 +896,6 @@ workflow{
             }
         }
     
-        if (runqc){
-            mqc(qc_raw.out.fastqc_results.collect(), Ch_count_input)
-        }
-
         /**************************************************************
                 STEP 2: Count CaTCH barcodes in chunks separately
         ***************************************************************/
