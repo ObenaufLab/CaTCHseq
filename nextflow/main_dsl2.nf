@@ -179,7 +179,7 @@ process qc_raw{
     path "*.{zip,html}", emit: fastqc_results
 
     script:
-    if (binDir != ''){
+    if (binDir){
         fqc = binDir+"fastqc"
     } else{
         fqc = "fastqc"
