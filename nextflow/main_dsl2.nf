@@ -832,7 +832,8 @@ workflow{
                 raw: (new File(it.R1)).isFile()
                 precomputed: (new File(it.R1)).isDirectory()
             }
-
+        Ch_csv_GEX_split.subscribe {  println "GEX: $it"  }
+        
         if (mapindex != null){
             if (!mapindex.exists()){
                 if (mapperbin == 'CellRanger'){
@@ -872,7 +873,6 @@ workflow{
 
             Ch_cellranger_input.subscribe {  println "INPUT: $it"  }
 
-
             runCellrangerCount(Ch_cellranger_input)
 
             Ch_cellranger_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1)) }
@@ -889,6 +889,7 @@ workflow{
         }else if (mapperbin == 'STAR'){
             Ch_star_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_whitelist.combine( Ch_mapping_idx ))
             star_mapping(Ch_star_input)
+
             if (filter){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_filtered)
             }else{
