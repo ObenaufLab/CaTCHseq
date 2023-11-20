@@ -871,7 +871,7 @@ workflow{
         }else if (mapperbin == 'STAR'){
             Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_whitelist.combine( Ch_mapping_idx ))
         }
-        Ch_map_input.subscribe {  println "INPUT: $it"  }
+        //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
         if(runqc){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
