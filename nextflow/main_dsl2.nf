@@ -827,13 +827,13 @@ workflow{
         ***********************************************************/
         
         Ch_csv = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
-        Ch_csv.subscribe {  println "CSV: $it"  }
+        //Ch_csv.subscribe {  println "CSV: $it"  }
 
         Ch_csv_GEX_split = Ch_csv.filter { it.LibraryType == "GEX" }.branch{
                 raw: (new File(it.R1)).isFile()
                 precomputed: (new File(it.R1)).isDirectory()
             }
-        Ch_csv_GEX_split.raw.subscribe {  println "GEX: $it"  }
+        //Ch_csv_GEX_split.raw.subscribe {  println "GEX: $it"  }
         
         println(" IDX "+mapindex+" WL "+whitelist)
 
@@ -852,7 +852,7 @@ workflow{
         } else {
             Ch_mapping_idx = Channel.empty()
         }
-        Ch_mapping_idx.subscribe {  println "IDX: $it"  }
+        //Ch_mapping_idx.subscribe {  println "IDX: $it"  }
 
         if (whitelist){
             if (file(whitelist).exists()){
@@ -861,7 +861,7 @@ workflow{
         } else{
             Ch_whitelist = Channel.empty()
         }
-        Ch_whitelist.subscribe {  println "Whitelist: $it"  }
+        //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
         if (mapperbin == 'CellRanger'){
             Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
