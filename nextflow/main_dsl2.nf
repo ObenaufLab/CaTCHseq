@@ -24,9 +24,9 @@ def get_always(parameter){
 
 //Params from CL
 absDir = workflow.launchDir
-scriptDirR = get_always('scriptDirR') ?: '/tools/scripts/R'
-scriptDirPy = get_always('scriptDirPy') ?: '/tools/scripts/python'
-binDir = get_always('BinDir') ?: '/usr/local/bin'
+scriptDirR = get_always('scriptDirR') ?: '/tools/scripts/R/'
+scriptDirPy = get_always('scriptDirPy') ?: '/tools/scripts/python/'
+binDir = get_always('BinDir') ?: '/usr/local/bin/'
 libraries = get_always('libraries')
 chunkSize = get_always('chunkSize') ?: 1_000_000
 maxDist = get_always('maxDist') ?: 2
@@ -34,6 +34,7 @@ minReads = get_always('minReads') ?: 10
 majorityVote = get_always('majorityVote') ?: 90
 qcparams = get_always('fastqc_params') ?: ''
 mapperbin = get_always('mapper') ?: "CellRanger"
+runqc = get_always('withQC') ?: true
 starparams = get_always('star_params') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --soloCBwhitelist None --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
 idxparams = get_always('idx_params') ?: ""
 whitelist = get_always('whitelist') ?: null
@@ -81,6 +82,7 @@ def helpMessage() {
         --chunkSize             number of reads per chunk (default: ${params.chunkSize})
         --index                 Path to mapper index file (default: ${params.mapindex})
         --mapper                Which mapper to run (default: CellRanger, optional: STAR)
+        --withQC                Boolean, run FastQC and MultiQC (default: true)
         --reference             Path to reference fasta.gz for STAR
         --annotation            Path to annotation gtf.gz for STAR
         --whitelist             Path to barcode whitelist
@@ -177,8 +179,8 @@ process qc_raw{
     path "*.{zip,html}", emit: fastqc_results
 
     script:
-    if (${binDir} != ''){
-        fqc = "${binDir}"+"fastqc"
+    if (binDir != ''){
+        fqc = binDir+"fastqc"
     } else{
         fqc = "fastqc"
     }
@@ -205,14 +207,15 @@ process mqc{
 
     input:
     path fastqcs
+    path dummy    
 
     output:
     path "*.zip", emit: mqc
     path "*.html", emit: html
 
     script:
-    if (${binDir} != ''){
-        mqc = "${binDir}"+"multiqc"
+    if (binDir != ''){
+        mqc = binDir+"multiqc"
     } else{
         fqc = "multiqc"
     }
@@ -855,9 +858,10 @@ workflow{
             Ch_whitelist = Channel.empty()
         }
 
-        Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
-        qc_raw(Ch_QC_input)
-        mqc(qc_raw.out.fastqc_results.collect())
+        if(runqc){
+            Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
+            qc_raw(Ch_QC_input)
+        }
 
         /**********************************************************
                 STEP 1: Count Reads
@@ -889,6 +893,10 @@ workflow{
             }
         }
     
+        if (runqc){
+            mqc(qc_raw.out.fastqc_results.collect(), Ch_count_input)
+        }
+
         /**************************************************************
                 STEP 2: Count CaTCH barcodes in chunks separately
         ***************************************************************/
@@ -974,9 +982,8 @@ workflow{
         createOverviewPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/create_overview_plots.R")))
         createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/plot_enriched_and_depleted_BCs.R")))        
         
-    /*
     emit:
     createOverviewPlots.out.pdf
     createBarcodeEnrichmentPlots.out.jpeg
-    */
+    
 }
