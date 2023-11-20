@@ -827,12 +827,13 @@ workflow{
         ***********************************************************/
         
         Ch_csv = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
+        Ch_csv.subscribe {  println "CSV: $it"  }
 
         Ch_csv_GEX_split = Ch_csv.filter { it.LibraryType == "GEX" }.branch{
                 raw: (new File(it.R1)).isFile()
                 precomputed: (new File(it.R1)).isDirectory()
             }
-        Ch_csv_GEX_split.subscribe {  println "GEX: $it"  }
+        Ch_csv_GEX_split.raw.subscribe {  println "GEX: $it"  }
         
         if (mapindex != null){
             if (!mapindex.exists()){
