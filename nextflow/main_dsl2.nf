@@ -835,8 +835,10 @@ workflow{
             }
         Ch_csv_GEX_split.raw.subscribe {  println "GEX: $it"  }
         
+        println(" IDX "+mapindex+" WL "+whitelist)
+
         if (mapindex){
-            if (!mapindex.exists()){
+            if (!file(mapindex).exists()){
                 if (mapperbin == 'CellRanger'){
                     Cellranger_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
                     Ch_mapping_idx = Cellranger_idx.out.idx
@@ -853,7 +855,7 @@ workflow{
         Ch_mapping_idx.subscribe {  println "IDX: $it"  }
 
         if (whitelist){
-            if (whitelist.exists()){
+            if (file(whitelist).exists()){
                 Ch_whitelist = Channel.fromPath(whitelist)
             }
         } else{
