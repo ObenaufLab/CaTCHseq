@@ -176,7 +176,8 @@ process qc_raw{
     tuple val(sampleName), path(read1), path(read2)
 
     output:
-    path "*.{zip,html}", emit: fastqc_results
+    tuple val(sampleName), path("*.zip"), emit: zip
+    tuple val(sampleName), path("*.html"), emit: html
 
     script:
     if (binDir){
@@ -206,7 +207,7 @@ process mqc{
     }
 
     input:
-    path fastqcs
+    tuple val(sampleName), path(fastqcs, stageAs: "?/*")
 
     output:
     path "*.zip", emit: mqc
@@ -876,7 +877,7 @@ workflow{
         if(runqc){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
             qc_raw(Ch_QC_input)
-            mqc(qc_raw.out.fastqc_results.collect())
+            mqc(qc_raw.out.zip.collect())
         }
 
         /**********************************************************
