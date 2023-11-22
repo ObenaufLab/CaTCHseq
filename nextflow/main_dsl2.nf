@@ -210,8 +210,8 @@ process mqc{
     tuple val(sampleName), path(fastqcs, stageAs: "?/*")
 
     output:
-    path "*.zip", emit: mqc
-    path "*.html", emit: html
+    path "*.zip", includeInputs:false, emit: mqc
+    path "*.html", includeInputs:false, emit: html
 
     script:
     if (binDir != ''){
@@ -471,31 +471,6 @@ process star_mapping{
 
 }
 
-workflow MAPPING{
-    take: collection
-
-    main:
-    checkidx = file(MAPUIDX)
-    //collection.filter(~/.fastq.gz/)
-
-    if (checkidx.exists()){
-        idxfile = Channel.fromPath(MAPUIDX)
-        star_mapping(idxfile.combine(collection))
-    }
-    else{
-        genomefile = Channel.fromPath(MAPREF)
-        annofile = Channel.fromPath(MAPANNO)
-        star_idx(genomefile, annofile)
-        star_mapping(star_idx.out.idx.combine(collection))
-    }
-
-
-    emit:
-    mapped  = star_mapping.out.maps
-    logs = star_mapping.out.logs
-}
-
-
 /************************************************************************
                 STEP 2: Count CaTCH barcodes in chunks separately
 ************************************************************************/
@@ -727,7 +702,8 @@ process preprocessSingleCellData{
     }
 
     input:
-        tuple val(sampleName), path(featureMatrix), path(catchBarcodes), path(script)
+        tuple val(sampleName), path(featureMatrix, stageAs: "${sampleName}/*"), path(catchBarcodes)
+        path(script)
 
     output:
         path("*.sce.prefiltered.rda.gz"), emit: basic_sce
@@ -736,11 +712,22 @@ process preprocessSingleCellData{
         path("*.pdf"), emit: basic_sce_qc
 
     script:
-    """
+    """     
+    SAMPLES=''
+    BCS=''
+    FEATURES=''
+    for bc in \$(find . -name "*.CaTCHbarcodes");
+    do
+        SN=\${bc%..CaTCHbarcodes}
+        SAMPLES+="\${SN},""
+        BCS+="\${bc},"
+        FEATURES+="\${SN}\\,"
+    done
+
     Rscript --vanilla ${script} \
-       --sample ${sampleName} \
-       --data10X ${featureMatrix} \
-       --catchBC ${catchBarcodes} \
+       --sample \${SN:0:-1} \
+       --data10X \${FEATURES:0:-1} \
+       --catchBC \${BCS:0:-1} \
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
@@ -977,9 +964,9 @@ workflow{
         ***************************************************************/
 
         Ch_script = Channel.fromPath("${absDir}/sccatch/docker/scripts/R/preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
-        Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).combine(Ch_script)
+        Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).collect()
 
-        preprocessSingleCellData(Ch_preprocess_input)
+        preprocessSingleCellData(Ch_preprocess_input, Ch_script)
 
         /**************************************************************
                 STEP 9: Generate overview plots
