@@ -702,13 +702,13 @@ process preprocessSingleCellData{
     }
 
     input:
-        tuple val(sampleName), path(featureMatrix, stageAs: "${sampleName}/*"), path(catchBarcodes)
+        tuple val(sampleName), path(featureMatrix, stageAs: "?/*"), path(catchBarcodes)
         path(script)
 
     output:
         path("*.sce.prefiltered.rda.gz"), emit: basic_sce
-        path("*.sce.prefiltered.tsne.gz"), emit: basic_sce_tsne
-        path("*.sce.prefiltered.metadata.gz"), emit: basic_sce_metadata
+        //path("*.sce.prefiltered.tsne.gz"), emit: basic_sce_tsne
+        //path("*.sce.prefiltered.metadata.gz"), emit: basic_sce_metadata
         path("*.pdf"), emit: basic_sce_qc
 
     script:
@@ -716,13 +716,17 @@ process preprocessSingleCellData{
     SAMPLES=''
     BCS=''
     FEATURES=''
+    IDX=1
     for bc in \$(find . -name "*.CaTCHbarcodes");
     do
         SN=\${bc%..CaTCHbarcodes}
         SAMPLES+="\${SN},""
         BCS+="\${bc},"
-        FEATURES+="\${SN}\\,"
+        FEATURES+="\${IDX}\\,"
+        IDX=\$((IDX + 1))
     done
+    for 
+         
 
     Rscript --vanilla ${script} \
        --sample \${SN:0:-1} \
@@ -731,7 +735,7 @@ process preprocessSingleCellData{
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
-       --out ${sampleName}.sce.prefiltered
+       --out scCaTCH.sce.prefiltered
     """
 }
 
