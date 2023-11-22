@@ -725,13 +725,15 @@ process preprocessSingleCellData{
         FEATURES+="\${IDX}\\,"
         IDX=\$((IDX + 1))
     done
-    for 
-         
+    
+    SAMPLES=\${SAMPLES:0:-1}
+    FEATURES=\${FEATURES:0:-1}
+    BCS=\${BCS:0:-1}
 
     Rscript --vanilla ${script} \
-       --sample \${SN:0:-1} \
-       --data10X \${FEATURES:0:-1} \
-       --catchBC \${BCS:0:-1} \
+       --sample \$SAMPLES \
+       --data10X \$FEATURES \
+       --catchBC \$BCS \
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
