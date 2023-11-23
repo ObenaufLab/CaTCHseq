@@ -207,7 +207,7 @@ process mqc{
     }
 
     input:
-    tuple val(sampleName), path(fastqcs, stageAs: "?/*")
+    path(fastqcs) //, stageAs: "?/*")
 
     output:
     path "*.zip", includeInputs:false, emit: mqc
@@ -702,7 +702,8 @@ process preprocessSingleCellData{
     }
 
     input:
-        tuple val(sampleName), path(featureMatrix, stageAs: "?/*"), path(catchBarcodes)
+        path(featureMatrix, stageAs: "?/*")
+        path(catchBarcodes)
         path(script)
 
     output:
@@ -712,15 +713,15 @@ process preprocessSingleCellData{
         path("*.pdf"), emit: basic_sce_qc
 
     script:
-    """     
+    """ 
     SAMPLES=''
     BCS=''
     FEATURES=''
     IDX=1
     for bc in \$(find . -name "*.CaTCHbarcodes");
     do
-        SN=\${bc%..CaTCHbarcodes}
-        SAMPLES+="\${SN},""
+        SN=\${bc%*.CaTCHbarcodes}
+        SAMPLES+="\${SN},"
         BCS+="\${bc},"
         FEATURES+="\${IDX}\\,"
         IDX=\$((IDX + 1))
@@ -829,7 +830,7 @@ workflow{
             }
         //Ch_csv_GEX_split.raw.subscribe {  println "GEX: $it"  }
         
-        println(" IDX "+mapindex+" WL "+whitelist)
+        //println(" IDX "+mapindex+" WL "+whitelist)
 
         if (mapindex){
             if (!file(mapindex).exists()){
@@ -870,7 +871,7 @@ workflow{
         if(runqc){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
             qc_raw(Ch_QC_input)
-            mqc(qc_raw.out.zip.collect())
+            mqc(qc_raw.out.zip.collect().flatten().filter( ~/\*.zip$/ ))
         }
 
         /**********************************************************
@@ -969,17 +970,21 @@ workflow{
                 STEP 8: Generate SingleCellExperiment object
         ***************************************************************/
 
-        Ch_script = Channel.fromPath("${absDir}/sccatch/docker/scripts/R/preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
-        Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).collect()
+        Ch_script = Channel.fromPath("${absDir}/scCatch/docker/scripts/R/preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
+        Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
 
-        preprocessSingleCellData(Ch_preprocess_input, Ch_script)
+        //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
+
+        //preprocessSingleCellData(Ch_preprocess_input)
+        preprocessSingleCellData(Ch_cell_data.map { sample, data ->
+            data}.collect(), generateReports.out.report_CaTCHbarcodes.collect(), Ch_script)
 
         /**************************************************************
                 STEP 9: Generate overview plots
         ***************************************************************/
 
-        createOverviewPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/create_overview_plots.R")))
-        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/sccatch/docker/scripts/R/plot_enriched_and_depleted_BCs.R")))        
+        createOverviewPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/scCatch/docker/scripts/R/create_overview_plots.R")))
+        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/scCatch/docker/scripts/R/plot_enriched_and_depleted_BCs.R")))        
         
     emit:
     createOverviewPlots.out.pdf
