@@ -165,7 +165,7 @@ process qc_raw{
     //validExitStatus 0,1
     tag "${sampleName}"
 
-    publishDir "${absDir}/" , mode: 'link', overwrite: true,
+    publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("zip") > 0)          "OUTPUT/QC/FASTQC/${file(filename).getName()}"
         else if (filename.indexOf("html") > 0)    "OUTPUT/QC/FASTQC/${file(filename).getName()}"
@@ -176,8 +176,8 @@ process qc_raw{
     tuple val(sampleName), path(read1), path(read2)
 
     output:
-    tuple val(sampleName), path("*.zip"), emit: zip
-    tuple val(sampleName), path("*.html"), emit: html
+    path("*.zip"), emit: zip
+    path("*.html"), emit: html
 
     script:
     if (binDir){
@@ -199,7 +199,7 @@ process mqc{
     //validExitStatus 0,1
     tag "${sampleName}"
 
-    publishDir "${absDir}/" , mode: 'link', overwrite: true,
+    publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("zip") > 0)          "OUTPUT/QC/MULTI/${file(filename).getName()}"
         else if (filename.indexOf("html") > 0)    "OUTPUT/QC/MULTI/${file(filename).getName()}"
@@ -236,7 +236,7 @@ process Cellranger_idx{
     label 'big_mem'
     //validExitStatus 0,1
 
-    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
+    publishDir "${absDir}/" , mode: 'copyNoFollow',
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
         else                                                     "OUTPUT/CellRanger/INDICES/${file(filename).getName()}"
@@ -285,8 +285,8 @@ process runCellrangerCount{
         path "${sampleName}", emit: name
         tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_filtered
         tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix/barcodes.tsv.gz"), emit: cell_ids_raw
-        tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix"), emit: cell_data_filtered
-        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix"), emit: cell_data_raw
+        tuple val(sampleName), path("${sampleName}_filtered_feature_bc_matrix"), emit: cell_data_filtered
+        tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
     
     script:
     """
@@ -323,6 +323,8 @@ process runCellrangerCount{
 
     mv ${sampleName} rundir
     mv rundir/outs ${sampleName}
+    ln -s ${sampleName}/filtered_feature_bc_matrix ${sampleName}_filtered_feature_bc_matrix
+    ln -s ${sampleName}/raw_feature_bc_matrix ${sampleName}_raw_feature_bc_matrix
     """
 }
 
@@ -416,11 +418,11 @@ process star_mapping{
     
     output:
     path "${sampleName}", emit: name
-    tuple val(sampleName), path("${sampleName}.Solo.out"), emit: out
-    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/filtered"), emit: cell_data_filtered
-    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/raw"), emit: cell_data_raw
-    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/filtered/barcodes.tsv"), emit: cell_ids_filtered
-    tuple val(sampleName), path("${sampleName}.Solo.out/Gene/raw/barcodes.tsv"), emit: cell_ids_raw
+    tuple val(sampleName), path("${sampleName}"), emit: out
+    tuple val(sampleName), path("${sampleName}_filtered_feature_bc_matrix"), emit: cell_data_filtered
+    tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
+    tuple val(sampleName), path("${sampleName}/Gene/filtered/barcodes.tsv"), emit: cell_ids_filtered
+    tuple val(sampleName), path("${sampleName}/Gene/raw/barcodes.tsv"), emit: cell_ids_raw
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*.bam"), emit: bam
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
@@ -467,6 +469,9 @@ process star_mapping{
     IFS=\${BKP}
 
     STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${r1} ${r2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx && && samtools view -h ${of} | gzip > ${gf} && rm -f ${of} && touch ${fn}.Unmapped.out.mate1 ${fn}.Unmapped.out.mate2 && cat ${fn}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R1_unmapped.fastq.gz && at ${fn}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done
+    mv ${sampleName}.Solo.out ${sampleName}
+    ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix
+    ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix
     """
 
 }
@@ -641,7 +646,7 @@ process generateReports{
         tuple val(sampleName), path(library)
 
     output:
-        path('*.CaTCHbarcodes'), emit: report_CaTCHbarcodes
+        tuple val(sampleName), path('*.CaTCHbarcodes'), emit: report_CaTCHbarcodes
         tuple val(sampleName), path('*.cells'), emit: report_cells
 
     script:
@@ -702,7 +707,7 @@ process preprocessSingleCellData{
     }
 
     input:
-        path(featureMatrix, stageAs: "?/*")
+        path(featureMatrix)
         path(catchBarcodes)
         path(script)
 
@@ -713,17 +718,22 @@ process preprocessSingleCellData{
         path("*.pdf"), emit: basic_sce_qc
 
     script:
+    if (filter){
+        featurematrix="filtered_feature_bc_matrix"
+    }else{
+        featurematrix="raw_feature_bc_matrix"
+    }
     """ 
     SAMPLES=''
     BCS=''
     FEATURES=''
     IDX=1
-    for bc in \$(find . -name "*.CaTCHbarcodes");
+    for bc in \$(find . -name "*.cells"|cut -d'/' -f2);
     do
-        SN=\${bc%*.CaTCHbarcodes}
+        SN=\${bc%*.cells}
         SAMPLES+="\${SN},"
         BCS+="\${bc},"
-        FEATURES+="\${IDX}\\,"
+        FEATURES+="\${SN}_${featurematrix},"
         IDX=\$((IDX + 1))
     done
     
@@ -870,8 +880,9 @@ workflow{
 
         if(runqc){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
+            //Ch_QC_input.subscribe {  println "QC: $it"  }
             qc_raw(Ch_QC_input)
-            mqc(qc_raw.out.zip.collect().flatten().filter( ~/\*.zip$/ ))
+            mqc(qc_raw.out.zip.collect())//.flatten().filter( ~/.zip/ ))
         }
 
         /**********************************************************
@@ -971,13 +982,11 @@ workflow{
         ***************************************************************/
 
         Ch_script = Channel.fromPath("${absDir}/scCatch/docker/scripts/R/preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
-        Ch_preprocess_input = Ch_cell_data.combine(generateReports.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
-
+        //Ch_preprocess_input = Ch_cell_data.map { sample, data -> data }.combine(generateReports.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
         //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
-
         //preprocessSingleCellData(Ch_preprocess_input)
-        preprocessSingleCellData(Ch_cell_data.map { sample, data ->
-            data}.collect(), generateReports.out.report_CaTCHbarcodes.collect(), Ch_script)
+
+        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect(), Ch_script)
 
         /**************************************************************
                 STEP 9: Generate overview plots

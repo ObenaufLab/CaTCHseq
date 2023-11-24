@@ -2,250 +2,281 @@
 
 library(optparse)
 
-option_list = list(
-  make_option(c("--sample"), type="character", default = NULL, 
-              help = "sample name"),
-  make_option(c("--data10X"), type="character", default = NULL, 
-              help = "path to the 10X data"),
-  make_option(c("--catchBC"), type="character", default = NULL, 
-              help = "path to the file with CaTCH barcodes"),
-  make_option(c("--max_mt"), type = "numeric", default = 10, 
-              help = "maximum percent of mitochondrial reads in a valid cell"),
-  make_option(c("--min_features"), type = "numeric", default = 500, 
-              help = "minimum number of detected features in a valid cell"),
-  make_option(c("--hvg_cutoff"), type = "numeric", default = 0.1, 
-              help = "cutoff value to call percentage of high variable genes (must be between 0 and 1)"),
-  make_option(c("--out"), type="character", default = NULL, 
-              help = "path to the output file"),
-  make_option(c("--marker"), type="character", default = '/tools/data/R/stagemarkers_xue2020.rda', 
-              help = "path to the stagemarker file")
+option_list <- list(
+    make_option(c("--sample"),
+        type = "character", default = NULL,
+        help = "sample name"
+    ),
+    make_option(c("--data10X"),
+        type = "character", default = NULL,
+        help = "path to the 10X data"
+    ),
+    make_option(c("--catchBC"),
+        type = "character", default = NULL,
+        help = "path to the file with CaTCH barcodes"
+    ),
+    make_option(c("--max_mt"),
+        type = "numeric", default = 10,
+        help = "maximum percent of mitochondrial reads in a valid cell"
+    ),
+    make_option(c("--min_features"),
+        type = "numeric", default = 500,
+        help = "minimum number of detected features in a valid cell"
+    ),
+    make_option(c("--hvg_cutoff"),
+        type = "numeric", default = 0.1,
+        help = "cutoff value to call percentage of high variable genes (must be between 0 and 1)"
+    ),
+    make_option(c("--out"),
+        type = "character", default = NULL,
+        help = "path to the output file"
+    ),
+    make_option(c("--marker"),
+        type = "character", default = "/tools/data/R/stagemarkers_xue2020.rda",
+        help = "path to the stagemarker file"
+    )
 )
 
-opt_parser = OptionParser(option_list = option_list)
-opt = parse_args(opt_parser)
+opt_parser <- OptionParser(option_list = option_list)
+opt <- parse_args(opt_parser)
 
-if (is.null(opt$sample) || is.null(opt$out)){
-  print_help(opt_parser)
-  stop("Not enough parameters")
+print(paste0("CLI: ", opt))
+
+if (is.null(opt$sample) || is.null(opt$out)) {
+    print_help(opt_parser)
+    stop("Not enough parameters")
 }
 
 
 #### Additional methods ####
 activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
-  # check if logcounts is present
-  stopifnot("logcounts" %in% names(assays(sce)))
-  
-  # determine shared features between sce and signature
-  shared_features <- intersect(signature, rownames(sce))
-  stopifnot(length(shared_features) > 0)
-  
-  # calculate scaled log-means of signature
-  return (sce[shared_features, ] %>%
-          assay("logcounts") %>%
-          Matrix::colMeans() %>%
-          # use scale by default, but allow other functions and additional arguments
-          fn.scale(...) %>%
-          as.numeric())
+    # check if logcounts is present
+    stopifnot("logcounts" %in% names(assays(sce)))
+
+    # determine shared features between sce and signature
+    shared_features <- intersect(signature, rownames(sce))
+    stopifnot(length(shared_features) > 0)
+
+    # calculate scaled log-means of signature
+    return(sce[shared_features, ] %>%
+        assay("logcounts") %>%
+        Matrix::colMeans() %>%
+        # use scale by default, but allow other functions and additional arguments
+        fn.scale(...) %>%
+        as.numeric())
 }
 
 
 assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, ..., center = TRUE) {
-  
-  if (is.null(sce)) {
-    stop("'sce' must be specified and cannot be NULL")
-  }
-  if (is.null(markers)) {
-    stop("'markers' must be specified and cannot be NULL. You can use the provided dataset 'stagemarkers_xue2020'")
-  }
-  if (is.null(col.name)) {
-    stop("'col.name' must be specified and cannot be NULL")
-  }
-  
-  categories <- map_df(markers, activity_by_logmeans, sce = sce, fn.scale = fn.scale, ...)
-  
-  # categories should be a matrix with N rows and M columns, whereas N is the
-  # number of cells in the SingleCellExperiment object `sce` and M is the
-  # number of names of the markers list.
-  # If this is not the case after scaling, transpose it.
-  dims <- dim(categories)
-  if (dims[1] != dim(sce)[2]) {
-    categories <- categories %>%
-                  t()
-  }
-  
-  # If the results should be centered around 0, use `scale` to do that on a
-  # per-cell basis and transpose the result.
-  if (center) {
-    categories <- categories %>%
-                  apply(1, scale) %>%
-                  t()
-  }
-  colnames(categories) <- names(markers)
-  colData(sce)[col.name] <- colnames(categories)[apply(categories, 1, which.max)]
-  return (sce)
+    if (is.null(sce)) {
+        stop("'sce' must be specified and cannot be NULL")
+    }
+    if (is.null(markers)) {
+        stop("'markers' must be specified and cannot be NULL. You can use the provided dataset 'stagemarkers_xue2020'")
+    }
+    if (is.null(col.name)) {
+        stop("'col.name' must be specified and cannot be NULL")
+    }
+
+    categories <- map_df(markers, activity_by_logmeans, sce = sce, fn.scale = fn.scale, ...)
+
+    # categories should be a matrix with N rows and M columns, whereas N is the
+    # number of cells in the SingleCellExperiment object `sce` and M is the
+    # number of names of the markers list.
+    # If this is not the case after scaling, transpose it.
+    dims <- dim(categories)
+    if (dims[1] != dim(sce)[2]) {
+        categories <- categories %>%
+            t()
+    }
+
+    # If the results should be centered around 0, use `scale` to do that on a
+    # per-cell basis and transpose the result.
+    if (center) {
+        categories <- categories %>%
+            apply(1, scale) %>%
+            t()
+    }
+    colnames(categories) <- names(markers)
+    colData(sce)[col.name] <- colnames(categories)[apply(categories, 1, which.max)]
+    return(sce)
 }
 
 
 ### Create sce objects with corresponding CaTCH barcodes ###
-create_SCEs <- function(smpl, data10X, bc){
-    samplelist <- str_split(smpl, ',')[[1]]
-    data10Xs <- str_split(data10X, ',')[[1]]
-    bcs <- str_split(bc, ',')[[1]]
-    
-    if (length(samplelist) == 1){
+create_SCEs <- function(smpl, data10X, bc) {
+    samplelist <- str_split(smpl, ",")[[1]]
+    data10Xs <- str_split(data10X, ",")[[1]]
+    bcs <- str_split(bc, ",")[[1]]
+
+    if (length(samplelist) == 1) {
         print(paste("Processing the sample ", smpl, sep = ""))
         print("   Loading 10X data ...")
-        sceData <- Seurat::Read10X(data.dir = data10X,
-                                   gene.column = 2,
-                                   cell.column = 1,
-                                   strip.suffix = TRUE)
+        sceData <- Seurat::Read10X(
+            data.dir = data10X,
+            gene.column = 2,
+            cell.column = 1,
+            strip.suffix = TRUE
+        )
         sce <- SingleCellExperiment(assays = list(counts = sceData))
         sce$Sample <- smpl
         sce$CellID <- colnames(sce)
         print(paste("   Loaded expression data for ", ncol(sce), " cells", sep = ""))
-        
+
         #### Now load the CaTCH barcodes ####
         data.catch <- load_BCs(bc)
-        
-        colData(sce)[,c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
+        print(paste0(" Loading Barcodes from ", bc))
+        print(head(data.catch))
+        print(head(colData(sce) %>%
+            as_tibble() %>%
+            left_join(y = data.catch, by = "CellID")))
+
+        colData(sce)[, c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
             as_tibble() %>%
             left_join(y = data.catch, by = "CellID") %>%
             select(CaTCH.BCs, CaTCH.BC.counts)
-        
-        
+
+
         #### Count the CaTCH barcode reads and find the abundance of the two most abundant CaTCH barcodes ####
-        bc.data <- lapply(X = sce$CaTCH.BC.counts, FUN = function(x){
-            v <- str_split(string = x, pattern = ";", simplify = TRUE) %>% 
+        bc.data <- lapply(X = sce$CaTCH.BC.counts, FUN = function(x) {
+            v <- str_split(string = x, pattern = ";", simplify = TRUE) %>%
                 as.numeric()
-            return (c(sum(v), v[1], v[2]))
-        }) %>% 
-            unlist() %>% 
+            return(c(sum(v), v[1], v[2]))
+        }) %>%
+            unlist() %>%
             matrix(data = ., ncol = 3, byrow = TRUE)
         colnames(bc.data) <- c("CaTCH.Sum", "CaTCH.BC1", "CaTCH.BC2")
         colData(sce) <- cbind(colData(sce), bc.data)
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
-            mutate(CaTCH.Status = if_else(is.na(CaTCH.Sum), 
-                                          "No barcode", 
-                                          if_else(is.na(CaTCH.BC2), 
-                                                  "Singlet",
-                                                  if_else(CaTCH.BC1 / CaTCH.Sum >= 0.8, 
-                                                          "Putative singlet", 
-                                                          "Multiplet"))),
-                   CaTCH.Status = factor(CaTCH.Status, levels = c("Singlet", 
-                                                                  "Putative singlet", 
-                                                                  "Multiplet",
-                                                                  "No barcode"))) %>%
+            mutate(
+                CaTCH.Status = if_else(is.na(CaTCH.Sum),
+                    "No barcode",
+                    if_else(is.na(CaTCH.BC2),
+                        "Singlet",
+                        if_else(CaTCH.BC1 / CaTCH.Sum >= 0.8,
+                            "Putative singlet",
+                            "Multiplet"
+                        )
+                    )
+                ),
+                CaTCH.Status = factor(CaTCH.Status, levels = c(
+                    "Singlet",
+                    "Putative singlet",
+                    "Multiplet",
+                    "No barcode"
+                ))
+            ) %>%
             select(CaTCH.Status)
-        
-        sce <- as.Seurat(sce, data=NULL, assay=NULL)
+
+        sce <- as.Seurat(sce, data = NULL, assay = NULL)
         sce <- RenameAssays(sce, assay.name = "originalexp", new.assay.name = "RNA")
         sce[["RNA"]] <- as(object = sce[["RNA"]], Class = "Assay5")
-        
-        return (sce)
-        
-    }else{
+
+        return(sce)
+    } else {
         scetomerge <- list()
-        for (i in 1:length(samplelist)){
-            if (i == 1){
+        for (i in 1:length(samplelist)) {
+            if (i == 1) {
                 print("Loading first sce dataset")
                 firstsce <- create_SCEs(samplelist[i], data10Xs[i], bcs[i])
-            }else{
-                print(paste0("Loading sce dataset ",i))
-                scetomerge[[i-1]] <- create_SCEs(samplelist[i], data10Xs[i], bcs[i])
+            } else {
+                print(paste0("Loading sce dataset ", i))
+                scetomerge[[i - 1]] <- create_SCEs(samplelist[i], data10Xs[i], bcs[i])
             }
         }
-        
-        sce <- merge(firstsce, scetomerge, add.cell.ids=samplelist, project = "scCaTCH")
-        
+
+        sce <- merge(firstsce, scetomerge, add.cell.ids = samplelist, project = "scCaTCH")
+
         return(sce)
     }
 }
 
-load_BCs <- function(bc){
+load_BCs <- function(bc) {
     print("   Loading CaTCH barcodes ...")
-    data.catch <- read_tsv(file = bc, 
-                           col_names = c("CellID", "CaTCH.BCs", "CaTCH.BC.counts"),
-                           col_types = "ccc",
-                           skip = 1)
-    return (data.catch)
-    
+    data.catch <- read_tsv(
+        file = bc,
+        col_names = c("CellID", "CaTCH.BCs", "CaTCH.BC.counts"),
+        col_types = "ccc",
+        skip = 1
+    )
+    return(data.catch)
 }
 
-normalize_SCE <- function(sce){
+normalize_SCE <- function(sce) {
     print("   Normalizing and scaling SCE ...")
-        
+
     sce <- NormalizeData(sce, normalization.method = "LogNormalize", scale.factor = 10000)
     sce <- FindVariableFeatures(sce)
     sce <- ScaleData(sce)
-    
+
     return(sce)
-    
 }
 
-sctransform_SCE <- function(sce){
+sctransform_SCE <- function(sce) {
     sce <- SCTransform(sce, vst.flavor = "v2", vars.to.regress = "percent.mt", verbose = FALSE)
     return(sce)
 }
 
-reduceDims_SCE <- function(sce, assay='RNA', reduction.name='pca'){
+reduceDims_SCE <- function(sce, assay = "RNA", reduction.name = "pca") {
     print("   Reducing dimensions ...")
-    
+
     sce <- RunPCA(sce, assay = assay, reduction.name = reduction.name)
     return(sce)
 }
 
-cluster_SCE <- function(sce, assay = 'RNA_integrated.cca', reduction="integrated.cca", cluster.name = "integrated.cca_cluster"){
+cluster_SCE <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster") {
     print("   Clustering ...")
-    
-    sce <- FindNeighbors(sce, assay=assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")))
+
+    sce <- FindNeighbors(sce, assay = assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")))
     sce <- FindClusters(sce, resolution = 2, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"))
-    
+
     return(sce)
-    
 }
 
-integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca",  normalization.method = "LogNormalize"){
+integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize") {
     print("   Integrating samples ...")
-    
+
     sce <- IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction, normalization.method = normalization.method, verbose = FALSE)
     # re-join layers after integration
     sce[[paste0("RNA_", new.reduction)]] <- JoinLayers(sce[["RNA"]])
-    
+
     return(sce)
 }
 
-integrate_SCE_SCT <- function(sce, new.reduction = "integrated.sct"){
+integrate_SCE_SCT <- function(sce, new.reduction = "integrated.sct") {
     print("   Integrating SCT normalized samples ...")
     features <- SelectIntegrationFeatures(object.list = sce$Sample, nfeatures = 3000)
     ifnb.list <- PrepSCTIntegration(object.list = sce$Sample, anchor.features = features)
-    anchors <- FindIntegrationAnchors(object.list = ifnb.list, normalization.method = "SCT",
-                                             anchor.features = features)
+    anchors <- FindIntegrationAnchors(
+        object.list = ifnb.list, normalization.method = "SCT",
+        anchor.features = features
+    )
     sce[[paste0("RNA_", new.reduction)]] <- IntegrateData(anchorset = immune.anchors, normalization.method = "SCT")
-    
+
     return(sce)
 }
 
 
-umap_SCE <- function(sce, assay = 'RNA', reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist=0.05, spread = 5 ){
+umap_SCE <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.05, spread = 5) {
     print("   Preparing UMAP ...")
-    
+
     sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors, min.dist = min.dist, spread = spread)
     return(sce)
 }
 
 # Split for integrated analysis
-split_SCE <- function(sce, by='Sample'){
+split_SCE <- function(sce, by = "Sample") {
     print("   Splitting SCE by Sample ...")
-    
-    sce[["RNA"]] <- split(sce[["RNA_split"]], f=sce[by])
+
+    sce[["RNA"]] <- split(sce[["RNA_split"]], f = sce[by])
     return(sce)
 }
 
 # Join for DE
-join_SCE <- function(sce){
+join_SCE <- function(sce) {
     print("   Joining SCE layers  ...")
-    
+
     sce <- JoinLayers(sce)
     return(sce)
 }
@@ -259,7 +290,7 @@ library(SingleCellExperiment)
 library(Seurat)
 library(SeuratWrappers)
 library(sctransform)
-#options(future.globals.maxSize = 1e9)
+# options(future.globals.maxSize = 1e9)
 options(Seurat.object.assay.version = "v5")
 
 load(opt$marker)
@@ -270,8 +301,16 @@ sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
 ### Run QC
 # calculate percentage of MT reads
 sce <- PercentageFeatureSet(sce, pattern = "^MT-", col.name = "percent.mt")
-sce[["is.low_yield"]] <- sce@meta.data %>% pull(nFeature_RNA) %>% {case_when(. < opt$min_features ~ TRUE, .default = FALSE)}
-sce[["is.damaged"]] <- sce@meta.data %>% pull(percent.mt) %>% {case_when(. > opt$max_mt ~ TRUE, .default = FALSE)}
+sce[["is.low_yield"]] <- sce@meta.data %>%
+    pull(nFeature_RNA) %>%
+    {
+        case_when(. < opt$min_features ~ TRUE, .default = FALSE)
+    }
+sce[["is.damaged"]] <- sce@meta.data %>%
+    pull(percent.mt) %>%
+    {
+        case_when(. > opt$max_mt ~ TRUE, .default = FALSE)
+    }
 
 pdf(file = paste0("QC_Violin_MT_content.pdf"), width = 30, height = 10)
 VlnPlot(sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
@@ -302,25 +341,25 @@ sce <- sctransform_SCE(sce)
 sce <- reduceDims_SCE(sce)
 
 ### Run initial dim reduction for STC
-sce <- reduceDims_SCE(sce, 'SCT', 'pca_sct')
+sce <- reduceDims_SCE(sce, "SCT", "pca_sct")
 
 ### Integrate the SCE layers for integrative analysis
-sce <- integrate_SCE(sce, assay='RNA', orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
+sce <- integrate_SCE(sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
 
 ### Integrate the SCE layers after SCT for integrative analysis
-sce <- integrate_SCE(sce, assay='SCT', orig.reduction = "pca_sct", new.reduction = "integrated.cca", normalization.method = 'SCT')
+sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "integrated.cca", normalization.method = "SCT")
 
 ### Cluster SCE for plotting
-sce <- cluster_SCE(sce, assay = 'SCT_integrated.cca', reduction="pca_sct", cluster.name = "sct.cca_cluster")
+sce <- cluster_SCE(sce, assay = "SCT_integrated.cca", reduction = "pca_sct", cluster.name = "sct.cca_cluster")
 
 ### Cluster integrated SCE for plotting
-sce <- cluster_SCE(sce, assay = 'RNA_integrated.cca', reduction="integrated.cca", cluster.name = "integrated.cca_cluster")
+sce <- cluster_SCE(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
 
 ## Run UMAP not integrated
-sce <- umap_SCE(sce, assay = 'SCT_integrated.cca', reduction = "pca_sct", dims = 1:30, reduction.name = "umap_sct.cca", n.neighbors = 30L, min.dist=0.01, spread = 5)
+sce <- umap_SCE(sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_sct.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 
 ## Run UMAP integrated
-sce <- umap_SCE(sce, assay = 'RNA_integrated.cca', reduction = "integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist=0.01, spread = 5)
+sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 
 ### Assign cell stage and categories
 
@@ -332,7 +371,7 @@ sce <- CellCycleScoring(sce, s.features = s.genes, g2m.features = g2m.genes, set
 print("Categorize the cells ...")
 cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
 
-sce@meta.data$Category <- sce@meta.data %>% 
+sce@meta.data$Category <- sce@meta.data %>%
     dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
     dplyr::select("tmp") %>%
     purrr::map(.f = ~ cell.categories[.x + 1]) %>%
@@ -340,4 +379,4 @@ sce@meta.data$Category <- sce@meta.data %>%
     dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
     dplyr::select(Class)
 
-save(sce, file = paste0(opt$out,'SCE.rda.gz'), compress = "gzip")
+save(sce, file = paste0(opt$out, "SCE.rda.gz"), compress = "gzip")
