@@ -189,7 +189,7 @@ process qc_raw{
     }
     """
     ${fqc} --quiet -t ${task.cpus} $qcparams --noextract -f fastq $read1 $read2 && 
-    for fqc in *_fastqc.zip
+    for fqc in *_fastqc.{zip,html}
     do
         mv "\$fqc" "${sampleName}_\$fqc"
     done
