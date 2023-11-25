@@ -32,8 +32,8 @@ option_list <- list(
         help = "path to the output file"
     ),
     make_option(c("--marker"),
-        type = "character", default = "/tools/data/R/stagemarkers_xue2020.rda",
-        help = "path to the stagemarker file"
+        type = "character", default = "/tools/data/R/stagemarkers_xue2020.rds",
+        help = "path to cellcycle marker file in RDS format"
     )
 )
 
@@ -290,10 +290,13 @@ library(SingleCellExperiment)
 library(Seurat)
 library(SeuratWrappers)
 library(sctransform)
+library(R.filesets)
 # options(future.globals.maxSize = 1e9)
 options(Seurat.object.assay.version = "v5")
 
-load(opt$marker)
+if (opt$marker) {
+    markerfile <- load(opt$marker)
+}
 
 ### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
 sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
@@ -312,15 +315,15 @@ sce[["is.damaged"]] <- sce@meta.data %>%
         case_when(. > opt$max_mt ~ TRUE, .default = FALSE)
     }
 
-pdf(file = paste0("QC_Violin_MT_content.pdf"), width = 30, height = 10)
+pdf(file = paste0(opt$out, "_QC_Violin_MT_content.pdf"), width = 30, height = 10)
 VlnPlot(sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
 dev.off()
 
-pdf(file = paste0("QC_Scatter_MT_content.pdf"), width = 30, height = 10)
+pdf(file = paste0(opt$out, "_QC_Scatter_MT_content.pdf"), width = 30, height = 10)
 FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "Sample")
 dev.off()
 
-pdf(file = paste0("QC_Scatter_Feature_content.pdf"), width = 30, height = 10)
+pdf(file = paste0(opt$out, "_QC_Scatter_Feature_content.pdf"), width = 30, height = 10)
 FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "Sample")
 dev.off()
 
@@ -364,8 +367,8 @@ sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "integrated.cca",
 ### Assign cell stage and categories
 
 print("Assign cell stage...")
-s.genes <- stagemarkers_xue2020$S
-g2m.genes <- stagemarkers_xue2020$G2M
+s.genes <- markerfile$S
+g2m.genes <- markerfile$G2M
 sce <- CellCycleScoring(sce, s.features = s.genes, g2m.features = g2m.genes, set.ident = FALSE)
 
 print("Categorize the cells ...")
@@ -379,4 +382,4 @@ sce@meta.data$Category <- sce@meta.data %>%
     dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
     dplyr::select(Class)
 
-save(sce, file = paste0(opt$out, "SCE.rda.gz"), compress = "gzip")
+saveRDS(sce, file = paste0(opt$out, "_SCE.rds.gz"), compress = "gzip")
