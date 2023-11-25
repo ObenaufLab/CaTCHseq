@@ -35,7 +35,7 @@ majorityVote = get_always('majorityVote') ?: 90
 qcparams = get_always('fastqc_params') ?: ''
 mapperbin = get_always('mapper') ?: "CellRanger"
 runqc = get_always('withQC') ?: true
-starparams = get_always('star_params') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --soloCBwhitelist None --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
+starparams = get_always('star_params') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
 idxparams = get_always('idx_params') ?: ""
 whitelist = get_always('whitelist') ?: null
 refName = get_always('refName') ?: "Day0"
@@ -379,6 +379,7 @@ process star_idx{
     publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/STAR/LOGS/${file(filename).getName()}"
+        else if (filename.indexOf(".idx") > 0)      "${mapindex}.idx"
         else                                                     "${mapindex}"
     }
 
@@ -388,6 +389,7 @@ process star_idx{
 
     output:
     path "${IDX}", emit: idx
+    path "${IDX}.idx", emit: idxlink
     path "*.out", emit: idxlog
 
     script:
@@ -395,7 +397,20 @@ process star_idx{
     an  = anno.getName()
     IDX = file(gen).getSimpleName()+'_idx'
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $IDX && STAR $idxparams --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $IDX --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f ${IDX}/*.out ${IDX}.Log.out
+    zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $IDX && STAR $idxparams --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $IDX --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
+    """
+}
+
+process createDummy{
+    cache 'lenient'
+    label 'big_mem'
+
+    output:
+    path("dummy.txt"), emit: dummy
+
+    script:
+    """
+    touch dummy.txt
     """
 }
 
@@ -419,7 +434,8 @@ process star_mapping{
     }
 
     input:
-    tuple val(sampleName), path(reads), path(whitelist), path(idx)
+    tuple val(sampleName), path(r1), path(r2), path(idx)
+    path(whitelist)
     
     output:
     path "${sampleName}", emit: name
@@ -438,21 +454,27 @@ process star_mapping{
     script:
     idxdir = idx.toRealPath()
     
-    r1 = reads[1]
-    fn = file(r1)
-    r2 = reads[2]
-    if (starparams.contains('--soloBarcodeMate 1')){
-        t = r2
-        r2 = r1
-        r1 = t
+    if ( starparams.contains('--soloBarcodeMate 1' )){
+        read1 = r2
+        read2 = r1
+        
+    }else{
+        read1 = r1
+        read2 = r2
     }
+    if( whitelist.size() >0 ){
+        starparams += " --soloCBwhitelist ${whitelist}"
+    }else{
+        starparams += " --soloCBwhitelist None"
+    }
+    fn = r1.name.replaceAll(/\Q_R1*.fastq.gz\E/,'')
     of = fn+'.Aligned.sortedByCoord.out.bam'
     gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
 
     """
-    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${r1} ${r2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx && && samtools view -h ${of} | gzip > ${gf} && touch ${fn}.Unmapped.out.mate1 ${fn}.Unmapped.out.mate2 && cat ${fn}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R1_unmapped.fastq.gz && at ${fn}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done
-    mv ${sampleName}.Solo.out ${sampleName}
-    ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix
+    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${fn}.Unmapped.out.mate1 ${fn}.Unmapped.out.mate2 && cat ${fn}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R1_unmapped.fastq.gz && cat ${fn}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done &&
+    mv ${sampleName}.Solo.out ${sampleName} &&
+    ln -s ${sampleName}/Gene/filtered ${sampleName} _filtered_feature_bc_matrix &&
     ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix
     """
 
@@ -852,10 +874,10 @@ workflow{
                     Ch_mapping_idx = Cellranger_idx.out.idx
                 }else if (mapperbin == 'STAR'){
                     star_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
-                    Ch_mapping_idx = star_idx.out.idx
+                    Ch_mapping_idx = star_idx.out.idxlink
                 }
             } else{
-                Ch_mapping_idx = Channel.fromPath(mapindex)
+                Ch_mapping_idx = Channel.fromPath(mapindex+".idx")
             }
         } else {
             Ch_mapping_idx = Channel.empty()
@@ -866,8 +888,9 @@ workflow{
             if (file(whitelist).exists()){
                 Ch_whitelist = Channel.fromPath(whitelist)
             }
-        } else{
-            Ch_whitelist = Channel.empty()
+        } else{         
+            createDummy()   
+            Ch_whitelist = createDummy.out.dummy
         }
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
@@ -877,7 +900,7 @@ workflow{
 
             Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1)) }
         }else if (mapperbin == 'STAR'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_whitelist.combine( Ch_mapping_idx ))
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine(Ch_mapping_idx)
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
@@ -902,13 +925,13 @@ workflow{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
-            star_mapping(Ch_map_input)
-
+            star_mapping(Ch_map_input, Ch_whitelist)
             if (filter){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered)
             }else{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw)
             }
+            
         }
     
         /**************************************************************
