@@ -507,7 +507,7 @@ process countBarcodesInChunks{
 
     script:
     """
-    countBarcodesInChunks.py \
+    ${scriptDirPy}countBarcodesInChunks.py \
         --r1 ${r1} \
         --r2 ${r2} \
         --cellIDs ${cellIDs} \
@@ -549,7 +549,7 @@ process mergeBarcodesInChunks{
     find Counts -name "file*" > librarieslist
     find Reads -name "file*" > readcountslist
 
-    mergeChunkCounts.py \
+    ${scriptDirPy}mergeChunkCounts.py \
         --libraries librarieslist \
         --readcounts readcountslist \
         --outlib ${sampleName}.sclib \
@@ -584,7 +584,7 @@ process collapseAndFilterBarcodes{
 
     script:
     """
-    collapseCaTCHbarcodes.py \
+    ${scriptDirPy}collapseCaTCHbarcodes.py \
         --library ${library} \
         --maxdist ${maxDist} \
         --minsupport ${minReads} \
@@ -620,7 +620,7 @@ process resolveMultiplets{
 
     script:
     """
-    resolveMultiplets.py \
+    ${scriptDirPy}resolveMultiplets.py \
         --library ${library} \
         --majority ${majorityVote} \
         --outlib ${sampleName}.resolved_multiplets.sclib \
@@ -656,7 +656,7 @@ process generateReports{
 
     script:
     """
-    generateOutputTables.py \
+    ${scriptDirPy}generateOutputTables.py \
         --library ${library} \
         --CaTCH ${sampleName}.CaTCHbarcodes \
         --cells ${sampleName}.cells
@@ -721,7 +721,7 @@ process preprocessSingleCellData{
     input:
         path(featureMatrix)
         path(catchBarcodes)
-        path(script)
+        //path(script)
 
     output:
         path("*.sce.prefiltered.rda.gz"), emit: basic_sce
@@ -755,7 +755,7 @@ process preprocessSingleCellData{
     FEATURES=\${FEATURES:0:-1}
     BCS=\${BCS:0:-1}
 
-    Rscript --vanilla ${script} \
+    Rscript --vanilla ${scriptDirR}preprocessData.R \
        --sample \$SAMPLES \
        --data10X \$FEATURES \
        --catchBC \$BCS \
@@ -785,7 +785,8 @@ process createOverviewPlots{
     }
 
     input:
-        tuple path(sce), path(script)
+        //tuple path(sce), path(script)
+        path(sce)
 
     output:
         path("*overview.pdf"), emit: pdf
@@ -797,7 +798,7 @@ process createOverviewPlots{
         outname = 'scCaTCH'
     }
     """
-    Rscript --vanilla ${script} \
+    Rscript --vanilla ${scriptDirR}create_overview_plots.R \
         --sce ${sce} \
         --out ${outname}_overview \
         --format pdf \
@@ -833,7 +834,7 @@ process createBarcodeEnrichmentPlots{
         outname = 'scCaTCH'
     }
     """
-    Rscript --vanilla ${script} \
+    Rscript --vanilla ${scriptDirR}plot_enriched_and_depleted_BCs.R \
         --sce ${sce} \
         --baseCond ${refName} \
         --plots_per_row 5 \
@@ -1006,19 +1007,18 @@ workflow{
                 STEP 8: Generate SingleCellExperiment object
         ***************************************************************/
 
-        Ch_script = Channel.fromPath("${absDir}/scCatch/docker/scripts/R/preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
+        //Ch_script = Channel.fromPath("${scriptDirR}"+"preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
         //Ch_preprocess_input = Ch_cell_data.map { sample, data -> data }.combine(generateReports.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
         //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
         //preprocessSingleCellData(Ch_preprocess_input)
 
-        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect(), Ch_script)
+        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect())
 
         /**************************************************************
                 STEP 9: Generate overview plots
         ***************************************************************/
-
-        createOverviewPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/scCatch/docker/scripts/R/create_overview_plots.R")))
-        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce.combine(Channel.fromPath("${absDir}/scCatch/docker/scripts/R/plot_enriched_and_depleted_BCs.R")))        
+        createOverviewPlots(preprocessSingleCellData.out.basic_sce)
+        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce)        
         
     emit:
     createOverviewPlots.out.pdf
