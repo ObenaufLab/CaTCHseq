@@ -401,7 +401,7 @@ process star_idx{
     """
 }
 
-process createDummy{
+process create_dummy_whitelist{
     cache 'lenient'
     label 'big_mem'
 
@@ -876,8 +876,12 @@ workflow{
                     star_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
                     Ch_mapping_idx = star_idx.out.idxlink
                 }
-            } else{
-                Ch_mapping_idx = Channel.fromPath(mapindex+".idx")
+            }else{
+                if (mapperbin == 'CellRanger'){
+                    Ch_mapping_idx = Channel.fromPath(mapindex)
+                }else if (mapperbin == 'STAR'){
+                    Ch_mapping_idx = Channel.fromPath(mapindex+".idx")
+                }
             }
         } else {
             Ch_mapping_idx = Channel.empty()
@@ -889,8 +893,8 @@ workflow{
                 Ch_whitelist = Channel.fromPath(whitelist)
             }
         } else{         
-            createDummy()   
-            Ch_whitelist = createDummy.out.dummy
+            create_dummy_whitelist()   
+            Ch_whitelist = create_dummy_whitelist.out.dummy
         }
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
