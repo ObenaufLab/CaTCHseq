@@ -46,6 +46,7 @@ filter = get_always('filter') ?: true
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
 hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
+markerfile = get_always('markers') ?: '/tools/data/R/stagemarkers_xue2020.rds'
 reportsDir = get_always('reportsDir') ?: "${absDir}/REPORTS"
 outputDir = get_always('outputDir') ?: "${absDir}/scCaTCH_nf_OUTPUT"
 
@@ -91,6 +92,7 @@ def helpMessage() {
         --idx_params            Optional parameters for STAR index generation
         --filter                Postprocess filtered counts (default: ${params.filter})
         --baseline              Name of reference day/condition (default: ${params.refName})
+        --marker                RDS file of cellcycle markers (default: ${params.marker}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
         --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
         --outputDir             specifies the output directory (default: ${params.outputDir})
         --reportsDir            specifies the reports directory.(default: ${params.reportsDir})
@@ -186,10 +188,13 @@ process qc_raw{
         fqc = "fastqc"
     }
     """
-    ${fqc} --quiet -t ${task.cpus} $qcparams --noextract -f fastq $read1 $read2
+    ${fqc} --quiet -t ${task.cpus} $qcparams --noextract -f fastq $read1 $read2 && 
+    for fqc in *_fastqc.zip
+    do
+        mv "\$fqc" "${sampleName}_\$fqc"
+    done
     """
 }
-
 
 process mqc{
     //conda "$MAPENV"+".yaml"
@@ -672,8 +677,8 @@ process generateAnalyticsPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".png") > 0)       "OUTPUT/Analytics/plots/${file(filename).getName()}"
-        else                                     "OUTPUT/Analytics/plots/${file(filename).getName()}"
+        if (filename.indexOf(".png") > 0)       "OUTPUT/Reports/plots/${file(filename).getName()}"
+        else                                     "OUTPUT/Reports/plots/${file(filename).getName()}"
     }
 
     input:
@@ -702,8 +707,15 @@ process preprocessSingleCellData{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".rda") > 0)       "OUTPUT/SCE/filtered/${file(filename).getName()}"
-        else                                     "OUTPUT/SCE/filtered/${file(filename).getName()}"
+        if(filter){
+            if (filename.indexOf(".rds.gz") > 0)       "OUTPUT/SCE/filtered/${file(filename).getName()}"
+            else if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/Overview/${file(filename).getName()}"
+            else                                     "OUTPUT/SCE/filtered/${file(filename).getName()}"
+        } else{
+            if (filename.indexOf(".rds.gz") > 0)       "OUTPUT/SCE/raw/${file(filename).getName()}"
+            else if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/Overview/${file(filename).getName()}"
+            else                                     "OUTPUT/SCE/raw/${file(filename).getName()}"
+        }
     }
 
     input:
@@ -719,9 +731,11 @@ process preprocessSingleCellData{
 
     script:
     if (filter){
-        featurematrix="filtered_feature_bc_matrix"
+        featurematrix = "filtered_feature_bc_matrix"
+        outname = 'scCaTCH.prefiltered'
     }else{
-        featurematrix="raw_feature_bc_matrix"
+        featurematrix = "raw_feature_bc_matrix"
+        outname = 'scCaTCH'
     }
     """ 
     SAMPLES=''
@@ -748,7 +762,8 @@ process preprocessSingleCellData{
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
-       --out scCaTCH.sce.prefiltered
+       --out ${outname} \
+       --marker ${markerfile}
     """
 }
 
@@ -765,8 +780,8 @@ process createOverviewPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
-        else                                     "OUTPUT/Plots/${file(filename).getName()}"
+        if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/Overview/${file(filename).getName()}"
+        else                                     "OUTPUT/Plots/Overview/${file(filename).getName()}"
     }
 
     input:
@@ -776,10 +791,15 @@ process createOverviewPlots{
         path("*overview.pdf"), emit: pdf
 
     script:
+    if (filter){
+        outname = 'scCaTCH.prefiltered'
+    }else{
+        outname = 'scCaTCH'
+    }
     """
     Rscript --vanilla ${script} \
         --sce ${sce} \
-        --out ${sce}_overview \
+        --out ${outname}_overview \
         --format pdf \
         --width 25 \
         --height 10
@@ -795,7 +815,7 @@ process createBarcodeEnrichmentPlots{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".jpeg") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
+        if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
         else                                     "OUTPUT/DE/DESEQ2/${file(filename).getName()}"
     }
 
@@ -807,12 +827,17 @@ process createBarcodeEnrichmentPlots{
         path "*.tsv.gz", emit: tables
 
     script:
+     if (filter){
+        outname = 'scCaTCH.prefiltered'
+    }else{
+        outname = 'scCaTCH'
+    }
     """
     Rscript --vanilla ${script} \
         --sce ${sce} \
         --baseCond ${refName} \
         --plots_per_row 5 \
-        --format jpeg \
+        --format pdf \
         --width 400 \
         --height 300 \
         --outdir .
@@ -869,17 +894,17 @@ workflow{
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
         if (mapperbin == 'CellRanger'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
             
 
-            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1)) }
+            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1)) }
         }else if (mapperbin == 'STAR'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_whitelist.combine( Ch_mapping_idx ))
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_whitelist.combine( Ch_mapping_idx ))
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
         if(runqc){
-            Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
+            Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
             //Ch_QC_input.subscribe {  println "QC: $it"  }
             qc_raw(Ch_QC_input)
             mqc(qc_raw.out.zip.collect())//.flatten().filter( ~/.zip/ ))
@@ -894,17 +919,17 @@ workflow{
             useCellrangerData(Ch_map_precomputed)
 
             if (filter){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
             star_mapping(Ch_map_input)
 
             if (filter){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_filtered)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_filtered)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_raw)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_raw)
             }
         }
     
