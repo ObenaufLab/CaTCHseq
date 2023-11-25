@@ -81,7 +81,7 @@ def helpMessage() {
 
       Optional arguments:
         --chunkSize             number of reads per chunk (default: ${params.chunkSize})
-        --index                 Path to mapper index file (default: ${params.mapindex})
+        --index                 Path to mapper index directory (default: ${params.mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
         --mapper                Which mapper to run (default: CellRanger, optional: STAR)
         --withQC                Boolean, run FastQC and MultiQC (default: true)
         --reference             Path to reference fasta.gz for STAR
@@ -379,7 +379,7 @@ process star_idx{
     publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/STAR/LOGS/${file(filename).getName()}"
-        else                                                     "OUTPUT/STAR/INDICES/${file(filename).getName()}"
+        else                                                     "${mapindex}"
     }
 
     input:
@@ -395,7 +395,7 @@ process star_idx{
     an  = anno.getName()
     IDX = file(gen).getSimpleName()+'_idx'
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $IDX && STAR $idxparams --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $IDX --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f *.out ${IDX}.Log.out
+    zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $IDX && STAR $idxparams --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $IDX --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f ${IDX}/*.out ${IDX}.Log.out
     """
 }
 
@@ -430,10 +430,9 @@ process star_mapping{
     tuple val(sampleName), path("${sampleName}/Gene/raw/barcodes.tsv"), emit: cell_ids_raw
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*.bam"), emit: bam
-    tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*Log.out"), emit: logs
     tuple val(sampleName), path("*.tab"), emit: sjtab
-    tuple val(sampleName), path("*_unmapped.fastq.gz"), includeInputs:false, emit: unmapped
+    tuple val(sampleName), path("*_unmapped.fastq.gz", includeInputs:false), emit: unmapped
     tuple val(sampleName), path("Summary.csv"), emit: qc
 
     script:
@@ -451,29 +450,7 @@ process star_mapping{
     gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
 
     """
-    # Find all reads, sort them by name to ensure that the paired files are on the consecutive lines,
-    # and then create symlinks with proper names (SampleName_S1_R1_xxx.fastq.gz)
-    IDX=1
-    BKP=\${IFS}
-    IFS=\$'\\n'
-    for LINE in \$(find inputs/ -name "R[12]_*" -exec readlink -f {} \\; | sort | paste - -);
-    do
-        SUFFIX=\$(printf "%03d" \${IDX})
-
-        R1=\$(echo \${LINE} | cut -f1)
-        NEW_NAME=${sampleName}_S1_R1_\${SUFFIX}.fastq.gz
-        ln -sf \${R1} inputs/\${NEW_NAME}
-
-        R2=\$(echo \${LINE} | cut -f2)
-        NEW_NAME=${sampleName}_S1_R2_\${SUFFIX}.fastq.gz
-        ln -sf \${R2} inputs/\${NEW_NAME}
-
-        IDX=\$((IDX + 1))
-    done
-
-    IFS=\${BKP}
-
-    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${r1} ${r2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx && && samtools view -h ${of} | gzip > ${gf} && rm -f ${of} && touch ${fn}.Unmapped.out.mate1 ${fn}.Unmapped.out.mate2 && cat ${fn}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R1_unmapped.fastq.gz && at ${fn}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done
+    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${r1} ${r2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx && && samtools view -h ${of} | gzip > ${gf} && touch ${fn}.Unmapped.out.mate1 ${fn}.Unmapped.out.mate2 && cat ${fn}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R1_unmapped.fastq.gz && at ${fn}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${fn}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done
     mv ${sampleName}.Solo.out ${sampleName}
     ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix
     ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix
@@ -928,9 +905,9 @@ workflow{
             star_mapping(Ch_map_input)
 
             if (filter){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_filtered)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star.mapping.out.cell_ids_raw)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw)
             }
         }
     
