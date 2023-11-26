@@ -370,7 +370,7 @@ s.genes <- markerfile$S
 g2m.genes <- markerfile$G2M
 tryCatch(
     {
-        sce <- CellCycleScoring(sce, s.features = s.genes, g2m.features = g2m.genes, set.ident = FALSE)
+        sce <- CellCycleScoring(sce, s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
     },
     warning = function(w) {
         print(paste("ATTENTION WARNING: ", w))

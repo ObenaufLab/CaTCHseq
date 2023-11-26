@@ -90,7 +90,9 @@ options(Seurat.object.assay.version = "v5")
 sce <- loadRDS(opt$sce)
 
 ### Switching to integrated assay ###
-DefaultAssay(sce) <- "SCT_integrated.cca" # DefaultAssay(sce) <- "RNA_integrated.cca"
+if (DefaultAssay(sce) != "SCT_integrated.cca") {
+  DefaultAssay(sce) <- "SCT_integrated.cca" # DefaultAssay(sce) <- "RNA_integrated.cca"
+}
 
 #### Plots ####
 
