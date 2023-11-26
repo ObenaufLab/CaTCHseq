@@ -723,7 +723,7 @@ process preprocessSingleCellData{
         //path(script)
 
     output:
-        path("*.sce.prefiltered.rda.gz"), emit: basic_sce
+        path("scCaTCH*.rds.gz"), emit: basic_sce
         //path("*.sce.prefiltered.tsne.gz"), emit: basic_sce_tsne
         //path("*.sce.prefiltered.metadata.gz"), emit: basic_sce_metadata
         path("*.pdf"), emit: basic_sce_qc
