@@ -363,7 +363,7 @@ sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "integrated.cca",
 ### Assign cell stage and categories
 
 print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
-markerfile <- load(opt$marker)
+markerfile <- loadRDS(opt$marker)
 
 print("Assign cell stage...")
 s.genes <- markerfile$S
