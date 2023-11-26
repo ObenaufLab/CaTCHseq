@@ -820,7 +820,7 @@ process createBarcodeEnrichmentPlots{
     }
 
     input:
-        tuple path(sce), path(script)
+        path(sce)
 
     output:
         path "*.jpeg", emit: jpeg
