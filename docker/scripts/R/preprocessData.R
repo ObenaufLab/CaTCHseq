@@ -239,24 +239,10 @@ integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.redu
 
     sce <- IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction, normalization.method = normalization.method, verbose = FALSE)
     # re-join layers after integration
-    sce[[paste0("RNA_", new.reduction)]] <- JoinLayers(sce[["RNA"]])
+    sce[[paste0(assay, "_", new.reduction)]] <- JoinLayers(sce[["RNA"]])
 
     return(sce)
 }
-
-integrate_SCE_SCT <- function(sce, new.reduction = "integrated.sct") {
-    print("   Integrating SCT normalized samples ...")
-    features <- SelectIntegrationFeatures(object.list = sce$Sample, nfeatures = 3000)
-    ifnb.list <- PrepSCTIntegration(object.list = sce$Sample, anchor.features = features)
-    anchors <- FindIntegrationAnchors(
-        object.list = ifnb.list, normalization.method = "SCT",
-        anchor.features = features
-    )
-    sce[[paste0("RNA_", new.reduction)]] <- IntegrateData(anchorset = immune.anchors, normalization.method = "SCT")
-
-    return(sce)
-}
-
 
 umap_SCE <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.05, spread = 5) {
     print("   Preparing UMAP ...")
@@ -346,19 +332,18 @@ sce <- reduceDims_SCE(sce, "SCT", "pca_sct")
 sce <- integrate_SCE(sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
 
 ### Integrate the SCE layers after SCT for integrative analysis
-sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "integrated.cca", normalization.method = "SCT")
-
-### Cluster SCE for plotting
-sce <- cluster_SCE(sce, assay = "SCT_integrated.cca", reduction = "pca_sct", cluster.name = "sct.cca_cluster")
+sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
 
 ### Cluster integrated SCE for plotting
+sce <- cluster_SCE(sce, assay = "SCT_integrated.cca", reduction = "pca_sct", cluster.name = "sct_integrated.cca_cluster")
+
 sce <- cluster_SCE(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
 
 ## Run UMAP not integrated
 sce <- umap_SCE(sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_sct.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 
 ## Run UMAP integrated
-sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
+sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 
 ### Assign cell stage and categories
 
@@ -372,12 +357,10 @@ tryCatch(
     {
         sce <- CellCycleScoring(sce, s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
     },
-    warning = function(w) {
-        print(paste("ATTENTION WARNING: ", w))
-    },
     error = function(e) {
         print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF CELL STAGE AND SET TO DEFAULT G0"))
         sce@meta.data$Phase <- "G0"
+        sce@meta.data$CellStage <- "G0"
     }
 )
 

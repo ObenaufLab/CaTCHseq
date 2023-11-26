@@ -145,7 +145,7 @@ p.status_distr <- DimPlot(sce, reduction = reduction.name, group.by = "CaTCH.Sta
   scale_color_manual(values = status.colors, name = "Catch.Status")
 
 p.status_distr_cluster <- createValueDistrPlot(sce,
-  grp.col = "integrated.cca_cluster",
+  grp.col = "sct_integrated.cca_cluster",
   val.col = "CaTCH.Status",
   colors = status.colors,
   ylab = "Proportion, [%]",
