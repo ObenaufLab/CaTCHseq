@@ -294,10 +294,6 @@ library(R.filesets)
 # options(future.globals.maxSize = 1e9)
 options(Seurat.object.assay.version = "v5")
 
-if (opt$marker) {
-    markerfile <- load(opt$marker)
-}
-
 ### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
 sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
 
@@ -365,6 +361,9 @@ sce <- umap_SCE(sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reductio
 sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 
 ### Assign cell stage and categories
+
+print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
+markerfile <- load(opt$marker)
 
 print("Assign cell stage...")
 s.genes <- markerfile$S
