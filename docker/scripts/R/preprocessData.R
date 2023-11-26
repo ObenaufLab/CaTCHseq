@@ -365,10 +365,21 @@ sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "integrated.cca",
 print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
 markerfile <- loadRDS(opt$marker)
 
-print("Assign cell stage...")
+print("Attempting to assign cell stage...")
 s.genes <- markerfile$S
 g2m.genes <- markerfile$G2M
-sce <- CellCycleScoring(sce, s.features = s.genes, g2m.features = g2m.genes, set.ident = FALSE)
+tryCatch(
+    {
+        sce <- CellCycleScoring(sce, s.features = s.genes, g2m.features = g2m.genes, set.ident = FALSE)
+    },
+    warning = function(w) {
+        print(paste("ATTENTION WARNING: ", w))
+    },
+    error = function(e) {
+        print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF CELL STAGE AND SET TO DEFAULT G0"))
+        sce@meta.data$Phase <- "G0"
+    }
+)
 
 print("Categorize the cells ...")
 cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
