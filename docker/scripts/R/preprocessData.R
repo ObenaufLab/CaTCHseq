@@ -239,6 +239,7 @@ integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.redu
 
     sce <- IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction, normalization.method = normalization.method, verbose = FALSE)
     # re-join layers after integration
+    sce[[assay]] <- as(object = sce[[assay]], Class = "Assay5")
     sce[[paste0(assay, "_", new.reduction)]] <- JoinLayers(sce[[assay]])
 
     return(sce)
