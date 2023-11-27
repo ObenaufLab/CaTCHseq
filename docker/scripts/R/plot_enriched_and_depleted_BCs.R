@@ -332,7 +332,6 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
 }
 
 saveRDS(comparison_objs, file = paste0(opt$out, "DE_list.rds.gz"), compress = "gzip")
-rm(comparison_objs)
 
 # print("   Plotting the over- and underrepresented CaTCH barcodes...")
 # plots <- list()
