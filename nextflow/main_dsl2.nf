@@ -840,7 +840,7 @@ process createBarcodeEnrichmentPlots{
         --format pdf \
         --width 400 \
         --height 300 \
-        --outdir .
+        --out ${outname}_DE
     """
 }
 

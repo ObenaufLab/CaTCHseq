@@ -27,9 +27,9 @@ option_list <- list(
     type = "numeric", default = 25,
     help = "height of the plot of a single CaTCH barcode. The units depend on the format: inches for PDF, pixels otherwise"
   ),
-  make_option(c("--outdir"),
+  make_option(c("--out"),
     type = "character", default = NULL,
-    help = "output directory"
+    help = "path to the output file"
   )
 )
 
@@ -371,7 +371,7 @@ saveRDS(comparison_objs, file = paste0(opt$out, "DE_list.rds.gz"), compress = "g
 
 # print("   Saving the plots...")
 # nPlotsPerRow = opt$plots_per_row * 2
-# jpeg(filename = paste0(opt$outdir, "/DE_DESEQ2_", t, "_BCs.jpeg"),
+# jpeg(filename = paste0(opt$out, "/DE_DESEQ2_", t, "_BCs.jpeg"),
 #   width = nPlotsPerRow * opt$width,
 #   height = ceiling(length(plots) / nPlotsPerRow) * opt$height)
 # do.call("grid.arrange", c(plots, ncol = nPlotsPerRow))
