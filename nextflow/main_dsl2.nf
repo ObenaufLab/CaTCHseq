@@ -823,8 +823,9 @@ process createBarcodeEnrichmentPlots{
         path(sce)
 
     output:
-        path "*.jpeg", emit: jpeg
+        path "*.pdf", emit: pdf
         path "*.tsv.gz", emit: tables
+        path "*.rds.gz", emit: rds
 
     script:
      if (filter){
@@ -840,7 +841,7 @@ process createBarcodeEnrichmentPlots{
         --format pdf \
         --width 400 \
         --height 300 \
-        --out ${outname}_DE
+        --out ${outname}
     """
 }
 
