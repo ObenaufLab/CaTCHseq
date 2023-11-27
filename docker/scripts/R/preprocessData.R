@@ -356,7 +356,7 @@ s.genes <- markerfile$S
 g2m.genes <- markerfile$G2M
 tryCatch(
     {
-        sce <- CellCycleScoring(sce, s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
+        sce <- CellCycleScoring(sce, assay="RNA_integrated.cca", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
     },
     error = function(e) {
         print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF CELL STAGE AND SET TO DEFAULT G0"))
