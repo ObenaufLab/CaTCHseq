@@ -1025,8 +1025,8 @@ workflow{
         createOverviewPlots(preprocessSingleCellData.out.basic_sce)
         createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce)        
         
-    emit:
-    createOverviewPlots.out.pdf
-    createBarcodeEnrichmentPlots.out.jpeg
+    //emit:
+    //createOverviewPlots.out.pdf
+    //createBarcodeEnrichmentPlots.out.pdf
     
 }
