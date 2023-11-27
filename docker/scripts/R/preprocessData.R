@@ -126,10 +126,10 @@ create_SCEs <- function(smpl, data10X, bc) {
         #### Now load the CaTCH barcodes ####
         data.catch <- load_BCs(bc)
         print(paste0(" Loading Barcodes from ", bc))
-        print(head(data.catch))
-        print(head(colData(sce) %>%
-            as_tibble() %>%
-            left_join(y = data.catch, by = "CellID")))
+        #print(head(data.catch))
+        #print(head(colData(sce) %>%
+        #    as_tibble() %>%
+        #    left_join(y = data.catch, by = "CellID")))
 
         colData(sce)[, c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
             as_tibble() %>%
@@ -215,6 +215,7 @@ normalize_SCE <- function(sce) {
 
 sctransform_SCE <- function(sce) {
     sce <- SCTransform(sce, vst.flavor = "v2", vars.to.regress = "percent.mt", verbose = FALSE)
+    #sce[["SCT"]] <- as(object = sce[["SCT"]], Class = "Assay5")  # this actually breaks downstream code as SCTAssay is still v3 (https://github.com/satijalab/seurat/issues/7542)
     return(sce)
 }
 
@@ -234,12 +235,11 @@ cluster_SCE <- function(sce, assay = "RNA_integrated.cca", reduction = "integrat
     return(sce)
 }
 
-integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize") {
+integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize", ...) {
     print("   Integrating samples ...")
 
-    sce <- IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction, normalization.method = normalization.method, verbose = FALSE)
+    sce <- IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction, normalization.method = normalization.method, verbose = FALSE, ...)
     # re-join layers after integration
-    sce[[assay]] <- as(object = sce[[assay]], Class = "Assay5")
     sce[[paste0(assay, "_", new.reduction)]] <- JoinLayers(sce[[assay]])
 
     return(sce)
@@ -275,11 +275,11 @@ library(scater)
 library(scran)
 library(SingleCellExperiment)
 library(Seurat)
+# options(future.globals.maxSize = 1e9)
+options(Seurat.object.assay.version = "v5")
 library(SeuratWrappers)
 library(sctransform)
 library(R.filesets)
-# options(future.globals.maxSize = 1e9)
-options(Seurat.object.assay.version = "v5")
 
 ### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
 sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
@@ -321,30 +321,30 @@ sce <- subset(sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$m
 sce <- normalize_SCE(sce)
 
 ### SCtransform counts
-sce <- sctransform_SCE(sce)
+#sce <- sctransform_SCE(sce)
 
 ### Run initial dim reduction for norm
 sce <- reduceDims_SCE(sce)
 
 ### Run initial dim reduction for STC
-sce <- reduceDims_SCE(sce, "SCT", "pca_sct")
+#sce <- reduceDims_SCE(sce, assay = "SCT", reduction.name = "pca_sct")
 
 ### Integrate the SCE layers for integrative analysis
 sce <- integrate_SCE(sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
 
 ### Integrate the SCE layers after SCT for integrative analysis
-sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
+#sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
 
 ### Cluster integrated SCE for plotting
-sce <- cluster_SCE(sce, assay = "SCT_integrated.cca", reduction = "pca_sct", cluster.name = "sct_integrated.cca_cluster")
+#sce <- cluster_SCE(sce, assay = "SCT_integrated.cca", reduction = "pca_sct", cluster.name = "sct_integrated.cca_cluster")
 
 sce <- cluster_SCE(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
 
 ## Run UMAP not integrated
-sce <- umap_SCE(sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_sct.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
+sce <- umap_SCE(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 
 ## Run UMAP integrated
-sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
+#sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 
 ### Assign cell stage and categories
 
