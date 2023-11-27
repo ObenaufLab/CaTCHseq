@@ -239,7 +239,7 @@ integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.redu
 
     sce <- IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction, normalization.method = normalization.method, verbose = FALSE)
     # re-join layers after integration
-    sce[[paste0(assay, "_", new.reduction)]] <- JoinLayers(sce[["RNA"]])
+    sce[[paste0(assay, "_", new.reduction)]] <- JoinLayers(sce[[assay]])
 
     return(sce)
 }
@@ -332,7 +332,7 @@ sce <- reduceDims_SCE(sce, "SCT", "pca_sct")
 sce <- integrate_SCE(sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
 
 ### Integrate the SCE layers after SCT for integrative analysis
-sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "integrated.cca", normalization.method = "SCT")
+sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
 
 ### Cluster integrated SCE for plotting
 sce <- cluster_SCE(sce, assay = "SCT_integrated.cca", reduction = "pca_sct", cluster.name = "sct_integrated.cca_cluster")
