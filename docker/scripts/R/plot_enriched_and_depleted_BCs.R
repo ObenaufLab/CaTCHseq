@@ -286,6 +286,7 @@ bc.counts <- sce@meta.data %>%
 ### Select metadata ###
 idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "BC_ID")))
 metadata <- metadata[idx, ]
+metadata <- metadata %>% mutate(Condition = gsub("-",".", Condition))
 row.names(metadata) <- NULL
 
 ### Run pairwise DE Analysis for BCs ###
