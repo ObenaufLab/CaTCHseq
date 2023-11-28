@@ -147,30 +147,32 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
   dds$Condition <- relevel(dds$Condition, ref = B[[1]])
 
   # run for each pair of conditions
+  vsd <- NULL
   dds <- tryCatch(
     {
       DESeq(dds, parallel = FALSE, betaPrior = FALSE)
     },
     error = function(e) {
-      dds <- estimateSizeFactors(dds)
-      dds <- estimateDispersionsGeneEst(dds)
-      dispersions(dds) <- mcols(dds)$dispGeneEst
-      return(nbinomWaldTest(dds))
+            dds <- estimateSizeFactors(dds)
+            dds <- estimateDispersionsGeneEst(dds)
+            dispersions(dds) <- mcols(dds)$dispGeneEst
+            return(nbinomWaldTest(dds))
     }
   )
-  print(resultsNames(dds))
 
   # Now we want to transform the raw discretely distributed counts so that we can do clustering. (Note: when you expect a large treatment effect you should actually set blind=FALSE (see https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html).
 
-  tryCatch({
-      rld <- rlogTransformation(dds, blind = TRUE)
-      vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
-  },
-  error = function(e){
-      rld <- NULL
-      vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
-  })
-  
+  rld <- NULL
+  if(is.null(vsd)){
+    tryCatch({
+        rld <- rlogTransformation(dds, blind = TRUE)
+        vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
+    },
+    error = function(e){
+        rld <- NULL
+        vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
+    })
+  }
   # We also write the normalized counts to file
   if(!is.null(rld)){
       write.table(as.data.frame(assay(rld)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "rld.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
@@ -233,7 +235,7 @@ if (DefaultAssay(sce) != "RNA") {
 ### We want days as "Condition" ### need to add that
 
 sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) str_split_1(x, "_")[1])))
-sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) str_split_1(x, "_")[2])))
+sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split_1(x, "_"))[-1],collapse = '_'))))
 
 ### collect metadata ###
 metadata <- sce@meta.data %>%
@@ -286,7 +288,7 @@ bc.counts <- sce@meta.data %>%
 ### Select metadata ###
 idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "BC_ID")))
 metadata <- metadata[idx, ]
-metadata <- metadata %>% mutate(Condition = gsub("-",".", Condition))
+metadata <- metadata %>% mutate(Condition = as.factor(gsub("-",".", Condition)))
 row.names(metadata) <- NULL
 
 ### Run pairwise DE Analysis for BCs ###
@@ -294,8 +296,17 @@ countData <- bc.counts %>%
   select(-CaTCH.BCs) %>%
   column_to_rownames(var = "BC_ID")
 
-ids <- bc.counts %>%
-  select(CaTCH.BCs, BC_ID)
+ids <- bc.counts <- sce@meta.data %>%
+    filter(CaTCH.Status == "Singlet") %>%
+    select(CaTCH.BCs, Sample, BC_ID, CellID) %>%
+    group_by(CaTCH.BCs, Sample) %>%
+    mutate(n = n()) %>%
+    ungroup() %>%
+    distinct() %>%
+    pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
+    filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
+    drop_na()
+
 
 comparison_objs <- list()
 for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
