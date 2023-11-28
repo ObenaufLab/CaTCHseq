@@ -27,6 +27,14 @@ option_list <- list(
     type = "numeric", default = 25,
     help = "height of the plot of a single CaTCH barcode. The units depend on the format: inches for PDF, pixels otherwise"
   ),
+  make_option(c("--pcut"),
+              type = "numeric", default = 0.1,
+              help = "Cutoff for pvalues, default(0.1)"
+  ),
+  make_option(c("--fcut"),
+              type = "numeric", default = 1,
+              help = "Cutoff for lFC, default(1)"
+  ),
   make_option(c("--out"),
     type = "character", default = NULL,
     help = "path to the output file"
@@ -297,31 +305,31 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
   comparison_objs[[contrast_name]] <- ddslist
 
   r <- results(ddslist[["dds"]],
-    alpha = 0.05,
+    alpha = 0.1,
     contrast = c("Condition", t, ref.Condition)
   ) %>%
     as_tibble(rownames = NA) %>%
     rownames_to_column("BC_ID") %>%
-    filter(!is.na(padj), padj <= 0.05) %>%
+    filter(!is.na(padj), padj <= 0.1) %>%
     mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
     arrange(desc(Type), desc(abs(log2FoldChange)))
 
   if (nrow(r) > 1) {
     r <- left_join(r, ids)
 
-    write.table(as.data.frame(r), gzfile(paste("DE", "DESEQ2", contrast_name, "BCs", "fdr005.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
+    write.table(as.data.frame(r), gzfile(paste("DE_", "DESEQ2_", contrast_name, "_BCs_fdr", opt$pcut, ".tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
 
     pdf(
-      file = paste("DE", "DESEQ2", contrast_name, "BCs_Volcano", "p005_lfc15.pdf", sep = "_"),
+      file = paste("DE_", "DESEQ2_", contrast_name, "_BCs_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
       width = 15, height = 10
     )
     print(EnhancedVolcano(ddslist[["res"]],
       lab = rownames(ddslist[["res"]]),
       x = "log2FoldChange",
       y = "pvalue",
-      title = paste0(contrast_name, "p0.05", "lfc1.5", sep = "_"),
-      pCutoff = 0.05,
-      FCcutoff = 1.5,
+      title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
+      pCutoff = opt$pcut,
+      FCcutoff = opt$fcut,
       pointSize = 3.0,
       labSize = 5.0,
       colAlpha = .3,
@@ -331,7 +339,9 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
       ),
       legendPosition = "right",
       legendLabSize = 10,
-      legendIconSize = 5.0
+      legendIconSize = 5.0,
+      drawConnectors = TRUE,
+      widthConnectors = 0.75
     ))
     dev.off()
   } else {

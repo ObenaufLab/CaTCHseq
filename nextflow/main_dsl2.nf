@@ -46,6 +46,8 @@ filter = get_always('filter') ?: true
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
 hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
+pval_cutoff = get_always('pcal_cutoff') ?: 0.1
+lfc_cutoff = get_always('lfc_cutoff') ?: 1
 markerfile = get_always('markers') ?: '/tools/data/R/stagemarkers_xue2020.rds'
 reportsDir = get_always('reportsDir') ?: "${absDir}/REPORTS"
 outputDir = get_always('outputDir') ?: "${absDir}/scCaTCH_nf_OUTPUT"
@@ -841,6 +843,8 @@ process createBarcodeEnrichmentPlots{
         --format pdf \
         --width 400 \
         --height 300 \
+        --pcut ${pval_cutoff}\
+        --fcut ${lfc_cutoff}
         --out ${outname}
     """
 }
@@ -900,17 +904,17 @@ workflow{
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
         if (mapperbin == 'CellRanger'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
             
 
-            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1)) }
+            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }
         }else if (mapperbin == 'STAR'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine(Ch_mapping_idx)
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine(Ch_mapping_idx)
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
         if(runqc){
-            Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.groupTuple(by: 0)
+            Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.groupTuple(by: 0)
             //Ch_QC_input.subscribe {  println "QC: $it"  }
             qc_raw(Ch_QC_input)
             mqc(qc_raw.out.zip.collect())//.flatten().filter( ~/.zip/ ))
@@ -925,16 +929,16 @@ workflow{
             useCellrangerData(Ch_map_precomputed)
 
             if (filter){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
             star_mapping(Ch_map_input, Ch_whitelist)
             if (filter){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName+'_'+row.Treatment+'_'+row.Replicate, file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw)
             }
             
         }

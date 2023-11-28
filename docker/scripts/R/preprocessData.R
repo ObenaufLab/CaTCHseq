@@ -126,8 +126,8 @@ create_SCEs <- function(smpl, data10X, bc) {
         #### Now load the CaTCH barcodes ####
         data.catch <- load_BCs(bc)
         print(paste0(" Loading Barcodes from ", bc))
-        #print(head(data.catch))
-        #print(head(colData(sce) %>%
+        # print(head(data.catch))
+        # print(head(colData(sce) %>%
         #    as_tibble() %>%
         #    left_join(y = data.catch, by = "CellID")))
 
@@ -215,7 +215,7 @@ normalize_SCE <- function(sce) {
 
 sctransform_SCE <- function(sce) {
     sce <- SCTransform(sce, vst.flavor = "v2", vars.to.regress = "percent.mt", verbose = FALSE)
-    #sce[["SCT"]] <- as(object = sce[["SCT"]], Class = "Assay5")  # this actually breaks downstream code as SCTAssay is still v3 (https://github.com/satijalab/seurat/issues/7542)
+    # sce[["SCT"]] <- as(object = sce[["SCT"]], Class = "Assay5")  # this actually breaks downstream code as SCTAssay is still v3 (https://github.com/satijalab/seurat/issues/7542)
     return(sce)
 }
 
@@ -226,11 +226,11 @@ reduceDims_SCE <- function(sce, assay = "RNA", reduction.name = "pca") {
     return(sce)
 }
 
-cluster_SCE <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster") {
+cluster_SCE <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster", resolution = .2) {
     print("   Clustering ...")
 
     sce <- FindNeighbors(sce, assay = assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")))
-    sce <- FindClusters(sce, resolution = 2, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"))
+    sce <- FindClusters(sce, resolution = .2, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"))
 
     return(sce)
 }
@@ -245,7 +245,7 @@ integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.redu
     return(sce)
 }
 
-umap_SCE <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.05, spread = 5) {
+umap_SCE <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.1, spread = 5) {
     print("   Preparing UMAP ...")
 
     sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors, min.dist = min.dist, spread = spread)
@@ -321,30 +321,30 @@ sce <- subset(sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$m
 sce <- normalize_SCE(sce)
 
 ### SCtransform counts
-#sce <- sctransform_SCE(sce)
+# sce <- sctransform_SCE(sce)
 
 ### Run initial dim reduction for norm
 sce <- reduceDims_SCE(sce)
 
 ### Run initial dim reduction for STC
-#sce <- reduceDims_SCE(sce, assay = "SCT", reduction.name = "pca_sct")
+# sce <- reduceDims_SCE(sce, assay = "SCT", reduction.name = "pca_sct")
 
 ### Integrate the SCE layers for integrative analysis
 sce <- integrate_SCE(sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
 
 ### Integrate the SCE layers after SCT for integrative analysis
-#sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
+# sce <- integrate_SCE(sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
 
 ### Cluster integrated SCE for plotting
-#sce <- cluster_SCE(sce, assay = "SCT_integrated.cca", reduction = "pca_sct", cluster.name = "sct_integrated.cca_cluster")
+# sce <- cluster_SCE(sce, assay = "SCT_integrated.cca", reduction = "pca_sct", cluster.name = "sct_integrated.cca_cluster")
 
 sce <- cluster_SCE(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
-
+sce <- cluster_SCE(sce, assay = "RNA", reduction = "pca", cluster.name = "pca_cluster")
 ## Run UMAP not integrated
-sce <- umap_SCE(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
-
+sce <- umap_SCE(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
+sce <- umap_SCE(sce, assay = "RNA", reduction = "pca", dims = 1:30, reduction.name = "umap_pca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
 ## Run UMAP integrated
-#sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
+# sce <- umap_SCE(sce, assay = "SCT_integrated.cca", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 
 ### Assign cell stage and categories
 
@@ -356,12 +356,13 @@ s.genes <- markerfile$S
 g2m.genes <- markerfile$G2M
 tryCatch(
     {
-        sce <- CellCycleScoring(sce, assay="RNA_integrated.cca", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
+        sce <- CellCycleScoring(sce, assay = "RNA_integrated.cca", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
     },
     error = function(e) {
         print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF CELL STAGE AND SET TO DEFAULT G0"))
         sce@meta.data$Phase <- "G0"
-        sce@meta.data$CellStage <- "G0"
+        sce@meta.data$S.Score <- 0
+        sce@meta.data$G2M.Score <- 0
     }
 )
 

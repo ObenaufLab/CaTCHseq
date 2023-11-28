@@ -127,11 +127,30 @@ FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by
 dev.off()
 
 ## Plot UMAPs
-reduction.name <- "umap_integrated.cca" # reduction.name = "umap_integrated.cca"
+reduction.name <- "umap_pca"
+p.umap_noint_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrated.cca_cluster", label.size = 1, alpha = .3) +
+    ggtitle("Overview by non-integrated cluster") +
+    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
 
-p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrated.cca_cluster", shape.by = "Sample", label.size = 1, alpha = .2) +
+p.umap_noint_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
+    ggtitle("Overview by non-integrated samples") +
+    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
+
+reduction.name <- "umap_integrated.cca"
+
+p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrated.cca_cluster", label.size = 1, alpha = .3) +
   ggtitle("Overview by cluster") +
-  guides(colour = guide_legend(override.aes = list(size = 4)))
+  guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
+
+p.umap_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
+    ggtitle("Overview by samples") +
+    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
+LabelClusters(plot = p.umap_samples, id = "ident")
+
+
+## Add additional labels
+#LabelClusters(plot = plot, id = "ident")
+#LabelPoints(plot = plot, points = TopCells(object = pbmc3k.final[["pca"]]), repel = TRUE)
 
 status.colors <- list(
   "Singlet" = "forestgreen",
@@ -153,6 +172,16 @@ p.status_distr_cluster <- createValueDistrPlot(sce,
 ) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   guides(fill = guide_legend("CaTCH status"))
+
+p.status_distr_samples <- createValueDistrPlot(sce,
+                                               grp.col = "Sample",
+                                               val.col = "CaTCH.Status",
+                                               colors = status.colors,
+                                               ylab = "Proportion, [%]",
+                                               title = "CaTCH status per sample"
+) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    guides(fill = guide_legend("CaTCH status"))
 
 p.cluster_size <- sce@meta.data %>%
   select(integrated.cca_cluster) %>%
@@ -176,15 +205,15 @@ cs.color <- list(
   "S" = "#BECE2D"
 )
 
-p.umap_cellstage <- DimPlot(sce, reduction = reduction.name, group.by = "Phase", label.size = 1, alpha = .2) +
+p.umap_cellstage <- DimPlot(sce, reduction = reduction.name, group.by = "Phase", label.size = 2, alpha = .2) +
   ggtitle("Overview by cell stage") +
-  guides(colour = guide_legend(override.aes = list(size = 4))) +
   scale_color_manual(values = cs.color, name = "Cell stage") +
-  guides(color = guide_legend("Cell stage"))
+  guides(color = guide_legend("Cell stage",override.aes = list(size = 4)))# +
+    #guides(colour = guide_legend(override.aes = list(size = 10))) +
 
 
 sce@meta.data$CellStatus <- "Proliferating"
-sce@meta.data$CellStatus[sce@meta.data$CellStage == "G0"] <- "Quiescent" # We have no clear G0, need to fix this somehow, Seurat suggests Cell-types which are very proliferative would have a higher fraction of cells in S/G2M whereas the cell types with low S/G2M fraction would be terminally differentiated, slowly dividing or quiescent cells
+sce@meta.data$CellStatus[sce@meta.data$S.Score < 0 & sce@meta.data$G2M.Score < 0] <- "Quiescent" # We have no clear G0, need to fix this somehow, Seurat suggests Cell-types which are very proliferative would have a higher fraction of cells in S/G2M whereas the cell types with low S/G2M fraction would be terminally differentiated, slowly dividing or quiescent cells
 p.umap_cellstatus <- DimPlot(sce, reduction = reduction.name, group.by = "CellStatus") +
   ggtitle("Overview by cell status") +
   guides(colour = guide_legend(override.aes = list(size = 4))) +
@@ -199,6 +228,17 @@ p.cellstage_distr <- createValueDistrPlot(sce,
 ) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   guides(fill = guide_legend("Cell cycle stage"))
+
+p.cellstage_samples_distr <- createValueDistrPlot(sce,
+                                          grp.col = "Sample",
+                                          val.col = "Phase",
+                                          colors = cs.color,
+                                          ylab = "Proportion, [%]",
+                                          title = "Cell stage per sample"
+) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    guides(fill = guide_legend("Cell cycle stage"))
+
 
 p.unique_bc_distr <- sce@meta.data %>%
   filter(CaTCH.Status == "Singlet") %>%
@@ -225,21 +265,39 @@ if (opt$format == "png") {
 }
 print(grid.arrange(
   p.umap_clusters, # 1
-  p.status_distr, # 2
-  p.cluster_size, # 3
-  p.umap_cellstage, # 4
-  p.umap_cellstatus, # 5
-  p.cellstage_distr, # 6
-  p.status_distr_cluster, # 7
-  p.unique_bc_distr, # 8
+  p.umap_samples, # 2
+  p.status_distr, # 3
+  p.cluster_size, # 4
+  p.umap_cellstage, # 5
+  p.umap_cellstatus, # 6
+  p.cellstage_distr, # 7
+  p.cellstage_samples_distr, # 8
+  p.status_distr_cluster, # 9
+  p.status_distr_samples, # 10
+  p.unique_bc_distr, # 11
+  p.umap_noint_clusters, # 12
+  p.umap_noint_samples, # 13
   layout_matrix = rbind(
-    c(1, 1, 1, 1, 1, 3, 3, 3),
-    c(1, 1, 1, 1, 1, 3, 3, 3),
-    c(1, 1, 1, 1, 1, 3, 3, 3),
-    c(2, 2, 2, 4, 4, 4, 5, 5),
-    c(2, 2, 2, 4, 4, 4, 5, 5),
-    c(6, 6, 6, 7, 7, 7, 8, 8),
-    c(6, 6, 6, 7, 7, 7, 8, 8)
+    c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
+    c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
+    c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
+    c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
+    c(3, 3, 3, 11, 11, 11, 4, 4, 4, 4),
+    c(3, 3, 3, 11, 11, 11, 4, 4, 4, 4),
+    c(3, 3, 3, 11, 11, 11, 4, 4, 4, 4),
+    c(5, 5, 5, 6, 6, 6, 9, 9, 9, 9),
+    c(5, 5, 5, 6, 6, 6, 9, 9, 9, 9),
+    c(5, 5, 5, 6, 6, 6, 9, 9, 9, 9),
+    c(7, 7, 7, 8, 8, 8, 10, 10, 10, 10),
+    c(7, 7, 7, 8, 8, 8, 10, 10, 10, 10),
+    c(7, 7, 7, 8, 8, 8, 10, 10, 10, 10),
+    c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
+    c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
+    c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
+    c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13)
+    #c(NA, NA, NA, NA, 11, 11, 11, 11, NA, NA),
+    #c(NA, NA, NA, NA, 11, 11, 11, 11, NA, NA),
+    #c(NA, NA, NA, NA, 11, 11, 11, 11, NA, NA)
   )
 ))
 
