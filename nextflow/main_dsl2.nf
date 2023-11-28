@@ -844,7 +844,7 @@ process createBarcodeEnrichmentPlots{
         --width 400 \
         --height 300 \
         --pcut ${pval_cutoff}\
-        --fcut ${lfc_cutoff}
+        --fcut ${lfc_cutoff} \
         --out ${outname}
     """
 }
