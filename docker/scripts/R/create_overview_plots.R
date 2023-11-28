@@ -145,7 +145,7 @@ p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrat
 p.umap_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
     ggtitle("Overview by samples") +
     guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
-LabelClusters(plot = p.umap_samples, id = "ident")
+#LabelClusters(plot = p.umap_samples, id = "ident")
 
 
 ## Add additional labels

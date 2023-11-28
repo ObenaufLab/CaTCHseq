@@ -35,6 +35,7 @@ majorityVote = get_always('majorityVote') ?: 90
 qcparams = get_always('fastqc_params') ?: ''
 mapperbin = get_always('mapper') ?: "CellRanger"
 runqc = get_always('withQC') ?: true
+crparams = get_always('cellranger_params') ?: ""
 starparams = get_always('star_params') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
 idxparams = get_always('idx_params') ?: ""
 whitelist = get_always('whitelist') ?: null
@@ -263,7 +264,7 @@ process Cellranger_idx{
     filt  = file(anno).getSimpleName()+'_filtered.gtf'
     IDX = file(gen).getSimpleName()+'_idx'
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding && cellranger mkref   --genome=$IDX --fasta tmp.fa --genes=${filt} && rm -f tmp.fa tmp_anno
+    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding && cellranger mkref --genome=$IDX --fasta tmp.fa --genes=${filt} && rm -f tmp.fa tmp_anno
     """
 }
 
@@ -321,6 +322,7 @@ process runCellrangerCount{
 
     cellranger count \
         --disable-ui \
+        ${crparams} \
         --jobmode local \
         --localcores ${task.cpus} \
         --localmem 96 \
