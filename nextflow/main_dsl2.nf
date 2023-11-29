@@ -44,6 +44,7 @@ mapindex = get_always('index') ?: null
 mapref = get_always('reference') ?: null
 mapanno = get_always('annotation') ?: null
 filter = get_always('filter') ?: true
+organism = get_always('organism') ?: "human"
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
 hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
@@ -87,13 +88,15 @@ def helpMessage() {
         --index                 Path to mapper index directory (default: ${params.mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
         --mapper                Which mapper to run (default: CellRanger, optional: STAR)
         --withQC                Boolean, run FastQC and MultiQC (default: true)
-        --reference             Path to reference fasta.gz for STAR
-        --annotation            Path to annotation gtf.gz for STAR
+        --reference             Path to reference fasta.gz for mapper
+        --annotation            Path to annotation gtf.gz for mapper
         --whitelist             Path to barcode whitelist
         --fastqc_params         Optional parameters for FASTQC
         --star_params           Optional parameters for STAR mapping
         --idx_params            Optional parameters for STAR index generation
         --filter                Postprocess filtered counts (default: ${params.filter})
+        --organism              Identifier for organism (choice: ["human", 
+        "mouse"], default: "human")
         --baseline              Name of reference day/condition (default: ${params.refName})
         --marker                RDS file of cellcycle markers (default: ${params.marker}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
         --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
@@ -810,7 +813,7 @@ process createOverviewPlots{
     """
 }
 
-process createBarcodeEnrichmentPlots{
+process calculateBarcodeEnrichment{
 
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -845,6 +848,47 @@ process createBarcodeEnrichmentPlots{
         --format pdf \
         --width 400 \
         --height 300 \
+        --pcut ${pval_cutoff}\
+        --fcut ${lfc_cutoff} \
+        --out ${outname}
+    """
+}
+
+process identifyDEGenes{
+
+    //conda "cellranger.yaml"
+    cache 'lenient'
+    //label 'big_mem'
+    tag "${sampleName}"
+
+    publishDir "${absDir}/", mode: 'link',
+    saveAs: {filename ->
+        if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
+        else                                     "OUTPUT/DE/DESEQ2/${file(filename).getName()}"
+    }
+
+    input:
+        path(sce)
+
+    output:
+        path "*.pdf", emit: pdf
+        path "*.tsv.gz", emit: tables
+        path "*.rds.gz", emit: rds
+
+    script:
+     if (filter){
+        outname = 'scCaTCH.prefiltered'
+    }else{
+        outname = 'scCaTCH'
+    }
+    """
+    Rscript --vanilla ${scriptDirR}identify_de_genes.R \
+        --sce ${sce} \
+        --baseCond ${refName} \
+        --format pdf \
+        --width 400 \
+        --height 300 \
+        --organism ${organism}\
         --pcut ${pval_cutoff}\
         --fcut ${lfc_cutoff} \
         --out ${outname}
@@ -1029,8 +1073,13 @@ workflow{
                 STEP 9: Generate overview plots
         ***************************************************************/
         createOverviewPlots(preprocessSingleCellData.out.basic_sce)
-        createBarcodeEnrichmentPlots(preprocessSingleCellData.out.basic_sce)        
         
+        /**************************************************************
+                STEP 10: Run DE Analysis for Barcodes and Genes
+        ***************************************************************/
+        
+        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_sce)        
+        identifyDEGenes(preprocessSingleCellData.out.basic_sce)
     //emit:
     //createOverviewPlots.out.pdf
     //createBarcodeEnrichmentPlots.out.pdf

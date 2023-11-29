@@ -261,10 +261,10 @@ split_SCE <- function(sce, by = "Sample") {
 }
 
 # Join for DE
-join_SCE <- function(sce) {
+join_SCE <- function(sce, assay = "RNA", layers = "data", new = "joined_data") {
     print("   Joining SCE layers  ...")
-
-    sce <- JoinLayers(sce)
+    
+    sce <- JoinLayers(sce, assay = assay, layers = layers, new = new)
     return(sce)
 }
 

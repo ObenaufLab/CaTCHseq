@@ -24,9 +24,12 @@ remotes::kevinblighe/EnhancedVolcano
 # BioConductor packages installed through BiocManager
 BioConductor::SingleCellExperiment
 BioConductor::DESeq2
+BioConductor::edgeR
 BioConductor::apeglm
 BioConductor::dorothea
 BioConductor::progeny
+BioConductor::decoupleR
+BioConductor::OmnipathR
 BioConductor::scran
 BioConductor::scater
 #BiocConductor::glmGamPoi

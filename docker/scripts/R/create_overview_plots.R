@@ -12,11 +12,11 @@ option_list <- list(
     help = "format of the plots: pdf (default), jpeg, png, tiff"
   ),
   make_option(c("--width"),
-    type = "numeric", default = 25,
+    type = "numeric", default = 30,
     help = "width of the plot. The units depend on the format: inches for PDF, pixels otherwise"
   ),
   make_option(c("--height"),
-    type = "numeric", default = 10,
+    type = "numeric", default = 15,
     help = "height of the plot. The units depend on the format: inches for PDF, pixels otherwise"
   ),
   make_option(c("--out"),
@@ -255,13 +255,13 @@ p.unique_bc_distr <- sce@meta.data %>%
 
 out <- paste0(opt$out, ".", opt$format)
 if (opt$format == "png") {
-  png(filename = out, width = opt$width, height = opt$height)
+  png(filename = out, width = opt$width, height = opt$height*2)
 } else if (opt$format == "jpeg") {
-  jpeg(filename = out, width = opt$width, height = opt$height)
+  jpeg(filename = out, width = opt$width, height = opt$height*2)
 } else if (opt$format == "tiff") {
-  tiff(filename = out, width = opt$width, height = opt$height)
+  tiff(filename = out, width = opt$width, height = opt$height*2)
 } else {
-  pdf(file = out, width = opt$width, height = opt$height)
+  pdf(file = out, width = opt$width, height = opt$height*2)
 }
 print(grid.arrange(
   p.umap_clusters, # 1
