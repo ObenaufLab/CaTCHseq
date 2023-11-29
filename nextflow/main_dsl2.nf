@@ -259,7 +259,7 @@ process Cellranger_idx{
     path anno
 
     output:
-    path "${mapindex}", emit: idx
+    path "${file(mapindex).getName()}", emit: idx
     path "*.out", emit: idxlog
 
     script:
