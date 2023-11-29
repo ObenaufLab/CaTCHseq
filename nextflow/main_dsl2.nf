@@ -250,6 +250,7 @@ process Cellranger_idx{
     publishDir "${absDir}/" , mode: 'copyNoFollow',
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
+        else if (filename.indexOf("${mapindex}") > 0)       "OUTPUT/CellRanger/INDICES/${file(filename).getName()}"
         else                                                     "OUTPUT/CellRanger/INDICES/${file(filename).getName()}"
     }
 
@@ -258,7 +259,7 @@ process Cellranger_idx{
     path anno
 
     output:
-    path "file(gen).getSimpleName()"+'_idx', emit: idx
+    path "${mapindex}", emit: idx
     path "*.out", emit: idxlog
 
     script:
@@ -267,8 +268,9 @@ process Cellranger_idx{
     filt  = file(anno).getSimpleName()+'_filtered.gtf'
     IDX = file(gen).getSimpleName()+'_idx'
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding && cellranger mkref --genome=$IDX --fasta tmp.fa --genes=${filt} && rm -f tmp.fa tmp_anno
+    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkref --genome=${mapindex} --fasta tmp.fa --genes tmp_anno && rm -f tmp.fa tmp_anno
     """
+    //cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding &&
 }
 
 
