@@ -264,7 +264,7 @@ pdf(
     file = paste("DE_", "Seurat_", contrast_name, "_Pathway_Heatmap_nop_lfc", opt$fcut, ".pdf", sep = ""),
     width = 15, height = 10
 )
-print(heatmap(acts_mat, border_color = NA, color=my_color, breaks = my_breaks))
+print(Heatmap(top_acts_mat))
 dev.off()
 
 

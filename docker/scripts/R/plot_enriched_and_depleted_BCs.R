@@ -28,12 +28,12 @@ option_list <- list(
     help = "height of the plot of a single CaTCH barcode. The units depend on the format: inches for PDF, pixels otherwise"
   ),
   make_option(c("--pcut"),
-              type = "numeric", default = 0.1,
-              help = "Cutoff for pvalues, default(0.1)"
+    type = "numeric", default = 0.1,
+    help = "Cutoff for pvalues, default(0.1)"
   ),
   make_option(c("--fcut"),
-              type = "numeric", default = 1,
-              help = "Cutoff for lFC, default(1)"
+    type = "numeric", default = 1,
+    help = "Cutoff for lFC, default(1)"
   ),
   make_option(c("--out"),
     type = "character", default = NULL,
@@ -153,31 +153,33 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
       DESeq(dds, parallel = FALSE, betaPrior = FALSE)
     },
     error = function(e) {
-            dds <- estimateSizeFactors(dds)
-            dds <- estimateDispersionsGeneEst(dds)
-            dispersions(dds) <- mcols(dds)$dispGeneEst
-            return(nbinomWaldTest(dds))
+      dds <- estimateSizeFactors(dds)
+      dds <- estimateDispersionsGeneEst(dds)
+      dispersions(dds) <- mcols(dds)$dispGeneEst
+      return(nbinomWaldTest(dds))
     }
   )
 
   # Now we want to transform the raw discretely distributed counts so that we can do clustering. (Note: when you expect a large treatment effect you should actually set blind=FALSE (see https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html).
 
   rld <- NULL
-  if(is.null(vsd)){
-    tryCatch({
+  if (is.null(vsd)) {
+    tryCatch(
+      {
         rld <- rlogTransformation(dds, blind = TRUE)
         vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
-    },
-    error = function(e){
+      },
+      error = function(e) {
         rld <- NULL
         vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
-    })
+      }
+    )
   }
   # We also write the normalized counts to file
-  if(!is.null(rld)){
-      write.table(as.data.frame(assay(rld)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "rld.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
+  if (!is.null(rld)) {
+    write.table(as.data.frame(assay(rld)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "rld.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
   }
-  
+
   write.table(as.data.frame(assay(vsd)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "vsd.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
 
   # initialize empty objects
@@ -208,6 +210,124 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
   return(list(dds = dds, res = res_shrink))
 }
 
+
+run_edger <- function(contrast, sampleData_all, countData_all, ids) {
+  contrast_name <- contrast
+  contrast_groups <- strsplit(contrast, "-vs-")
+  print(paste("Comparing ", contrast_name, sep = ""))
+
+  # determine contrast
+  A <- unlist(strsplit(contrast_groups[[1]][1], "\\+"), use.names = FALSE)
+  B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
+
+  # subset Datasets for pairwise comparison
+  countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
+  sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
+
+  samples <- rownames(sampleData)
+  ## name types and levels for design
+  bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
+  tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
+
+  ## Create design-table considering different types (paired, unpaired) and batches
+  if (length(unique(subset(sampleData, A == condition)$type)) > 1 | length(unique(subset(sampleData, B == condition)$type)) > 1) {
+    if (length(unique(subset(sampleData, A == condition)$batch)) > 1 | length(unique(subset(sampleData, B == condition)$batch)) > 1) {
+      des <- ~ type + batch + condition
+      design <- model.matrix(des, data = sampleData)
+      # colnames(design) <- c(levels(sampleData$condition), tl, bl)
+    } else {
+      des <- ~ type + condition
+      design <- model.matrix(des, data = sampleData)
+      # colnames(design) <- c(levels(condition), tl)
+    }
+  } else {
+    if (length(unique(subset(sampleData, A == condition)$batch)) > 1 | length(unique(subset(sampleData, B == condition)$batch)) > 1) {
+      des <- ~ batch + condition
+      design <- model.matrix(des, data = sampleData)
+      # colnames(design) <- c(levels(sampleData$condition), bl)
+    } else {
+      des <- ~condition
+      design <- model.matrix(des, data = sampleData)
+      # colnames(design) <- levels(sampleData$condition)
+    }
+  }
+  print(design)
+
+  ## create DGEList
+  genes <- rownames(countData)
+  dge <- DGEList(counts = countData, group = sampleData$condition, samples = samples, genes = genes)
+
+  ## filter low counts
+  keep <- filterByExpr(dge)
+  dge <- dge[keep, , keep.lib.sizes = FALSE]
+
+  # relevel to base condition B
+  dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
+
+  ## normalize with TMM
+  dge <- calcNormFactors(dge, method = "TMM", BPPARAM = BPPARAM)
+
+  ## create file normalized table
+  tmm <- as.data.frame(cpm(dge))
+  colnames(tmm) <- t(dge$samples$samples)
+  tmm$ID <- dge$genes$genes
+  tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
+
+  write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "table_Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
+
+  ## create file MDS-plot with and without summarized replicates
+  out <- paste("DE_EDGER", contrast_name, "MDS.png", sep = "_")
+  png(out)
+  plotMDS(dge, col = as.numeric(dge$samples$group), cex = 1)
+  dev.off()
+
+  ## estimate Dispersion
+  dge <- estimateDisp(dge, design, robust = TRUE)
+
+  ## create file BCV-plot - visualizing estimated dispersions
+  # out <- paste("DE_EDGER", contrast_name, "BCV.png", sep = "_")
+  # png(out)
+  # plotBCV(dge)
+  # dev.off()
+
+  ## fitting a quasi-likelihood negative binomial generalized log-linear model to counts
+  fit <- glmQLFit(dge, design, robust = TRUE)
+
+  ## create file quasi-likelihood-dispersion-plot
+  # out <- paste("DE_EDGER", contrast_name, "QLDisp.png", sep = "_")
+  # png(out)
+  # plotQLDisp(fit)
+  # dev.off()
+
+  AvsB <- makeContrasts(TreatvsUntreat = paste("condition", A, sep = ""), levels = design)
+  qlf <- glmQLFTest(fit, contrast = AvsB) ## glm quasi-likelihood-F-Test
+
+  res <- qlf$table
+  res$FDR <- p.adjust(res$PValue, method = "BH")
+  res <- as.data.frame(apply(res, 2, as.character))
+  res <- left_join(res %>%
+    as_tibble(rownames = NA) %>%
+    rownames_to_column("BC_ID"), ids, by = "BC_ID")
+
+  # create results table
+  write.table(as.data.frame(res), gzfile(paste("DE_EDGER", contrast_name, "results.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
+
+  # create sorted results Tables
+  tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
+  tops <- tops$table
+  tops <- as.data.frame(apply(tops, 2, as.character))
+  write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
+
+
+  ### plot lFC vs CPM
+  # out <- paste("Figures/DE", "EDGER", combi, contrast_name, "figure", "MD.png", sep = "_")
+  # png(out)
+  # plotMD(qlf, main = contrast_name)
+  # abline(h = c(-1, 1), col = "blue")
+  # dev.off()
+
+  return(list(dds = res, res = tops))
+}
 ########################################################
 library(tidyverse)
 library(scater)
@@ -235,7 +355,7 @@ if (DefaultAssay(sce) != "RNA") {
 ### We want days as "Condition" ### need to add that
 
 sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) str_split_1(x, "_")[1])))
-sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split_1(x, "_"))[-1],collapse = '_'))))
+sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split_1(x, "_"))[-1], collapse = "_"))))
 
 ### collect metadata ###
 metadata <- sce@meta.data %>%
@@ -288,7 +408,7 @@ bc.counts <- sce@meta.data %>%
 ### Select metadata ###
 idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "BC_ID")))
 metadata <- metadata[idx, ]
-metadata <- metadata %>% mutate(Condition = as.factor(gsub("-",".", Condition)))
+metadata <- metadata %>% mutate(Condition = as.factor(gsub("-", ".", Condition)))
 row.names(metadata) <- NULL
 
 ### Run pairwise DE Analysis for BCs ###
@@ -297,15 +417,15 @@ countData <- bc.counts %>%
   column_to_rownames(var = "BC_ID")
 
 ids <- bc.counts <- sce@meta.data %>%
-    filter(CaTCH.Status == "Singlet") %>%
-    select(CaTCH.BCs, Sample, BC_ID, CellID) %>%
-    group_by(CaTCH.BCs, Sample) %>%
-    mutate(n = n()) %>%
-    ungroup() %>%
-    distinct() %>%
-    pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
-    filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
-    drop_na()
+  filter(CaTCH.Status == "Singlet") %>%
+  select(CaTCH.BCs, Sample, BC_ID, CellID) %>%
+  group_by(CaTCH.BCs, Sample) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
+  filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
+  drop_na()
 
 
 comparison_objs <- list()
@@ -313,7 +433,16 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
   print(sprintf("Processing the Condition '%s'...", t))
 
   contrast_name <- paste(t, ref.Condition, sep = "-vs-")
-  ddslist <- run_deseq(contrast_name, metadata, countData, ids)
+  detool <- "DESeq2"
+  if (length(metadata$Replicate) >= length(metadata$Sample) * 2) {
+    print("Enough replicates found, running DESeq2")
+
+    ddslist <- run_deseq(contrast_name, metadata, countData, ids)
+  } else {
+    print("Not enough replicates found, running edgeR")
+    detool <- "EdgeR"
+    ddslist <- run_edger(contrast_name, metadata, countData, ids)
+  }
   comparison_objs[[contrast_name]] <- ddslist
 
   r <- results(ddslist[["dds"]],
@@ -329,10 +458,10 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
   if (nrow(r) > 1) {
     r <- left_join(r, ids)
 
-    write.table(as.data.frame(r), gzfile(paste("DE_", "DESEQ2_", contrast_name, "_BCs_fdr", opt$pcut, ".tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
+    write.table(as.data.frame(r), gzfile(paste("DE_", detool, "_", contrast_name, "_BCs_fdr", opt$pcut, ".tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
 
     pdf(
-      file = paste("DE_", "DESEQ2_", contrast_name, "_BCs_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
+      file = paste("DE_", detool, "_", contrast_name, "_BCs_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
       width = 15, height = 10
     )
     print(EnhancedVolcano(ddslist[["res"]],
@@ -357,7 +486,7 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
     ))
     dev.off()
   } else {
-    pdf(file = paste("DE", "DESEQ2", contrast_name, "BCs_Volcano", "p005_lfc15.pdf", sep = "_"), width = 15, height = 10) 
+    pdf(file = paste("DE", detool, "_", contrast_name, "BCs_Volcano", "p005_lfc15.pdf", sep = "_"), width = 15, height = 10)
     print(paste("No significantly differential Barcodes found for ", contrast_name))
     dev.off()
   }
