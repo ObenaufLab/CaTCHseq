@@ -34,7 +34,7 @@ minReads = get_always('minReads') ?: 10
 majorityVote = get_always('majorityVote') ?: 90
 qcparams = get_always('fastqc_params') ?: ''
 mapperbin = get_always('mapper') ?: "CellRanger"
-runqc = get_always('withQC') ?: true
+runqc = get_always('withQC') ?: null
 crparams = get_always('cellranger_params') ?: ""
 starparams = get_always('star_params') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
 idxparams = get_always('idx_params') ?: ""
@@ -43,7 +43,7 @@ refName = get_always('refName') ?: "Day0"
 mapindex = get_always('index') ?: null
 mapref = get_always('reference') ?: null
 mapanno = get_always('annotation') ?: null
-filter = get_always('filter') ?: true
+filter = get_always('filter') ?: null
 organism = get_always('organism') ?: "human"
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
@@ -87,7 +87,7 @@ def helpMessage() {
         --chunkSize             number of reads per chunk (default: ${params.chunkSize})
         --index                 Path to mapper index directory (default: ${params.mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
         --mapper                Which mapper to run (default: CellRanger, optional: STAR)
-        --withQC                Boolean, run FastQC and MultiQC (default: true)
+        --withQC                Boolean, run FastQC and MultiQC (default: ${params.runqc})
         --reference             Path to reference fasta.gz for mapper
         --annotation            Path to annotation gtf.gz for mapper
         --whitelist             Path to barcode whitelist
