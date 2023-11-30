@@ -255,10 +255,10 @@ process Cellranger_idx{
     label 'big_mem'
     //validExitStatus 0,1
 
-    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
+    publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
-        else                                       "${mapindex}"
+        else                                       "${mapindex}/${file(filename).getName()}"
     }
 
     input:
@@ -267,6 +267,7 @@ process Cellranger_idx{
 
     output:
     path "${file(mapindex).getName()}", emit: idx
+    path "${file(mapindex).getName()}*", emit: idx_extra
     path "*.out", emit: idxlog
 
     script:
