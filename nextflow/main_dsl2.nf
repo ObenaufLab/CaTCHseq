@@ -84,24 +84,24 @@ def helpMessage() {
                                     R2              path to theOptional parameters for STAR mapping corresponding R2 read  
 
       Optional arguments:
-        --chunkSize             number of reads per chunk (default: ${params.chunkSize})
-        --index                 Path to mapper index directory (default: ${params.mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
+        --chunkSize             number of reads per chunk (default: ${chunkSize})
+        --index                 Path to mapper index directory (default: ${mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
         --mapper                Which mapper to run (default: CellRanger, optional: STAR)
-        --withQC                Boolean, run FastQC and MultiQC (default: ${params.runqc})
+        --withQC                Boolean, run FastQC and MultiQC (default: ${runqc})
         --reference             Path to reference fasta.gz for mapper
         --annotation            Path to annotation gtf.gz for mapper
         --whitelist             Path to barcode whitelist
         --fastqc_params         Optional parameters for FASTQC
         --star_params           Optional parameters for STAR mapping
         --idx_params            Optional parameters for STAR index generation
-        --filter                Postprocess filtered counts (default: ${params.filter})
+        --filter                Postprocess filtered counts (default: ${filter})
         --organism              Identifier for organism (choice: ["human", 
         "mouse"], default: "human")
-        --baseline              Name of reference day/condition (default: ${params.refName})
-        --marker                RDS file of cellcycle markers (default: ${params.marker}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
-        --vote                  Number of votes needed for majority voting (default: ${params.majorityVote})
-        --outputDir             specifies the output directory (default: ${params.outputDir})
-        --reportsDir            specifies the reports directory.(default: ${params.reportsDir})
+        --baseline              Name of reference day/condition (default: ${refName})
+        --marker                RDS file of cellcycle markers (default: ${marker}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
+        --vote                  Number of votes needed for majority voting (default: ${majorityVote})
+        --outputDir             specifies the output directory (default: ${outputDir})
+        --reportsDir            specifies the reports directory.(default: ${reportsDir})
         --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/R/ for instances not running docker)
         --scriptDirPy            specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/python/ for instances not running docker)
         --binDir            specifies the path to the binary directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /usr/bin/local which is valid for docker instance; set to '' for instances not running docker)
@@ -147,6 +147,7 @@ log.info """
  |   outputDir               : ${outputDir}
  |   reportsDir              : ${reportsDir}
  |   filter                  : ${filter}
+ |   withQC                  : ${runqc}
  |   whitelist               : ${whitelist}
  |   mapper                  : ${mapperbin}
  |   max_mt_percent          : ${max_mt_percent}
@@ -927,7 +928,7 @@ workflow{
         
         //println(" IDX "+mapindex+" WL "+whitelist)
 
-        if (mapindex){
+        if (mapindex != null){
             if (!file(mapindex).exists()){
                 if (mapperbin == 'CellRanger'){
                     Cellranger_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
@@ -948,7 +949,7 @@ workflow{
         }
         //Ch_mapping_idx.subscribe {  println "IDX: $it"  }
 
-        if (whitelist){
+        if (whitelist != null){
             if (file(whitelist).exists()){
                 Ch_whitelist = Channel.fromPath(whitelist)
             
@@ -969,7 +970,7 @@ workflow{
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
-        if(runqc){
+        if(runqc != null){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.groupTuple(by: 0)
             //Ch_QC_input.subscribe {  println "QC: $it"  }
             qc_raw(Ch_QC_input)
@@ -984,14 +985,14 @@ workflow{
             runCellrangerCount(Ch_map_input)
             useCellrangerData(Ch_map_precomputed)
 
-            if (filter){
+            if (filter != null){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
             star_mapping(Ch_map_input, Ch_whitelist)
-            if (filter){
+            if (filter != null){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered)
             }else{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw)
