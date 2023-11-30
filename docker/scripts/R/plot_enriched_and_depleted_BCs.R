@@ -211,7 +211,9 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
 }
 
 
-run_edger <- function(contrast, sampleData_all, countData_all, ids) {
+run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
+    #Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
+    #https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
@@ -222,6 +224,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids) {
 
     # subset Datasets for pairwise comparison
     countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
+    rownames(countData) <- rownames(countData_all)
     sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
 
     samples <- rownames(sampleData)
@@ -230,23 +233,23 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids) {
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
 
     ## Create design-table considering different types (paired, unpaired) and batches
-    if (length(unique(subset(sampleData, A == condition)$type)) > 1 | length(unique(subset(sampleData, B == condition)$type)) > 1) {
-        if (length(unique(subset(sampleData, A == condition)$batch)) > 1 | length(unique(subset(sampleData, B == condition)$batch)) > 1) {
-            des <- ~ type + batch + condition
+    if (length(unique(subset(sampleData, A == Condition)$type)) > 1 | length(unique(subset(sampleData, B == Condition)$type)) > 1) {
+        if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
+            des <- ~ type + batch + Condition
             design <- model.matrix(des, data = sampleData)
             # colnames(design) <- c(levels(sampleData$condition), tl, bl)
         } else {
-            des <- ~ type + condition
+            des <- ~ type + Condition
             design <- model.matrix(des, data = sampleData)
             # colnames(design) <- c(levels(condition), tl)
         }
     } else {
-        if (length(unique(subset(sampleData, A == condition)$batch)) > 1 | length(unique(subset(sampleData, B == condition)$batch)) > 1) {
-            des <- ~ batch + condition
+        if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
+            des <- ~ batch + Condition
             design <- model.matrix(des, data = sampleData)
             # colnames(design) <- c(levels(sampleData$condition), bl)
         } else {
-            des <- ~condition
+            des <- ~Condition
             design <- model.matrix(des, data = sampleData)
             # colnames(design) <- levels(sampleData$condition)
         }
@@ -255,17 +258,17 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids) {
 
     ## create DGEList
     genes <- rownames(countData)
-    dge <- DGEList(counts = countData, group = sampleData$condition, samples = samples, genes = genes)
+    dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
 
     ## filter low counts
-    keep <- filterByExpr(dge)
-    dge <- dge[keep, , keep.lib.sizes = FALSE]
+    #keep <- filterByExpr(dge)
+    #dge <- dge[keep, , keep.lib.sizes = FALSE]
 
     # relevel to base condition B
     dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
 
     ## normalize with TMM
-    dge <- calcNormFactors(dge, method = "TMM", BPPARAM = BPPARAM)
+    dge <- calcNormFactors(dge, method = "TMM")
 
     ## create file normalized table
     tmm <- as.data.frame(cpm(dge))
@@ -276,14 +279,15 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids) {
     write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "table_Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
 
     ## create file MDS-plot with and without summarized replicates
-    out <- paste("DE_EDGER", contrast_name, "MDS.png", sep = "_")
-    png(out)
-    plotMDS(dge, col = as.numeric(dge$samples$group), cex = 1)
-    dev.off()
+    #out <- paste("DE_EDGER", contrast_name, "MDS.png", sep = "_")
+    #png(out)
+    #plotMDS(dge, col = as.numeric(dge$samples$group), cex = 1)
+    #dev.off()
 
-    ## estimate Dispersion
-    dge <- estimateDisp(dge, design, robust = TRUE)
-
+    ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
+    #dge <- estimateDisp(dge, design, robust = TRUE)
+    bcv <- bcv
+    
     ## create file BCV-plot - visualizing estimated dispersions
     # out <- paste("DE_EDGER", contrast_name, "BCV.png", sep = "_")
     # png(out)
@@ -291,7 +295,8 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids) {
     # dev.off()
 
     ## fitting a quasi-likelihood negative binomial generalized log-linear model to counts
-    fit <- glmQLFit(dge, design, robust = TRUE)
+    ########  HIER WEITER Error in xy.coords(x, y, setLab = FALSE) : 'x' and 'y' lengths differ
+    fit <- glmQLFit(dge, design, robust = TRUE, dispersion = bcv)
 
     ## create file quasi-likelihood-dispersion-plot
     # out <- paste("DE_EDGER", contrast_name, "QLDisp.png", sep = "_")
