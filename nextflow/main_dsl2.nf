@@ -148,7 +148,7 @@ log.info """
  |   reportsDir              : ${reportsDir}
  |   filter                  : ${filter}
  |   whitelist               : ${whitelist}
- |   mapper                  : ${mappergbin}
+ |   mapper                  : ${mapperbin}
  |   max_mt_percent          : ${max_mt_percent}
  |   min_detected_features   : ${min_detected_features}
  |   markerfile              : ${markers}
