@@ -191,7 +191,9 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
 
     res_shrink <- left_join(res_shrink %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("BC_ID"), ids, by = "BC_ID")
+        rownames_to_column("BC_ID"), ids, by = "BC_ID") %>%
+        mutate(p.adj=as.numeric(as.character(padj))) %>%
+        select(-padj)
 
     # sort and output
     resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
@@ -206,8 +208,19 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
         rownames_to_column("BC_ID"), ids, by = "BC_ID")
 
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
+    
+    r <- results(dds,
+                 alpha = 0.1,
+                 contrast = c("Condition", t, ref.Condition)
+    ) %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("BC_ID") %>%
+        filter(!is.na(padj), padj <= 0.1) %>%
+        mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
+        arrange(desc(Type), desc(abs(log2FoldChange)))
+    
     rm(res, resn, resOrdered)
-    return(list(dds = dds, res = res_shrink))
+    return(list(dds = r, res = res_shrink))
 }
 
 
@@ -267,71 +280,30 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
     # relevel to base condition B
     dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
 
-    ## normalize with TMM
-    dge <- calcNormFactors(dge, method = "TMM")
-
-    ## create file normalized table
-    tmm <- as.data.frame(cpm(dge))
-    colnames(tmm) <- t(dge$samples$samples)
-    tmm$ID <- dge$genes$genes
-    tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
-
-    write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "table_Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
-
-    ## create file MDS-plot with and without summarized replicates
-    #out <- paste("DE_EDGER", contrast_name, "MDS.png", sep = "_")
-    #png(out)
-    #plotMDS(dge, col = as.numeric(dge$samples$group), cex = 1)
-    #dev.off()
-
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
     #dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
+    qlf <- exactTest(dge, dispersion=bcv^2)
     
-    ## create file BCV-plot - visualizing estimated dispersions
-    # out <- paste("DE_EDGER", contrast_name, "BCV.png", sep = "_")
-    # png(out)
-    # plotBCV(dge)
-    # dev.off()
-
-    ## fitting a quasi-likelihood negative binomial generalized log-linear model to counts
-    ########  HIER WEITER Error in xy.coords(x, y, setLab = FALSE) : 'x' and 'y' lengths differ
-    fit <- glmQLFit(dge, design, robust = TRUE, dispersion = bcv)
-
-    ## create file quasi-likelihood-dispersion-plot
-    # out <- paste("DE_EDGER", contrast_name, "QLDisp.png", sep = "_")
-    # png(out)
-    # plotQLDisp(fit)
-    # dev.off()
-
-    AvsB <- makeContrasts(TreatvsUntreat = paste("condition", A, sep = ""), levels = design)
-    qlf <- glmQLFTest(fit, contrast = AvsB) ## glm quasi-likelihood-F-Test
-
-    res <- qlf$table
-    res$FDR <- p.adjust(res$PValue, method = "BH")
-    res <- as.data.frame(apply(res, 2, as.character))
-    res <- left_join(res %>%
-        as_tibble(rownames = NA) %>%
-        rownames_to_column("BC_ID"), ids, by = "BC_ID")
-
-    # create results table
-    write.table(as.data.frame(res), gzfile(paste("DE_EDGER", contrast_name, "results.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
-
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
-    tops <- as.data.frame(apply(tops, 2, as.character))
+    tops <- left_join(tops %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("BC_ID"), ids, by = "BC_ID") %>%
+        mutate(log2FoldChange=as.numeric(as.character(logFC))) %>%
+        select(-logFC) %>%
+        mutate(p.adj=as.numeric(as.character(FDR))) %>%
+        select(-FDR)
+    
     write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
+    
+    tops <- tops  %>%
+        filter(!is.na(p.adj), p.adj <= 0.1) %>%
+        mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
+        arrange(desc(Type), desc(abs(log2FoldChange)))
 
-
-    ### plot lFC vs CPM
-    # out <- paste("Figures/DE", "EDGER", combi, contrast_name, "figure", "MD.png", sep = "_")
-    # png(out)
-    # plotMD(qlf, main = contrast_name)
-    # abline(h = c(-1, 1), col = "blue")
-    # dev.off()
-
-    return(list(dds = res, res = tops))
+    return(list(dds = qlf, res = tops))
 }
 ########################################################
 library(tidyverse)
@@ -344,6 +316,7 @@ options(Seurat.object.assay.version = "v5")
 library(SeuratWrappers)
 library(gridExtra)
 library(DESeq2)
+library(edgeR)
 library(apeglm)
 library(EnhancedVolcano)
 library(sctransform)
@@ -450,29 +423,20 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
     }
     comparison_objs[[contrast_name]] <- ddslist
 
-    r <- results(ddslist[["dds"]],
-        alpha = 0.1,
-        contrast = c("Condition", t, ref.Condition)
-    ) %>%
-        as_tibble(rownames = NA) %>%
-        rownames_to_column("BC_ID") %>%
-        filter(!is.na(padj), padj <= 0.1) %>%
-        mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
-        arrange(desc(Type), desc(abs(log2FoldChange)))
-
+    r <- ddslist[["res"]]
+    
     if (nrow(r) > 1) {
-        r <- left_join(r, ids)
-
+        
         write.table(as.data.frame(r), gzfile(paste("DE_", detool, "_", contrast_name, "_BCs_fdr", opt$pcut, ".tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
 
         pdf(
             file = paste("DE_", detool, "_", contrast_name, "_BCs_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
             width = 15, height = 10
         )
-        print(EnhancedVolcano(ddslist[["res"]],
-            lab = rownames(ddslist[["res"]]),
+        print(EnhancedVolcano(r,
+            lab = rownames(r),
             x = "log2FoldChange",
-            y = "pvalue",
+            y = "p.adj",
             title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
             pCutoff = opt$pcut,
             FCcutoff = opt$fcut,
