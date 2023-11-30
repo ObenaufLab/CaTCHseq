@@ -255,11 +255,10 @@ process Cellranger_idx{
     label 'big_mem'
     //validExitStatus 0,1
 
-    publishDir "${absDir}/" , mode: 'link', overwrite: true,
+    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
-        else if (filename == "${file(mapindex).getName()}")       "${mapindex}"
-        else                                                     "OUTPUT/CellRanger/INDICES/${file(filename).getName()}"
+        else                                       "${mapindex}"
     }
 
     input:
