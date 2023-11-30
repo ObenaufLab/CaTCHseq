@@ -141,12 +141,20 @@ log.info """
  ----------------------------------------------------------------------
  |
  | Mandatory arguments
- |   libraries           : ${libraries}
- |   chunk size          : ${chunkSize}
+ |   libraries               : ${libraries}
  |
  | Optional arguments
- |   outputDir           : ${outputDir}
- |   reportsDir          : ${reportsDir}
+ |   outputDir               : ${outputDir}
+ |   reportsDir              : ${reportsDir}
+ |   filter                  : ${filter}
+ |   whitelist               : ${whitelist}
+ |   mapper                  : ${mappergbin}
+ |   max_mt_percent          : ${max_mt_percent}
+ |   min_detected_features   : ${min_detected_features}
+ |   markerfile              : ${markers}
+ |   chunk size              : ${chunkSize}
+ |   organism                : ${organism}
+ |   baseline                : ${refName}
  |
  ======================================================================
 """.stripIndent()
@@ -250,7 +258,7 @@ process Cellranger_idx{
     publishDir "${absDir}/" , mode: 'copyNoFollow',
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
-        else if (filename.indexOf("${file(mapindex).getName()}") > 0)       "${mapindex}"
+        else if (filename == "${file(mapindex).getName()}")       "${mapindex}"
         else                                                     "OUTPUT/CellRanger/INDICES/${file(filename).getName()}"
     }
 
@@ -282,7 +290,7 @@ process runCellrangerCount{
 
     publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("filtered_feature_bc_matrix") > 0)       "OUTPUT/CellRanger/${sampleName}/filtered_feature_bc_matrix"
+        if (filename.indexOf("feature_bc_matrix") > 0)       "OUTPUT/CellRanger/${sampleName}/${file(filename).getName()}"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
         else                                                     "OUTPUT/CellRanger/${file(filename).getName()}"
     }
@@ -351,7 +359,7 @@ process useCellrangerData{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("filtered_feature_bc_matrix") >0)       "OUTPUT/CellRanger/${sampleName}/filtered_feature_bc_matrix"
+        if (filename.indexOf("feature_bc_matrix") >0)       "OUTPUT/CellRanger/${sampleName}/${file(filename).getName()}"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
         else                                                     "OUTPUT/CellRanger/${file(filename).getName()}"
     }
@@ -943,10 +951,11 @@ workflow{
         if (whitelist){
             if (file(whitelist).exists()){
                 Ch_whitelist = Channel.fromPath(whitelist)
-            }
-        } else{         
+            
+            } else{         
             create_dummy_whitelist()   
             Ch_whitelist = create_dummy_whitelist.out.dummy
+            }
         }
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
