@@ -43,7 +43,7 @@ refName = get_always('refName') ?: "Day0"
 mapindex = get_always('index') ?: null
 mapref = get_always('reference') ?: null
 mapanno = get_always('annotation') ?: null
-filter = get_always('filter') ?: null
+filtering = get_always('filter') ?: null
 organism = get_always('organism') ?: "human"
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
@@ -146,7 +146,7 @@ log.info """
  | Optional arguments
  |   outputDir               : ${outputDir}
  |   reportsDir              : ${reportsDir}
- |   filter                  : ${filter}
+ |   filter                  : ${filtering}
  |   withQC                  : ${runqc}
  |   whitelist               : ${whitelist}
  |   mapper                  : ${mapperbin}
@@ -160,6 +160,15 @@ log.info """
  ======================================================================
 """.stripIndent()
 
+if (runqc){
+    log.info("Running QC")
+}
+
+if (filtering){
+    log.info("Using filtered count output")
+}else{
+    log.info("Using raw count output")
+}
 
 // ---------------------------------------------------------------------
 // Pipeline Channels and Processes
@@ -723,7 +732,7 @@ process preprocessSingleCellData{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if(filter){
+        if(filtering){
             if (filename.indexOf(".rds.gz") > 0)       "OUTPUT/SCE/filtered/${file(filename).getName()}"
             else if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/Overview/${file(filename).getName()}"
             else                                     "OUTPUT/SCE/filtered/${file(filename).getName()}"
@@ -746,7 +755,7 @@ process preprocessSingleCellData{
         path("*.pdf"), emit: basic_sce_qc
 
     script:
-    if (filter){
+    if (filtering){
         featurematrix = "filtered_feature_bc_matrix"
         outname = 'scCaTCH.prefiltered'
     }else{
@@ -808,7 +817,7 @@ process createOverviewPlots{
         path("*overview.pdf"), emit: pdf
 
     script:
-    if (filter){
+    if (filtering){
         outname = 'scCaTCH.prefiltered'
     }else{
         outname = 'scCaTCH'
@@ -845,7 +854,7 @@ process calculateBarcodeEnrichment{
         path "*.rds.gz", emit: rds
 
     script:
-     if (filter){
+     if (filtering){
         outname = 'scCaTCH.prefiltered'
     }else{
         outname = 'scCaTCH'
@@ -928,7 +937,7 @@ workflow{
         
         //println(" IDX "+mapindex+" WL "+whitelist)
 
-        if (mapindex != null){
+        if (mapindex){
             if (!file(mapindex).exists()){
                 if (mapperbin == 'CellRanger'){
                     Cellranger_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
@@ -949,7 +958,7 @@ workflow{
         }
         //Ch_mapping_idx.subscribe {  println "IDX: $it"  }
 
-        if (whitelist != null){
+        if (whitelist){
             if (file(whitelist).exists()){
                 Ch_whitelist = Channel.fromPath(whitelist)
             
@@ -970,7 +979,7 @@ workflow{
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
-        if(runqc != null){
+        if(runqc){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.groupTuple(by: 0)
             //Ch_QC_input.subscribe {  println "QC: $it"  }
             qc_raw(Ch_QC_input)
@@ -985,14 +994,14 @@ workflow{
             runCellrangerCount(Ch_map_input)
             useCellrangerData(Ch_map_precomputed)
 
-            if (filter != null){
+            if (filtering){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
             star_mapping(Ch_map_input, Ch_whitelist)
-            if (filter != null){
+            if (filtering){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered)
             }else{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw)
@@ -1043,7 +1052,7 @@ workflow{
         ***************************************************************/
 
         if (mapperbin == 'CellRanger'){
-            if (filter){
+            if (filtering){
                 Ch_cell_ids = runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered)
 
                 Ch_cell_data = runCellrangerCount.out.cell_data_filtered.mix(useCellrangerData.out.cell_data_from_precomputed_filtered)
@@ -1053,7 +1062,7 @@ workflow{
                 Ch_cell_data = runCellrangerCount.out.cell_data_raw.mix(useCellrangerData.out.cell_data_from_precomputed_raw)
             }
         } else if (mapperbin == 'STAR'){            
-            if (filter){
+            if (filtering){
                 Ch_cell_ids = star_mapping.out.cell_ids_filtered
 
                 Ch_cell_data = star_mapping.out.cell_data_filtered                
