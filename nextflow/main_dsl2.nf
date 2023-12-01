@@ -268,6 +268,7 @@ process Cellranger_idx{
     publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
+        else if (filename == ${mapindex})          "${mapindex}"
         else                                       "${mapindex}/${file(filename).getName()}"
     }
 
