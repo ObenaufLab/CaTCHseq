@@ -355,9 +355,9 @@ process runCellrangerCount{
 
     mv ${sampleName} rundir
     mv rundir/outs ${sampleName}
-    ln -s ${sampleName}/filtered_feature_bc_matrix ${sampleName}_filtered_feature_bc_matrix
-    ln -s ${sampleName}/raw_feature_bc_matrix ${sampleName}_raw_feature_bc_matrix
-    zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz ${sampleName}_raw_feature_bc_matrix/barcodes.tsv 
+    ln -fs ${sampleName}/filtered_feature_bc_matrix ${sampleName}_filtered_feature_bc_matrix
+    ln -fs ${sampleName}/raw_feature_bc_matrix ${sampleName}_raw_feature_bc_matrix
+    zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv 
     """
 }
 
@@ -389,6 +389,9 @@ process useCellrangerData{
     script:
         """
         mv cr_data ${sampleName}
+        ln -fs ${sampleName}/filtered_feature_bc_matrix ${sampleName}_filtered_feature_bc_matrix
+        ln -fs ${sampleName}/raw_feature_bc_matrix ${sampleName}_raw_feature_bc_matrix
+        zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv 
         """
 }
 
