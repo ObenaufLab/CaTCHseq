@@ -541,7 +541,7 @@ process countBarcodesInChunks{
     ${scriptDirPy}countBarcodesInChunks.py \
         --r1 ${r1} \
         --r2 ${r2} \
-        --cellIDs ${file(cellIDs).replace(".gz","")} \
+        --cellIDs ${cellIDs.name.replaceAll(/\Q.gz\E/,"")} \
         --counts Counts \
     | tee log \
     | grep -Po "Read [0-9,]+ single cell entries" \
