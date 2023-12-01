@@ -532,7 +532,7 @@ process countBarcodesInChunks{
         tuple val(sampleName), path('Counts'), path('Reads'), emit: counts_chunks_out
 
     script:
-    cids = ${cellIDs.name.replaceAll(/\Q.gz\E/,"")}
+    cids = cellIDs.name.replaceAll(/\Q.gz\E/,"")
     """
     if [[ "${cellIDs}" == *.gz* ]];
     then
