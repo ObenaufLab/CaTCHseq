@@ -533,10 +533,15 @@ process countBarcodesInChunks{
 
     script:
     """
+    if [[ "${cellIDs}" == *.gz* ]];
+    then
+        gunzip ${cellIDs}
+    fi
+
     ${scriptDirPy}countBarcodesInChunks.py \
         --r1 ${r1} \
         --r2 ${r2} \
-        --cellIDs ${cellIDs} \
+        --cellIDs ${file(cellIDs).replace(".gz","")} \
         --counts Counts \
     | tee log \
     | grep -Po "Read [0-9,]+ single cell entries" \
