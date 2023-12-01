@@ -532,16 +532,17 @@ process countBarcodesInChunks{
         tuple val(sampleName), path('Counts'), path('Reads'), emit: counts_chunks_out
 
     script:
+    cids = ${cellIDs.name.replaceAll(/\Q.gz\E/,"")}
     """
     if [[ "${cellIDs}" == *.gz* ]];
     then
-        gunzip ${cellIDs}
+        zcat ${cellIDs} > ${cids}
     fi
 
     ${scriptDirPy}countBarcodesInChunks.py \
         --r1 ${r1} \
         --r2 ${r2} \
-        --cellIDs ${cellIDs.name.replaceAll(/\Q.gz\E/,"")} \
+        --cellIDs ${cids} \
         --counts Counts \
     | tee log \
     | grep -Po "Read [0-9,]+ single cell entries" \
