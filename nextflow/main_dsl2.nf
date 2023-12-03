@@ -900,7 +900,7 @@ process identifyDEGenes{
         path "*.rds.gz", emit: rds
 
     script:
-     if (filter){
+     if (filtering){
         outname = 'scCaTCH.prefiltered'
     }else{
         outname = 'scCaTCH'
