@@ -210,20 +210,22 @@ net <- get_progeny(organism = opt$organism)
 
 ### Pathway analysis
 # Extract the normalized log-transformed counts, WE FILTER HERE ONLY FOR LFC!!!
+print("Normalizing pseudo bulk")
 pseudo <- NormalizeData(pseudo) %>%
     FindVariableFeatures() %>%
     ScaleData() %>%
     RunPCA(npcs = 10)
 
-#### Same Pathway analysis on single-cell level
-
 # Join normalized count layers for DE analysis
+print("Joining Layers")
 Idents(pseudo) <- "Condition"
 
 # Extract the normalized log-transformed counts
+print("Extracting counts")
 mat <- LayerData(pseudo, assay = "RNA", layer = "data")
 
 # Run wmean
+print("Wmean analysis")
 acts <- run_wmean(
     mat = mat, net = net, .source = "source", .target = "target",
     .mor = "weight", times = 100, minsize = 5
@@ -231,7 +233,7 @@ acts <- run_wmean(
 
 rm(mat)
 # Extract norm_wmean and store it as pwm layer in sce
-#
+print("Adding pwm layer")
 LayerData(pseudo, assay = "RNA", layer = "pwm") <- acts %>%
     filter(statistic == "norm_wmean") %>%
     pivot_wider(
@@ -244,20 +246,8 @@ LayerData(pseudo, assay = "RNA", layer = "pwm") <- acts %>%
 rm(acts)
 
 # Extract activities from object as a long dataframe
+print("Extracting activities")
 df <- t(as.matrix(LayerData(pseudo, assay = "RNA", layer = "pwm"))) %>%
-    as.data.frame() %>%
-    mutate(cluster = Idents(pseudo)) %>%
-    pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
-    group_by(cluster, source) %>%
-    summarise(mean = mean(score))
-
-df <- t(as.matrix(acts %>%
-    filter(statistic == "norm_wmean") %>%
-    pivot_wider(
-        id_cols = "source", names_from = "condition",
-        values_from = "score"
-    ) %>%
-    column_to_rownames("source"))) %>%
     as.data.frame() %>%
     mutate(cluster = Idents(pseudo)) %>%
     pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
@@ -283,6 +273,7 @@ my_breaks <- c(
 )
 
 # Plot
+print("Plotting")
 pdf(
     file = paste("DE_", "Seurat_", contrast_name, "_Pathway_Heatmap_nop_lfc", opt$fcut, ".pdf", sep = ""),
     width = 15, height = 10
