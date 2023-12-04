@@ -847,7 +847,7 @@ process calculateBarcodeEnrichment{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
-        else                                     "OUTPUT/DE/DESEQ2/${file(filename).getName()}"
+        else                                     "OUTPUT/DE/BarCodes/${file(filename).getName()}"
     }
 
     input:
@@ -888,7 +888,7 @@ process identifyDEGenes{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
-        else                                     "OUTPUT/DE/DESEQ2/${file(filename).getName()}"
+        else                                     "OUTPUT/DE/GENES/${file(filename).getName()}"
     }
 
     input:

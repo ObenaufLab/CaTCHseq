@@ -192,7 +192,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
     res_shrink <- left_join(res_shrink %>%
         as_tibble(rownames = NA) %>%
         rownames_to_column("BC_ID"), ids, by = "BC_ID") %>%
-        mutate(p.adj=as.numeric(as.character(padj))) %>%
+        mutate(p.adj = as.numeric(as.character(padj))) %>%
         select(-padj)
 
     # sort and output
@@ -208,25 +208,25 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
         rownames_to_column("BC_ID"), ids, by = "BC_ID")
 
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
-    
+
     r <- results(dds,
-                 alpha = 0.1,
-                 contrast = c("Condition", t, ref.Condition)
+        alpha = 0.1,
+        contrast = c("Condition", t, ref.Condition)
     ) %>%
         as_tibble(rownames = NA) %>%
         rownames_to_column("BC_ID") %>%
         filter(!is.na(padj), padj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
         arrange(desc(Type), desc(abs(log2FoldChange)))
-    
+
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))
 }
 
 
 run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
-    #Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
-    #https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
+    # Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
+    # https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
@@ -274,31 +274,31 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
     dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
 
     ## filter low counts
-    #keep <- filterByExpr(dge)
-    #dge <- dge[keep, , keep.lib.sizes = FALSE]
+    # keep <- filterByExpr(dge)
+    # dge <- dge[keep, , keep.lib.sizes = FALSE]
 
     # relevel to base condition B
     dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
 
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
-    #dge <- estimateDisp(dge, design, robust = TRUE)
+    # dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
-    qlf <- exactTest(dge, dispersion=bcv^2)
-    
+    qlf <- exactTest(dge, dispersion = bcv^2)
+
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
     tops <- left_join(tops %>%
         as_tibble(rownames = NA) %>%
         rownames_to_column("BC_ID"), ids, by = "BC_ID") %>%
-        mutate(log2FoldChange=as.numeric(as.character(logFC))) %>%
+        mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
         select(-logFC) %>%
-        mutate(p.adj=as.numeric(as.character(FDR))) %>%
+        mutate(p.adj = as.numeric(as.character(FDR))) %>%
         select(-FDR)
-    
+
     write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
-    
-    tops <- tops  %>%
+
+    tops <- tops %>%
         filter(!is.na(p.adj), p.adj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
         arrange(desc(Type), desc(abs(log2FoldChange)))
@@ -411,22 +411,21 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
     print(sprintf("Processing the Condition '%s'...", t))
 
     contrast_name <- paste(t, ref.Condition, sep = "-vs-")
-    detool <- "DESeq2"
+    detool <- "DESEQ2"
     if (length(metadata$Replicate) >= length(metadata$Sample) * 2) {
         print("Enough replicates found, running DESeq2")
 
         ddslist <- run_deseq(contrast_name, metadata, countData, ids)
     } else {
         print("Not enough replicates found, running edgeR")
-        detool <- "EdgeR"
+        detool <- "EDGER"
         ddslist <- run_edger(contrast_name, metadata, countData, ids)
     }
     comparison_objs[[contrast_name]] <- ddslist
 
     r <- ddslist[["res"]]
-    
+
     if (nrow(r) > 1) {
-        
         write.table(as.data.frame(r), gzfile(paste("DE_", detool, "_", contrast_name, "_BCs_fdr", opt$pcut, ".tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
 
         pdf(
