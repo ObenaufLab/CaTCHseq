@@ -286,7 +286,7 @@ sce <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
 
 ### Run QC
 # calculate percentage of MT reads
-sce <- PercentageFeatureSet(sce, pattern = "^MT-", col.name = "percent.mt")
+sce <- PercentageFeatureSet(sce, pattern = "^MT-|^mt-", col.name = "percent.mt")
 sce[["is.low_yield"]] <- sce@meta.data %>%
     pull(nFeature_RNA) %>%
     {
@@ -298,17 +298,17 @@ sce[["is.damaged"]] <- sce@meta.data %>%
         case_when(. > opt$max_mt ~ TRUE, .default = FALSE)
     }
 
-# pdf(file = paste0(opt$out, "_QC_Violin_MT_content.pdf"), width = 30, height = 10)
-# VlnPlot(sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
-# dev.off()
+pdf(file = paste0(opt$out, "_QC_Violin_MT_content.pdf"), width = 30, height = 10)
+VlnPlot(sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
+dev.off()
 #
-# pdf(file = paste0(opt$out, "_QC_Scatter_MT_content.pdf"), width = 30, height = 10)
-# FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "Sample")
-# dev.off()
+pdf(file = paste0(opt$out, "_QC_Scatter_MT_content.pdf"), width = 30, height = 10)
+FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "Sample")
+dev.off()
 #
-# pdf(file = paste0(opt$out, "_QC_Scatter_Feature_content.pdf"), width = 30, height = 10)
-# FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "Sample")
-# dev.off()
+pdf(file = paste0(opt$out, "_QC_Scatter_Feature_content.pdf"), width = 30, height = 10)
+FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "Sample")
+dev.off()
 
 ### Filter for MT content and min reads
 sce <- subset(sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
