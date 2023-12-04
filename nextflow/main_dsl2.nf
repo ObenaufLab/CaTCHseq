@@ -44,7 +44,7 @@ mapindex = get_always('index') ?: null
 mapref = get_always('reference') ?: null
 mapanno = get_always('annotation') ?: null
 filtering = get_always('filter') ?: null
-organism = get_always('organism') ?: "human"
+organism = get_always('organism') ?: "Human"
 max_mt_percent = get_always('max_mt_percent') ?: 10
 min_detected_features = get_always('min_detected_features') ?: 500
 hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
@@ -95,8 +95,8 @@ def helpMessage() {
         --star_params           Optional parameters for STAR mapping
         --idx_params            Optional parameters for STAR index generation
         --filter                Postprocess filtered counts (default: ${filter})
-        --organism              Identifier for organism (choice: ["human", 
-        "mouse"], default: "human")
+        --organism              Identifier for organism (choice: ["Human", 
+        "Mouse"], default: "Human")
         --baseline              Name of reference day/condition (default: ${refName})
         --marker                RDS file of cellcycle markers (default: ${marker}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
         --vote                  Number of votes needed for majority voting (default: ${majorityVote})

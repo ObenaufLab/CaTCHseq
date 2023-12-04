@@ -16,7 +16,7 @@ option_list <- list(
         help = "format of the plots: pdf (default), jpeg, png, tiff"
     ),
     make_option(c("--organism"),
-        type = "character", default = "human",
+        type = "character", default = "Human",
         help = "Organism to analyze pathways for"
     ),
     make_option(c("--width"),
@@ -205,8 +205,8 @@ for (t in setdiff(levels(sce$Condition), ref.Condition)) {
 saveRDS(reslist, file = paste0(opt$out, "_DE_pseudobulk_list.rds.gz"), compress = "gzip")
 
 ### Run pathway enrichment (https://www.bioconductor.org/packages/release/bioc/vignettes/decoupleR/inst/doc/pw_sc.html)
-print(paste0("Retrieving target genes for pathways in ", opt$species))
-net <- get_progeny(organism = opt$species)
+print(paste0("Retrieving target genes for pathways in ", opt$organism))
+net <- get_progeny(organism = opt$organism)
 
 ### Pathway analysis
 # Extract the normalized log-transformed counts, WE FILTER HERE ONLY FOR LFC!!!
