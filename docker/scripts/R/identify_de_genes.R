@@ -89,10 +89,8 @@ sce <- loadRDS(opt$sce)
 if (DefaultAssay(sce) != "RNA") {
     DefaultAssay(sce) <- "RNA" # NOT "RNA_integrated.cca"
 }
-#### Use DeSeq2 to identify over- and underrepresented barcodes ####
 
-### We want days as "Condition" ### need to add that
-
+#### Define new Idents ####
 sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) str_split_1(x, "_")[1])))
 sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split_1(x, "_"))[-1], collapse = "-"))))
 # sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) str_split_1(x, "_")[2])))
@@ -101,14 +99,16 @@ sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(st
 ref.Condition <- opt$baseCond
 
 ### Generate Pseudobulk ###
-pseudo <- AggregateExpression(sce, assays = "RNA", return.seurat = T, group.by = c("ident", "Condition", "Replicate"))
-# each 'cell' is a donor-condition-celltype pseudobulk profile
-# tail(Cells(pseudo))
+pseudo <- AggregateExpression(sce, assays = "RNA", return.seurat = T, group.by = c("Condition", "Replicate", "ident"))
 
-# pseudo$de.ident <- paste(pseudo$Condition, pseudo$Replicate, sep = "_")
 pseudo$de.ident <- pseudo$Condition
 Idents(pseudo) <- "de.ident"
 
+if (DefaultAssay(pseudo) != "RNA") {
+    DefaultAssay(pseudo) <- "RNA" # NOT "RNA_integrated.cca"
+}
+
+#### Use DeSeq2/Wilcox to identify over- and underrepresented genes ####
 reslist <- list()
 for (t in setdiff(levels(sce$Condition), ref.Condition)) {
     print(sprintf("Processing the Condition '%s'...", t))
@@ -134,6 +134,7 @@ for (t in setdiff(levels(sce$Condition), ref.Condition)) {
             )
         }
     )
+    deres <- deres %>% rownames_to_column(., "Gene")
     reslist[[contrast_name]] <- deres
     write.table(deres, gzfile(paste("DE_", "Seurat_", test, contrast_name, "_GENES_all.tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
 
@@ -142,7 +143,7 @@ for (t in setdiff(levels(sce$Condition), ref.Condition)) {
         width = 15, height = 10
     )
     print(EnhancedVolcano(deres,
-        lab = rownames(deres),
+        lab = deres$Gene,
         x = "avg_log2FC",
         y = "p_val_adj",
         title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
@@ -215,10 +216,10 @@ pseudo <- NormalizeData(pseudo) %>%
     FindVariableFeatures() %>%
     ScaleData() %>%
     RunPCA(npcs = 10)
-
-# Join normalized count layers for DE analysis
-print("Joining Layers")
 Idents(pseudo) <- "Condition"
+# Join normalized count layers for DE analysis
+#print("Joining Layers")
+#pseudo <- join_SCE(pseudo)
 
 # Extract the normalized log-transformed counts
 print("Extracting counts")
@@ -232,22 +233,15 @@ acts <- run_wmean(
 )
 
 rm(mat)
-# Extract norm_wmean and store it as pwm layer in sce
-print("Adding pwm layer")
-LayerData(pseudo, assay = "RNA", layer = "pwm") <- acts %>%
-    filter(statistic == "norm_wmean") %>%
-    pivot_wider(
-        id_cols = "source", names_from = "condition",
-        values_from = "score"
-    ) %>%
-    column_to_rownames("source") %>%
-    CreateAssay5Object(.)
-
-rm(acts)
 
 # Extract activities from object as a long dataframe
 print("Extracting activities")
-df <- t(as.matrix(LayerData(pseudo, assay = "RNA", layer = "pwm"))) %>%
+
+df <- t(as.matrix(acts %>%
+                      filter(statistic == 'norm_wmean') %>%
+                      pivot_wider(id_cols = 'source', names_from = 'condition',
+                                  values_from = 'score') %>%
+                      column_to_rownames('source'))) %>%
     as.data.frame() %>%
     mutate(cluster = Idents(pseudo)) %>%
     pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
@@ -275,7 +269,7 @@ my_breaks <- c(
 # Plot
 print("Plotting")
 pdf(
-    file = paste("DE_", "Seurat_", contrast_name, "_Pathway_Heatmap_nop_lfc", opt$fcut, ".pdf", sep = ""),
+    file = paste("DE_", "Seurat_Pathway_Heatmap.pdf", sep = ""),
     width = 15, height = 10
 )
 print(Heatmap(top_acts_mat))
