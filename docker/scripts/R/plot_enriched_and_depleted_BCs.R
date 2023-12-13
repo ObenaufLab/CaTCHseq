@@ -113,7 +113,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
     # subset Datasets for pairwise comparison
     countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
     sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
-
+    rownames(countData) <- rownames(countData_all)
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
 

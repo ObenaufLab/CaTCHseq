@@ -65,7 +65,7 @@ join_SCE <- function(sce, assay = "RNA", layers = "data", new = "joined") {
 }
 
 
-run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
+run_deseq <- function(contrast, sampleData_all, countData_all) {
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
@@ -76,6 +76,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
     
     # subset Datasets for pairwise comparison
     countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
+    rownames(countData) <- rownames(countData_all)
     sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
     
     sampleData <- sampleData %>% add_column(type = "none")
@@ -153,11 +154,10 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
     resn <- res
     res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
     
-    res_shrink <- left_join(res_shrink %>%
-                                as_tibble(rownames = NA) %>%
-                                rownames_to_column("BC_ID"), ids, by = "BC_ID") %>%
-        mutate(p.adj=as.numeric(as.character(padj))) %>%
-        select(-padj)
+    res_shrink$Gene <- res_shrink %>%
+                        as_tibble(rownames = NA) %>%
+                        rownames_to_column("Gene") %>%
+                        pull(Gene)
     
     # sort and output
     resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
@@ -167,9 +167,10 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
     
     # Output no shrink
     res <- resn[order(resn$log2FoldChange), ]
-    res <- left_join(res %>%
-                         as_tibble(rownames = NA) %>%
-                         rownames_to_column("BC_ID"), ids, by = "BC_ID")
+    res$Gene <- res %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene") %>%
+        pull(Gene)
     
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
     
@@ -178,17 +179,21 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
                  contrast = c("Condition", t, ref.Condition)
     ) %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("BC_ID") %>%
         filter(!is.na(padj), padj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
         arrange(desc(Type), desc(abs(log2FoldChange)))
+    
+    r$Gene <- r %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene") %>%
+        pull(Gene)
     
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))
 }
 
 
-run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
+run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     #Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
     #https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
     contrast_name <- contrast
@@ -252,9 +257,11 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
-    tops <- left_join(tops %>%
-                          as_tibble(rownames = NA) %>%
-                          rownames_to_column("BC_ID"), ids, by = "BC_ID") %>%
+    tops$Gene <- tops %>%
+                    as_tibble(rownames = NA) %>%
+                    rownames_to_column("Gene") %>%
+                    pull(Gene)
+    tops <- tops
         mutate(log2FoldChange=as.numeric(as.character(logFC))) %>%
         select(-logFC) %>%
         mutate(p.adj=as.numeric(as.character(FDR))) %>%
