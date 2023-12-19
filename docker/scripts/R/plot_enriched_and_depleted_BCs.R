@@ -217,7 +217,11 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids) {
         rownames_to_column("BC_ID") %>%
         filter(!is.na(padj), padj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
-        arrange(desc(Type), desc(abs(log2FoldChange)))
+        arrange(desc(Type), desc(abs(log2FoldChange))) 
+    
+    r <- r %>%
+        mutate(p.adj=as.numeric(as.character(padj))) %>%
+        select(-padj)
 
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))

@@ -65,23 +65,25 @@ join_SCE <- function(sce, assay = "RNA", layers = "data", new = "joined") {
 }
 
 
-run_deseq <- function(contrast, sampleData_all, countData_all) {
+run_deseq <- function(contrast, sampleData_all, countData_all, ... ) {
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
-
+    
     # determine contrast
     A <- unlist(strsplit(contrast_groups[[1]][1], "\\+"), use.names = FALSE)
     B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
-
+    
+    print(paste("A: ",A, "B: ", B))
+    
     # subset Datasets for pairwise comparison
     countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
     rownames(countData) <- rownames(countData_all)
     sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
-
+    
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
-
+    
     ## Create design-table considering different types (paired, unpaired) and batches
     if (length(unique(subset(sampleData, A == Condition)$type)) > 1 | length(unique(subset(sampleData, B == Condition)$type)) > 1) {
         if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
@@ -97,36 +99,37 @@ run_deseq <- function(contrast, sampleData_all, countData_all) {
         }
     }
     print(design)
-
+    
     # Create DESeqDataSet
     dds <- DESeqDataSetFromMatrix(countData = countData, colData = sampleData, design = design)
-
+    
     # filter low counts
     # keep <- rowSums(counts(dds)) >= 10
     # dds <- dds[keep, ]
-
+    
     # drop unused samples
     dds$Condition <- droplevels(dds$Condition)
-
+    
     # relevel to base condition B
     dds$Condition <- relevel(dds$Condition, ref = B[[1]])
-
+    
     # run for each pair of conditions
     vsd <- NULL
     dds <- tryCatch(
         {
-            DESeq(dds, parallel = FALSE, betaPrior = FALSE)
+            DESeq(dds, parallel = FALSE, betaPrior = FALSE, minReplicatesForReplace = Inf)
         },
         error = function(e) {
+            print("Error, will run manual testing")
             dds <- estimateSizeFactors(dds)
             dds <- estimateDispersionsGeneEst(dds)
             dispersions(dds) <- mcols(dds)$dispGeneEst
             return(nbinomWaldTest(dds))
         }
     )
-
+    
     # Now we want to transform the raw discretely distributed counts so that we can do clustering. (Note: when you expect a large treatment effect you should actually set blind=FALSE (see https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html).
-
+    
     rld <- NULL
     if (is.null(vsd)) {
         tryCatch(
@@ -144,76 +147,82 @@ run_deseq <- function(contrast, sampleData_all, countData_all) {
     if (!is.null(rld)) {
         write.table(as.data.frame(assay(rld)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "rld.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
     }
-
+    
     write.table(as.data.frame(assay(vsd)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "vsd.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
-
+    
     # initialize empty objects
     res <- ""
     resOrdered <- ""
-    res <- results(dds, contrast = c("Condition", A, B), parallel = TRUE)
+    res <- results(dds, contrast = c("Condition", A, B), parallel = TRUE, ...)
     resn <- res
     res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
-
+    
     res_shrink$Gene <- res_shrink %>%
         as_tibble(rownames = NA) %>%
         rownames_to_column("Gene") %>%
         pull(Gene)
-
+    
+    res_shrink <- res_shrink %>%
+        as_tibble(rownames = NA) %>%
+        mutate(p.adj=as.numeric(as.character(padj))) %>%
+        select(-padj)
+    
     # sort and output
     resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
-
+    
     # write the table to a tsv file
     write.table(as.data.frame(resOrdered), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
-
+    
     # Output no shrink
     res <- resn[order(resn$log2FoldChange), ]
     res$Gene <- res %>%
         as_tibble(rownames = NA) %>%
         rownames_to_column("Gene") %>%
         pull(Gene)
-
+    
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
-
-    r <- results(dds,
-        alpha = 0.1,
-        contrast = c("Condition", t, ref.Condition)
-    ) %>%
+    
+    r <- resn %>%
         as_tibble(rownames = NA) %>%
         filter(!is.na(padj), padj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
-        arrange(desc(Type), desc(abs(log2FoldChange)))
-
+        arrange(desc(Type), desc(abs(log2FoldChange))) 
+    
+    r <- r %>%
+        mutate(p.adj=as.numeric(as.character(padj))) %>%
+        select(-padj)
+    
     r$Gene <- r %>%
         as_tibble(rownames = NA) %>%
         rownames_to_column("Gene") %>%
         pull(Gene)
-
+    
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))
 }
 
 
 run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
-    # Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
-    # https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
+    #Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
+    #https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
-
+    
     # determine contrast
     A <- unlist(strsplit(contrast_groups[[1]][1], "\\+"), use.names = FALSE)
     B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
-
+    
     # subset Datasets for pairwise comparison
     countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
     rownames(countData) <- rownames(countData_all)
     sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
-
+    
     samples <- rownames(sampleData)
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
-
+    
     ## Create design-table considering different types (paired, unpaired) and batches
     if (length(unique(subset(sampleData, A == Condition)$type)) > 1 | length(unique(subset(sampleData, B == Condition)$type)) > 1) {
         if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
@@ -237,23 +246,23 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
         }
     }
     print(design)
-
+    
     ## create DGEList
     genes <- rownames(countData)
     dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
-
+    
     ## filter low counts
-    # keep <- filterByExpr(dge)
-    # dge <- dge[keep, , keep.lib.sizes = FALSE]
-
+    #keep <- filterByExpr(dge)
+    #dge <- dge[keep, , keep.lib.sizes = FALSE]
+    
     # relevel to base condition B
     dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
-
+    
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
-    # dge <- estimateDisp(dge, design, robust = TRUE)
+    #dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
-    qlf <- exactTest(dge, dispersion = bcv^2)
-
+    qlf <- exactTest(dge, dispersion=bcv^2)
+    
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
@@ -261,19 +270,21 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
         as_tibble(rownames = NA) %>%
         rownames_to_column("Gene") %>%
         pull(Gene)
-    tops <- tops
-    mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
+    
+    tops <- tops %>% 
+        mutate(log2FoldChange=as.numeric(as.character(logFC))) %>%
         select(-logFC) %>%
-        mutate(p.adj = as.numeric(as.character(FDR))) %>%
+        mutate(p.adj=as.numeric(as.character(FDR))) %>%
         select(-FDR)
-
-    write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
-
-    tops <- tops %>%
+    
+    tops <- tops  %>%
         filter(!is.na(p.adj), p.adj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
         arrange(desc(Type), desc(abs(log2FoldChange)))
-
+    
+    write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
+    
+    
     return(list(dds = qlf, res = tops))
 }
 
@@ -313,7 +324,7 @@ sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(st
 ### set reference condition ###
 ref.Condition <- opt$baseCond
 
-### Generate Pseudobulk ###
+### Generate Pseudobulk ####
 pseudo <- AggregateExpression(sce, assays = "RNA", return.seurat = T, group.by = c("Condition", "Replicate", "ident"))
 
 pseudo$de.ident <- pseudo$Condition
@@ -334,41 +345,10 @@ metadata <- pseudo@meta.data %>%
 metadata <- metadata %>% mutate(Condition = as.factor(gsub("-", ".", Condition)))
 row.names(metadata) <- NULL
 
-# Run DE Analysis
+# Run DE Analysis ####
 comparison_objs <- list()
 for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
     print(sprintf("Processing the Condition '%s'...", t))
-
-    # No longer in use, built in Seurat Method lacks customizability
-    # contrast_name <- paste(t, ref.Condition, sep = "-vs-")
-    # test <- "DESeq2"
-    # tryCatch(
-    #    {
-    #        deres <- FindMarkers(
-    #            object = pseudo,
-    #            ident.1 = t,
-    #            ident.2 = ref.Condition,
-    #            test.use = "DESeq2"
-    #        )
-    #    },
-    #    error = function(e) {
-    #        test <- "Wilcox"
-    #        deres <- FindMarkers(
-    #            object = pseudo,
-    #            ident.1 = t,
-    #            ident.2 = ref.Condition,
-    #            test.use = "wilcox"
-    #        )
-    #    }
-    # )
-    # reslist[[contrast_name]] <- deres
-    # write.table(deres, gzfile(paste("DE_", "Seurat_", test, contrast_name, "_GENES_all.tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
-
-    # pdf(
-    #    file = paste("DE_", "Seurat_", test, contrast_name, "_GENES_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
-    #    width = 15, height = 10
-    # )
-
 
     contrast_name <- paste(t, ref.Condition, sep = "-vs-")
     detool <- "DESeq2"
