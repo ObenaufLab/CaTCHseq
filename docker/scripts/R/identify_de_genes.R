@@ -64,6 +64,220 @@ join_SCE <- function(sce, assay = "RNA", layers = "data", new = "joined") {
     return(sce)
 }
 
+
+run_deseq <- function(contrast, sampleData_all, countData_all) {
+    contrast_name <- contrast
+    contrast_groups <- strsplit(contrast, "-vs-")
+    print(paste("Comparing ", contrast_name, sep = ""))
+
+    # determine contrast
+    A <- unlist(strsplit(contrast_groups[[1]][1], "\\+"), use.names = FALSE)
+    B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
+
+    # subset Datasets for pairwise comparison
+    countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
+    rownames(countData) <- rownames(countData_all)
+    sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
+
+    sampleData <- sampleData %>% add_column(type = "none")
+    sampleData <- sampleData %>% add_column(batch = "none")
+
+    ## Create design-table considering different types (paired, unpaired) and batches
+    if (length(unique(subset(sampleData, A == Condition)$type)) > 1 | length(unique(subset(sampleData, B == Condition)$type)) > 1) {
+        if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
+            design <- ~ type + batch + Condition
+        } else {
+            design <- ~ type + Condition
+        }
+    } else {
+        if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
+            design <- ~ batch + Condition
+        } else {
+            design <- ~Condition
+        }
+    }
+    print(design)
+
+    # Create DESeqDataSet
+    dds <- DESeqDataSetFromMatrix(countData = countData, colData = sampleData, design = design)
+
+    # filter low counts
+    # keep <- rowSums(counts(dds)) >= 10
+    # dds <- dds[keep, ]
+
+    # drop unused samples
+    dds$Condition <- droplevels(dds$Condition)
+
+    # relevel to base condition B
+    dds$Condition <- relevel(dds$Condition, ref = B[[1]])
+
+    # run for each pair of conditions
+    vsd <- NULL
+    dds <- tryCatch(
+        {
+            DESeq(dds, parallel = FALSE, betaPrior = FALSE)
+        },
+        error = function(e) {
+            dds <- estimateSizeFactors(dds)
+            dds <- estimateDispersionsGeneEst(dds)
+            dispersions(dds) <- mcols(dds)$dispGeneEst
+            return(nbinomWaldTest(dds))
+        }
+    )
+
+    # Now we want to transform the raw discretely distributed counts so that we can do clustering. (Note: when you expect a large treatment effect you should actually set blind=FALSE (see https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html).
+
+    rld <- NULL
+    if (is.null(vsd)) {
+        tryCatch(
+            {
+                rld <- rlogTransformation(dds, blind = TRUE)
+                vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
+            },
+            error = function(e) {
+                rld <- NULL
+                vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
+            }
+        )
+    }
+    # We also write the normalized counts to file
+    if (!is.null(rld)) {
+        write.table(as.data.frame(assay(rld)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "rld.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
+    }
+
+    write.table(as.data.frame(assay(vsd)), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "vsd.tsv.gz", sep = "_")), sep = "\t", col.names = NA)
+
+    # initialize empty objects
+    res <- ""
+    resOrdered <- ""
+    res <- results(dds, contrast = c("Condition", A, B), parallel = TRUE)
+    resn <- res
+    res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
+
+    res_shrink$Gene <- res_shrink %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene") %>%
+        pull(Gene)
+
+    # sort and output
+    resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
+
+    # write the table to a tsv file
+    write.table(as.data.frame(resOrdered), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
+
+    # Output no shrink
+    res <- resn[order(resn$log2FoldChange), ]
+    res$Gene <- res %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene") %>%
+        pull(Gene)
+
+    write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
+
+    r <- results(dds,
+        alpha = 0.1,
+        contrast = c("Condition", t, ref.Condition)
+    ) %>%
+        as_tibble(rownames = NA) %>%
+        filter(!is.na(padj), padj <= 0.1) %>%
+        mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
+        arrange(desc(Type), desc(abs(log2FoldChange)))
+
+    r$Gene <- r %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene") %>%
+        pull(Gene)
+
+    rm(res, resn, resOrdered)
+    return(list(dds = r, res = res_shrink))
+}
+
+
+run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
+    # Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
+    # https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
+    contrast_name <- contrast
+    contrast_groups <- strsplit(contrast, "-vs-")
+    print(paste("Comparing ", contrast_name, sep = ""))
+
+    # determine contrast
+    A <- unlist(strsplit(contrast_groups[[1]][1], "\\+"), use.names = FALSE)
+    B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
+
+    # subset Datasets for pairwise comparison
+    countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
+    rownames(countData) <- rownames(countData_all)
+    sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
+
+    samples <- rownames(sampleData)
+    ## name types and levels for design
+    bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
+    tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
+
+    ## Create design-table considering different types (paired, unpaired) and batches
+    if (length(unique(subset(sampleData, A == Condition)$type)) > 1 | length(unique(subset(sampleData, B == Condition)$type)) > 1) {
+        if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
+            des <- ~ type + batch + Condition
+            design <- model.matrix(des, data = sampleData)
+            # colnames(design) <- c(levels(sampleData$condition), tl, bl)
+        } else {
+            des <- ~ type + Condition
+            design <- model.matrix(des, data = sampleData)
+            # colnames(design) <- c(levels(condition), tl)
+        }
+    } else {
+        if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
+            des <- ~ batch + Condition
+            design <- model.matrix(des, data = sampleData)
+            # colnames(design) <- c(levels(sampleData$condition), bl)
+        } else {
+            des <- ~Condition
+            design <- model.matrix(des, data = sampleData)
+            # colnames(design) <- levels(sampleData$condition)
+        }
+    }
+    print(design)
+
+    ## create DGEList
+    genes <- rownames(countData)
+    dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
+
+    ## filter low counts
+    # keep <- filterByExpr(dge)
+    # dge <- dge[keep, , keep.lib.sizes = FALSE]
+
+    # relevel to base condition B
+    dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
+
+    ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
+    # dge <- estimateDisp(dge, design, robust = TRUE)
+    bcv <- bcv
+    qlf <- exactTest(dge, dispersion = bcv^2)
+
+    # create sorted results Tables
+    tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
+    tops <- tops$table
+    tops$Gene <- tops %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene") %>%
+        pull(Gene)
+    tops <- tops
+    mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
+        select(-logFC) %>%
+        mutate(p.adj = as.numeric(as.character(FDR))) %>%
+        select(-FDR)
+
+    write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
+
+    tops <- tops %>%
+        filter(!is.na(p.adj), p.adj <= 0.1) %>%
+        mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
+        arrange(desc(Type), desc(abs(log2FoldChange)))
+
+    return(list(dds = qlf, res = tops))
+}
+
+
 ########################################################
 library(tidyverse)
 library(scater)
@@ -82,6 +296,7 @@ library(R.filesets)
 library(progeny)
 library(dorothea)
 library(decoupleR)
+library(OmnipathR)
 library(ComplexHeatmap)
 #### Load single cell data generated by the NF pipeline ####
 sce <- loadRDS(opt$sce)
@@ -104,106 +319,110 @@ pseudo <- AggregateExpression(sce, assays = "RNA", return.seurat = T, group.by =
 pseudo$de.ident <- pseudo$Condition
 Idents(pseudo) <- "de.ident"
 
-if (DefaultAssay(pseudo) != "RNA") {
-    DefaultAssay(pseudo) <- "RNA" # NOT "RNA_integrated.cca"
-}
+# Extract Count Data
+countData <- pseudo@assays$RNA$counts %>%
+    as_tibble(rownames = NA)
 
-#### Use DeSeq2/Wilcox to identify over- and underrepresented genes ####
-reslist <- list()
-for (t in setdiff(levels(sce$Condition), ref.Condition)) {
+pseudo$Sample <- pseudo@meta.data %>%
+    rownames_to_column(., var = "Sample") %>%
+    pull(Sample)
+
+# Extract Metadata
+metadata <- pseudo@meta.data %>%
+    select(Sample, Condition) %>%
+    distinct()
+metadata <- metadata %>% mutate(Condition = as.factor(gsub("-", ".", Condition)))
+row.names(metadata) <- NULL
+
+# Run DE Analysis
+comparison_objs <- list()
+for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
     print(sprintf("Processing the Condition '%s'...", t))
 
-    contrast_name <- paste(t, ref.Condition, sep = "-vs-")
-    test <- "DESeq2"
-    tryCatch(
-        {
-            deres <- FindMarkers(
-                object = pseudo,
-                ident.1 = t,
-                ident.2 = ref.Condition,
-                test.use = "DESeq2"
-            )
-        },
-        error = function(e) {
-            test <- "Wilcox"
-            deres <- FindMarkers(
-                object = pseudo,
-                ident.1 = t,
-                ident.2 = ref.Condition,
-                test.use = "wilcox"
-            )
-        }
-    )
-    deres <- deres %>% rownames_to_column(., "Gene")
-    reslist[[contrast_name]] <- deres
-    write.table(deres, gzfile(paste("DE_", "Seurat_", test, contrast_name, "_GENES_all.tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
+    # No longer in use, built in Seurat Method lacks customizability
+    # contrast_name <- paste(t, ref.Condition, sep = "-vs-")
+    # test <- "DESeq2"
+    # tryCatch(
+    #    {
+    #        deres <- FindMarkers(
+    #            object = pseudo,
+    #            ident.1 = t,
+    #            ident.2 = ref.Condition,
+    #            test.use = "DESeq2"
+    #        )
+    #    },
+    #    error = function(e) {
+    #        test <- "Wilcox"
+    #        deres <- FindMarkers(
+    #            object = pseudo,
+    #            ident.1 = t,
+    #            ident.2 = ref.Condition,
+    #            test.use = "wilcox"
+    #        )
+    #    }
+    # )
+    # reslist[[contrast_name]] <- deres
+    # write.table(deres, gzfile(paste("DE_", "Seurat_", test, contrast_name, "_GENES_all.tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
 
-    pdf(
-        file = paste("DE_", "Seurat_", test, contrast_name, "_GENES_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
-        width = 15, height = 10
-    )
-    print(EnhancedVolcano(deres,
-        lab = deres$Gene,
-        x = "avg_log2FC",
-        y = "p_val_adj",
-        title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
-        pCutoff = opt$pcut,
-        FCcutoff = opt$fcut,
-        pointSize = 2.0,
-        labSize = 4.0,
-        colAlpha = .2,
-        xlab = bquote(~ Log[2] ~ "fold change"),
-        boxedLabels = TRUE,
-        # parseLabels = TRUE,
-        legendLabels = c(
-            "Not sig.", "Log (base 2) FC", "p-value",
-            "p-value & Log (base 2) FC"
-        ),
-        legendPosition = "bottom",
-        legendLabSize = 10,
-        legendIconSize = 8.0,
-        drawConnectors = TRUE,
-        widthConnectors = 0.25
-    ) + coord_flip())
-    dev.off()
-
-
-    # counts <- pseudo %>% filter(avg_log2FC >= opt$fcut) %>% dplyr::rename(!!t := pct.1, !!ref.Condition := pct.2) %>% select(all_of(c(t#, ref.Condition))) %>%
-    #    dplyr::mutate_if(~ any(is.na(.x)), ~ if_else(is.na(.x),0,.x)) %>%
-    #    as.matrix()
-    #
-    ## Run wmean
-    # acts <- run_wmean(mat=counts, net=net, .source='source', .target='target',
-    #                  .mor='weight', times = 100, minsize = 5)
-    #
-    ## Transform to wide matrix
-    # acts_mat <- acts %>%
-    #    filter(statistic == 'norm_wmean') %>%
-    #    pivot_wider(id_cols = 'condition', names_from = 'source',
-    #                values_from = 'score') %>%
-    #    column_to_rownames('condition') %>%
-    #    as.matrix()
-    #
-    ## Scale per sample
-    # acts_mat <- scale(acts_mat)
-    #
-    ## Choose color palette
-    # palette_length = 100
-    # my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
-    #
-    # my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
-    #               seq(0.05, 3, length.out=floor(palette_length/2)))
-    #
-    ## Plot
     # pdf(
-    #    file = paste("DE_", "Seurat_", contrast_name, "_Pathway_Heatmap_nop_lfc", opt$fcut, ".pdf", sep = ""),
+    #    file = paste("DE_", "Seurat_", test, contrast_name, "_GENES_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
     #    width = 15, height = 10
     # )
-    # print(heatmap(acts_mat, border_color = NA, color=my_color, breaks = my_breaks))
-    # dev.off()
+
+
+    contrast_name <- paste(t, ref.Condition, sep = "-vs-")
+    detool <- "DESeq2"
+    if (length(metadata$Replicate) >= length(metadata$Sample) * 2) {
+        print("Enough replicates found, running DESeq2")
+
+        ddslist <- run_deseq(contrast_name, metadata, countData, ids)
+    } else {
+        print("Not enough replicates found, running edgeR")
+        detool <- "EdgeR"
+        ddslist <- run_edger(contrast_name, metadata, countData, ids)
+    }
+    comparison_objs[[contrast_name]] <- ddslist
+
+    r <- ddslist[["res"]]
+
+    if (nrow(r) > 1) {
+        write.table(as.data.frame(r), gzfile(paste("DE_", detool, "_", contrast_name, "_BCs_fdr", opt$pcut, ".tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
+
+        pdf(
+            file = paste("DE_", detool, "_", contrast_name, "_BCs_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
+            width = 15, height = 10
+        )
+
+
+        print(EnhancedVolcano(deres,
+            lab = rownames(deres),
+            x = "avg_log2FC",
+            y = "p_val_adj",
+            title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
+            pCutoff = opt$pcut,
+            FCcutoff = opt$fcut,
+            pointSize = 2.0,
+            labSize = 4.0,
+            colAlpha = .2,
+            ylab = bquote(~ Log[10] ~ "padj"),
+            xlab = bquote(~ Log[2] ~ "fold change"),
+            boxedLabels = TRUE,
+            # parseLabels = TRUE,
+            legendLabels = c(
+                "Not sig.", "Log (base 2) FC", "p-value",
+                "p-value & Log (base 2) FC"
+            ),
+            legendPosition = "bottom",
+            legendLabSize = 10,
+            legendIconSize = 8.0,
+            drawConnectors = TRUE,
+            widthConnectors = 0.25
+        ) + coord_flip())
+        dev.off()
+    }
 }
 
-saveRDS(reslist, file = paste0(opt$out, "_DE_pseudobulk_list.rds.gz"), compress = "gzip")
+saveRDS(comparison_objs, file = paste0(opt$out, "_DE_pseudobulk_list.rds.gz"), compress = "gzip")
 
 ### Run pathway enrichment (https://www.bioconductor.org/packages/release/bioc/vignettes/decoupleR/inst/doc/pw_sc.html)
 print(paste0("Retrieving target genes for pathways in ", opt$organism))
@@ -218,8 +437,8 @@ pseudo <- NormalizeData(pseudo) %>%
     RunPCA(npcs = 10)
 Idents(pseudo) <- "Condition"
 # Join normalized count layers for DE analysis
-#print("Joining Layers")
-#pseudo <- join_SCE(pseudo)
+# print("Joining Layers")
+# pseudo <- join_SCE(pseudo)
 
 # Extract the normalized log-transformed counts
 print("Extracting counts")
@@ -238,10 +457,12 @@ rm(mat)
 print("Extracting activities")
 
 df <- t(as.matrix(acts %>%
-                      filter(statistic == 'norm_wmean') %>%
-                      pivot_wider(id_cols = 'source', names_from = 'condition',
-                                  values_from = 'score') %>%
-                      column_to_rownames('source'))) %>%
+    filter(statistic == "norm_wmean") %>%
+    pivot_wider(
+        id_cols = "source", names_from = "condition",
+        values_from = "score"
+    ) %>%
+    column_to_rownames("source"))) %>%
     as.data.frame() %>%
     mutate(cluster = Idents(pseudo)) %>%
     pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
