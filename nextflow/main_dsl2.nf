@@ -76,12 +76,14 @@ def helpMessage() {
         --libraries             CSV file with the following columns: 
                                     SampleName      name of the sample (can appear in multiple lines, in case
                                                     the library was sequenced in several runs)
-                                    Treatment       sample treatment
+                                    Condition       condition for this sample (e.g. timepoint, KO, treatment)
                                     Replicate       replicate (even if a single replicate is present, this column
                                                     cannot be missing or be empty)
                                     LibraryType     either GEX or scCaTCH
                                     R1              path to the R1 read
-                                    R2              path to theOptional parameters for STAR mapping corresponding R2 read  
+                                    R2              path to the R2 read (if available)
+                                    CellNumber      number of expected cells (or NA if not available)
+                                    Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq), this does not set adequate parameters for mappers automatically, make sure you provide them accordingly
 
       Optional arguments:
         --chunkSize             number of reads per chunk (default: ${chunkSize})
@@ -309,7 +311,7 @@ process runCellrangerCount{
     //publishDir "outputs/cellranger/", mode: "copy"
 
     input:
-        tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), path(index)
+        tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), val(cells_expect.toString()), val(chemistry.toString()), path(index)
     
     
     output:
@@ -320,6 +322,17 @@ process runCellrangerCount{
         tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
     
     script:
+    if (chemistry != "10X"){
+        log.error("Running CellRanger on chemistry different than 10X is not supported, please check your settings and sample sheet.")
+
+    }
+    if (cells_expected != "NA"){
+        if (cells_expected.contains("!")){
+            crparams = crparams + ' --force-cells ' + cells_expect.replaceAll('!', '')
+        }else{
+            crparams = crparams + ' --expect-cells ' + cells_expect 
+        }
+    }
     """
     # Find all reads, sort them by name to ensure that the paired files are on the consecutive lines,
     # and then create symlinks with proper names (SampleName_S1_R1_xxx.fastq.gz)
@@ -427,6 +440,7 @@ process star_idx{
     gen =  genome.getName()
     an  = anno.getName()
     IDX = file(gen).getSimpleName()+'_idx'
+
     """
     zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $IDX && STAR $idxparams --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $IDX --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
     """
@@ -465,7 +479,7 @@ process star_mapping{
     }
 
     input:
-    tuple val(sampleName), path(r1), path(r2), path(idx)
+    tuple val(sampleName), path(r1), path(r2), val(cells_expect.toString()), val(chemistry.toString()), path(idx)
     path(whitelist)
     
     output:
@@ -498,6 +512,13 @@ process star_mapping{
     }else{
         starparams += " --soloCBwhitelist None"
     }
+    if (chemistry != "10X"){
+        log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol. There is no automatic sanity check!")
+    }
+    if (cells_expected != "NA"){
+        starparams = starparams + ' --nExpectedCells ' + cells_expect.replaceAll('!', '')
+    }
+    
     fn = r1.name.replaceAll(/\Q_R1*.fastq.gz\E/,'')
     of = fn+'.Aligned.sortedByCoord.out.bam'
     gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
@@ -975,12 +996,11 @@ workflow{
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
         if (mapperbin == 'CellRanger'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), value(row.CellNumber), value(row.Chemistry)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
             
-
-            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }
+            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }
         }else if (mapperbin == 'STAR'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.groupTuple(by: 0).combine(Ch_mapping_idx)
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), value(row.CellNumber), value(row.Chemistry)) }.groupTuple(by: 0).combine(Ch_mapping_idx)
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
