@@ -36,7 +36,7 @@ qcparams = get_always('fastqc_params') ?: ''
 mapperbin = get_always('mapper') ?: "CellRanger"
 runqc = get_always('withQC') ?: null
 crparams = get_always('cellranger_params') ?: ""
-starparams = get_always('star_params') ?: "--soloType CB_UMI_Simple --soloStrand Unstranded --soloUMIlen 12 --clipAdapterType CellRanger4 --outFilterScoreMin 30 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR --soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
+starparams = get_always('star_params') ?: "--soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
 idxparams = get_always('idx_params') ?: ""
 whitelist = get_always('whitelist') ?: null
 refName = get_always('refName') ?: "Day0"
@@ -498,7 +498,8 @@ process star_mapping{
 
     script:
     idxdir = idx.toRealPath()
-    
+    extraparams = ''
+
     if ( starparams.contains('--soloBarcodeMate 1' )){
         read1 = r2
         read2 = r1
@@ -508,17 +509,25 @@ process star_mapping{
         read2 = r2
     }
     if( whitelist.size() >0 ){
-        starparams += " --soloCBwhitelist ${whitelist}"
+        starparams = starparams + " --soloCBwhitelist ${whitelist}"
     }else{
-        starparams += " --soloCBwhitelist None"
+        starparams = starparams + " --soloCBwhitelist None"
     }
-    if (chemistry != "10X"){
-        log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol. There is no automatic sanity check!")
+    if (chemistry == "10X" and chemistry != "Droplet"){
+        log.info("Running StarSolo on Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
+        extraparams = params.star_droplet
+    } else if (chemistry == "Smart") {
+        log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
+        extraparams = params.star_smart
+    } else{
+        log.error("Unknown chemistry! Please choose between Droplet (10X) and Smart.")
     }
     if (cells_expected != "NA"){
         starparams = starparams + ' --nExpectedCells ' + cells_expect.replaceAll('!', '')
     }
     
+    starparams = starparams + ' ' + extraparams
+
     fn = r1.name.replaceAll(/\Q_R1*.fastq.gz\E/,'')
     of = fn+'.Aligned.sortedByCoord.out.bam'
     gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
