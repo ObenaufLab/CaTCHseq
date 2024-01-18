@@ -38,40 +38,8 @@ if ((length(opt$format) == 0) || !(opt$format %in% c("pdf", "png", "jpeg", "tiff
     opt$format <- "pdf"
 }
 
-##### Additional methods #####
-createValueDistrPlot <- function(sce, grp.col = "Cluster", val.col = "CMO", colors = NULL, grp.order = NULL, xlab = NULL, ylab = NULL, title = NULL) {
-    if (is.null(sce)) {
-        stop("'sce' must be specified and cannot be NULL")
-    }
-
-    plot.data <- sce@meta.data %>%
-        dplyr::count(.data[[grp.col]], .data[[val.col]]) %>%
-        dplyr::group_by(.data[[grp.col]]) %>%
-        dplyr::mutate(Proportion = n / sum(n) * 100)
-    if (!is.null(grp.order)) {
-        tmp <- tibble()
-        for (x in grp.order) {
-            tmp <- rbind(tmp, plot.data[which(plot.data[[grp.col]] == x), ])
-        }
-        tmp[[grp.col]] <- factor(tmp[[grp.col]], levels = grp.order)
-        plot.data <- tmp
-    }
-    plot <- ggplot2::ggplot(data = plot.data, ggplot2::aes(fill = .data[[val.col]], x = .data[[grp.col]], y = Proportion)) +
-        ggplot2::geom_bar(position = "stack", stat = "identity")
-    if (!is.null(colors)) {
-        plot <- plot + ggplot2::scale_fill_manual(values = colors)
-    }
-    if (!is.null(xlab)) {
-        plot <- plot + ggplot2::xlab(xlab)
-    }
-    if (!is.null(ylab)) {
-        plot <- plot + ggplot2::ylab(ylab)
-    }
-    if (!is.null(title)) {
-        plot <- plot + ggplot2::ggtitle(title)
-    }
-    return(plot)
-}
+#### Source Functions ####
+source("../R_collection/singlecell_utils.R")
 
 ########################################################
 library(tidyverse)
@@ -127,15 +95,6 @@ FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by
 dev.off()
 
 ## Plot UMAPs
-reduction.name <- "umap_pca"
-p.umap_noint_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrated.cca_cluster", label.size = 1, alpha = .3) +
-    ggtitle("Overview by non-integrated cluster") +
-    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
-
-p.umap_noint_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
-    ggtitle("Overview by non-integrated samples") +
-    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
-
 reduction.name <- "umap_integrated.cca"
 
 p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrated.cca_cluster", label.size = 1, alpha = .3) +
@@ -145,6 +104,17 @@ p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrat
 p.umap_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
     ggtitle("Overview by samples") +
     guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
+
+
+reduction.name <- "umap_pca"
+p.umap_noint_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "pca_cluster", label.size = 1, alpha = .3) +
+    ggtitle("Overview by non-integrated cluster") +
+    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
+
+p.umap_noint_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
+    ggtitle("Overview by non-integrated samples") +
+    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
+
 # LabelClusters(plot = p.umap_samples, id = "ident")
 
 
@@ -220,7 +190,7 @@ p.umap_cellstatus <- DimPlot(sce, reduction = reduction.name, group.by = "CellSt
     scale_color_manual(values = c("Proliferating" = "forestgreen", "Quiescent" = "gray75"), name = "Cell status")
 
 p.cellstage_distr <- createValueDistrPlot(sce,
-    grp.col = "integrated.cca_cluster",
+    grp.col = "pca_cluster",
     val.col = "Phase",
     colors = cs.color,
     ylab = "Proportion, [%]",
@@ -264,8 +234,8 @@ if (opt$format == "png") {
     pdf(file = out, width = opt$width, height = opt$height * 2)
 }
 print(grid.arrange(
-    p.umap_clusters, # 1
-    p.umap_samples, # 2
+    p.umap_noint_clusters, # 1
+    p.umap_noint_samples, # 2
     p.status_distr, # 3
     p.cluster_size, # 4
     p.umap_cellstage, # 5
@@ -275,8 +245,8 @@ print(grid.arrange(
     p.status_distr_cluster, # 9
     p.status_distr_samples, # 10
     p.unique_bc_distr, # 11
-    p.umap_noint_clusters, # 12
-    p.umap_noint_samples, # 13
+    p.umap_clusters, # 12
+    p.umap_samples, # 13
     layout_matrix = rbind(
         c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
         c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
