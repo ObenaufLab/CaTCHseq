@@ -1004,10 +1004,13 @@ workflow{
             if (file(whitelist).exists()){
                 Ch_whitelist = Channel.fromPath(whitelist)
             
-            } else{         
+            } else {         
             create_dummy_whitelist()   
             Ch_whitelist = create_dummy_whitelist.out.dummy
             }
+        } else {         
+            create_dummy_whitelist()   
+            Ch_whitelist = create_dummy_whitelist.out.dummy
         }
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
