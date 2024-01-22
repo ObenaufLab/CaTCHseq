@@ -499,7 +499,7 @@ process star_mapping{
     script:
     idxdir = idx.toRealPath()
     extraparams = ''
-
+    log.info("Chemistry: ${chemistry}, CellNr: ${cells_expected}")
     // Check strandedness and read order
     if ( starparams.contains('--soloBarcodeMate 1' )){
         read1 = r2
@@ -528,6 +528,7 @@ process star_mapping{
         extraparams = params.star_smart
     } else{
         log.error("Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.")
+        exit()
     }
     if (cells_expected != "NA"){
         starparams = starparams + ' --nExpectedCells ' + cells_expected.replaceAll('!', '')

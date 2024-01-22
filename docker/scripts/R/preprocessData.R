@@ -179,7 +179,7 @@ if (!("CaTCH.BC_ID" %in% colnames(sce@meta.data))) {
         mutate(.Means = rowMeans(across(starts_with(ref.Condition)))) %>%
         arrange(by = desc(.Means)) %>%
         rowid_to_column(".ID") %>%
-        mutate(CaTCH.BC_ID = paste0("CaTCH.BC_", .ID)) %>%
+        mutate(CaTCH.BC_ID = paste0("BC_", .ID)) %>%
         select(-.Means, -.ID) %>%
         relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
         select(CaTCH.BCs, CaTCH.BC_ID)
