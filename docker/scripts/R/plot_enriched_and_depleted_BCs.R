@@ -97,7 +97,7 @@ metadata <- sce@meta.data %>%
 ref.Condition <- opt$baseCond
 
 ### Add Barcode IDS ###
-if (!("BC_ID" %in% colnames(sce@meta.data))) {
+if (!("CaTCH.BC_ID" %in% colnames(sce@meta.data))) {
     tmp <- sce@meta.data %>%
         select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
         filter(CaTCH.Status == "Singlet", Condition == ref.Condition) %>%
@@ -111,22 +111,22 @@ if (!("BC_ID" %in% colnames(sce@meta.data))) {
         mutate(.Means = rowMeans(across(starts_with(ref.Condition)))) %>%
         arrange(by = desc(.Means)) %>%
         rowid_to_column(".ID") %>%
-        mutate(BC_ID = paste0("BC_", .ID)) %>%
+        mutate(CaTCH.BC_ID = paste0("CaTCH.BC_", .ID)) %>%
         select(-.Means, -.ID) %>%
-        relocate(BC_ID, .after = CaTCH.BCs) %>%
-        select(CaTCH.BCs, BC_ID)
+        relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
+        select(CaTCH.BCs, CaTCH.BC_ID)
 
-    sce@meta.data$BC_ID <- sce@meta.data %>%
+    sce@meta.data$CaTCH.BC_ID <- sce@meta.data %>%
         left_join(y = tmp, by = "CaTCH.BCs") %>%
-        mutate(BC_ID = factor(BC_ID, levels = str_sort(unique(BC_ID), numeric = TRUE))) %>%
-        pull(BC_ID)
+        mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
+        pull(CaTCH.BC_ID)
 }
 
 
 ### Count Barcodes ###
 bc.counts <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet") %>%
-    select(CaTCH.BCs, Sample, BC_ID) %>%
+    select(CaTCH.BCs, Sample, CaTCH.BC_ID) %>%
     group_by(CaTCH.BCs, Sample) %>%
     mutate(n = n()) %>%
     ungroup() %>%
@@ -137,7 +137,7 @@ bc.counts <- sce@meta.data %>%
 
 
 ### Select metadata ###
-idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "BC_ID")))
+idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "CaTCH.BC_ID")))
 metadata <- metadata[idx, ]
 metadata <- metadata %>% mutate(Condition = as.factor(gsub("-", ".", Condition)))
 row.names(metadata) <- NULL
@@ -145,11 +145,11 @@ row.names(metadata) <- NULL
 ### Run pairwise DE Analysis for BCs ###
 countData <- bc.counts %>%
     select(-CaTCH.BCs) %>%
-    column_to_rownames(var = "BC_ID")
+    column_to_rownames(var = "CaTCH.BC_ID")
 
 ids <- bc.counts <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet") %>%
-    select(CaTCH.BCs, Sample, BC_ID, CellID) %>%
+    select(CaTCH.BCs, Sample, CaTCH.BC_ID, CellID) %>%
     group_by(CaTCH.BCs, Sample) %>%
     mutate(n = n()) %>%
     ungroup() %>%

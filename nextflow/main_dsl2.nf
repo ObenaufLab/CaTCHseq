@@ -513,14 +513,18 @@ process star_mapping{
     }else{
         starparams = starparams + " --soloCBwhitelist None"
     }
-    if (chemistry == "10X" and chemistry != "Droplet"){
-        log.info("Running StarSolo on Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
+    if (chemistry == "10X"){
         extraparams = params.star_droplet
+    }else if (chemistry == "Droplet"){
+        log.info("Running StarSolo on unspecified Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
+        extraparams = params.star_droplet
+    } else if (chemistry == 'ScaleBio'){{
+        extraparams = params.star_scalebio
     } else if (chemistry == "Smart") {
         log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
         extraparams = params.star_smart
     } else{
-        log.error("Unknown chemistry! Please choose between Droplet (10X) and Smart.")
+        log.error("Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.")
     }
     if (cells_expected != "NA"){
         starparams = starparams + ' --nExpectedCells ' + cells_expect.replaceAll('!', '')
