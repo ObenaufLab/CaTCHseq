@@ -311,7 +311,7 @@ process runCellrangerCount{
     //publishDir "outputs/cellranger/", mode: "copy"
 
     input:
-        tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), val(cells_expected.toString()), val(chemistry.toString()), path(index)
+        tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), val(cells_expected), val(chemistry), path(index)
     
     
     output:
@@ -479,7 +479,7 @@ process star_mapping{
     }
 
     input:
-    tuple val(sampleName), path(r1), path(r2), val(cells_expected.toString()), val(chemistry.toString()), path(idx)
+    tuple val(sampleName), path(r1), path(r2), val(cells_expected), val(chemistry), path(idx)
     path(whitelist)
     
     output:
