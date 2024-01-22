@@ -528,7 +528,7 @@ process star_mapping{
         extraparams = params.star_smart
     } else{
         log.error("Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.")
-        exit()
+        exit('Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.')
     }
     if (cells_expected != "NA"){
         starparams = starparams + ' --nExpectedCells ' + cells_expected.replaceAll('!', '')
