@@ -163,4 +163,31 @@ sce@meta.data$Category <- sce@meta.data %>%
     dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
     dplyr::select(Class)
 
+
+### Add Barcode IDS ###
+if (!("CaTCH.BC_ID" %in% colnames(sce@meta.data))) {
+    tmp <- sce@meta.data %>%
+        select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
+        filter(CaTCH.Status == "Singlet", Condition == ref.Condition) %>%
+        select(CaTCH.BCs, Sample) %>%
+        group_by(CaTCH.BCs, Sample) %>%
+        mutate(n = n()) %>%
+        ungroup() %>%
+        distinct() %>%
+        pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
+        filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
+        mutate(.Means = rowMeans(across(starts_with(ref.Condition)))) %>%
+        arrange(by = desc(.Means)) %>%
+        rowid_to_column(".ID") %>%
+        mutate(CaTCH.BC_ID = paste0("CaTCH.BC_", .ID)) %>%
+        select(-.Means, -.ID) %>%
+        relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
+        select(CaTCH.BCs, CaTCH.BC_ID)
+
+    sce@meta.data$CaTCH.BC_ID <- sce@meta.data %>%
+        left_join(y = tmp, by = "CaTCH.BCs") %>%
+        mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
+        pull(CaTCH.BC_ID)
+}
+
 saveRDS(sce, file = paste0(opt$out, "_SCE.rds.gz"), compress = "gzip")
