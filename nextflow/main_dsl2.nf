@@ -328,9 +328,9 @@ process runCellrangerCount{
     }
     if (cells_expected != "NA"){
         if (cells_expected.contains("!")){
-            crparams = crparams + ' --force-cells ' + cells_expect.replaceAll('!', '')
+            crparams = crparams + ' --force-cells ' + cells_expected.replaceAll('!', '')
         }else{
-            crparams = crparams + ' --expect-cells ' + cells_expect 
+            crparams = crparams + ' --expect-cells ' + cells_expected 
         }
     }
     """
@@ -479,7 +479,7 @@ process star_mapping{
     }
 
     input:
-    tuple val(sampleName), path(r1), path(r2), val(cells_expect.toString()), val(chemistry.toString()), path(idx)
+    tuple val(sampleName), path(r1), path(r2), val(cells_expected.toString()), val(chemistry.toString()), path(idx)
     path(whitelist)
     
     output:
@@ -530,7 +530,7 @@ process star_mapping{
         log.error("Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.")
     }
     if (cells_expected != "NA"){
-        starparams = starparams + ' --nExpectedCells ' + cells_expect.replaceAll('!', '')
+        starparams = starparams + ' --nExpectedCells ' + cells_expected.replaceAll('!', '')
     }
     
     starparams = starparams + ' ' + extraparams
