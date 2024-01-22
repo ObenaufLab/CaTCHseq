@@ -322,6 +322,9 @@ process runCellrangerCount{
         tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
     
     script:
+    // Check chemistry specific settings
+    chemistry = chemistry[0]
+    cells_expected = cells_expected[0]
     if (chemistry != "10X"){
         log.error("Running CellRanger on chemistry different than 10X is not supported, please check your settings and sample sheet.")
 
@@ -516,6 +519,8 @@ process star_mapping{
         starparams = starparams + " --soloCBwhitelist None"
     }
     // Check chemistry specific settings
+    chemistry = chemistry[0]
+    cells_expected = cells_expected[0]
     if (chemistry.contains("10X")){
         extraparams = params.star_droplet
     }else if (chemistry == "Droplet"){
