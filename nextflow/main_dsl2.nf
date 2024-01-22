@@ -1015,11 +1015,11 @@ workflow{
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
         if (mapperbin == 'CellRanger'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), value(row.CellNumber), value(row.Chemistry)) }.groupTuple(by: 0).combine( Ch_mapping_idx )
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0).combine( Ch_mapping_idx )
             
             Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }
         }else if (mapperbin == 'STAR'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), value(row.CellNumber), value(row.Chemistry)) }.groupTuple(by: 0).combine(Ch_mapping_idx)
+            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Treatment.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0).combine(Ch_mapping_idx)
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
