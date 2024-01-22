@@ -502,7 +502,7 @@ process star_mapping{
     script:
     idxdir = idx.toRealPath()
     extraparams = ''
-    log.info("Chemistry: ${chemistry}, CellNr: ${cells_expected}")
+    
     // Check strandedness and read order
     if ( starparams.contains('--soloBarcodeMate 1' )){
         read1 = r2
