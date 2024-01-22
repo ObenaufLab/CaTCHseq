@@ -516,7 +516,7 @@ process star_mapping{
         starparams = starparams + " --soloCBwhitelist None"
     }
     // Check chemistry specific settings
-    if (chemistry == "10X"){
+    if (chemistry.contains("10X")){
         extraparams = params.star_droplet
     }else if (chemistry == "Droplet"){
         log.info("Running StarSolo on unspecified Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
