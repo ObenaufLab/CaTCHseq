@@ -505,24 +505,7 @@ process star_mapping{
     
     chemistry = chemistry[0]
     cells_expected = cells_expected[0]
-
-    // Check strandedness and read order
-    if ( starparams.contains('--soloBarcodeMate' )){
-        if ( starparams.contains('--soloBarcodeMate 1' )){
-            read1 = r2
-            read2 = r1
-            starparams.replaceAll('--soloBarcodeMate 1', '' )
-        }else if ( starparams.contains('--soloBarcodeMate 2' )){
-            read1 = r1
-            read2 = r2
-            starparams.replaceAll('--soloBarcodeMate 2', '' )
-        }else{
-            error('specified --soloBarcodeMate with unknown read')
-        }
-    }else{
-        read1 = r2
-        read2 = r1
-    }
+    
     // Check whitelist
     if( (whitelist.size() >0) && (chemistry != 'ScaleBio')){
         starparams = starparams + " --soloCBwhitelist ${whitelist}"
@@ -549,7 +532,26 @@ process star_mapping{
         starparams = starparams + ' --nExpectedCells ' + cells_expected.replaceAll('!', '')
     }
     
+    // Build params
     starparams = starparams + ' ' + extraparams
+
+    // Check read order
+    if ( starparams.contains('--soloBarcodeMate' )){
+        if ( starparams.contains('--soloBarcodeMate 1' )){
+            read1 = r2
+            read2 = r1
+            starparams.replaceAll('--soloBarcodeMate 1', '' )
+        }else if ( starparams.contains('--soloBarcodeMate 2' )){
+            read1 = r1
+            read2 = r2
+            starparams.replaceAll('--soloBarcodeMate 2', '' )
+        }else{
+            error('specified --soloBarcodeMate with unknown read')
+        }
+    }else{
+        read1 = r2
+        read2 = r1
+    }
 
     fn = r1.name.replaceAll(/\Q_R1*.fastq.gz\E/,'')
     of = fn+'.Aligned.sortedByCoord.out.bam'
