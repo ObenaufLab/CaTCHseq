@@ -511,9 +511,11 @@ process star_mapping{
         if ( starparams.contains('--soloBarcodeMate 1' )){
             read1 = r2
             read2 = r1
+            starparams.replaceAll('--soloBarcodeMate 1', '' )
         }else if ( starparams.contains('--soloBarcodeMate 2' )){
             read1 = r1
             read2 = r2
+            starparams.replaceAll('--soloBarcodeMate 2', '' )
         }else{
             error('specified --soloBarcodeMate with unknown read')
         }
