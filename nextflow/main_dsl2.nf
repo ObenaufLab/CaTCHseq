@@ -513,7 +513,7 @@ process star_mapping{
         read2 = r2
     }
     // Check whitelist
-    if( whitelist.size() >0 ){
+    if( whitelist.size() >0 and chemistry != 'ScaleBio'){
         starparams = starparams + " --soloCBwhitelist ${whitelist}"
     }else{
         starparams = starparams + " --soloCBwhitelist None"
