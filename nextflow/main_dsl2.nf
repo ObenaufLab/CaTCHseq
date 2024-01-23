@@ -503,6 +503,9 @@ process star_mapping{
     idxdir = idx.toRealPath()
     extraparams = ''
     
+    chemistry = chemistry[0]
+    cells_expected = cells_expected[0]
+
     // Check strandedness and read order
     if ( starparams.contains('--soloBarcodeMate 1' )){
         read1 = r2
@@ -513,14 +516,12 @@ process star_mapping{
         read2 = r2
     }
     // Check whitelist
-    if( whitelist.size() >0 and chemistry != 'ScaleBio'){
+    if( (whitelist.size() >0) and (chemistry != 'ScaleBio')){
         starparams = starparams + " --soloCBwhitelist ${whitelist}"
     }else{
         starparams = starparams + " --soloCBwhitelist None"
     }
     // Check chemistry specific settings
-    chemistry = chemistry[0]
-    cells_expected = cells_expected[0]
     if (chemistry.contains("10X")){
         extraparams = params.star_droplet
     }else if (chemistry == "Droplet"){
@@ -535,6 +536,7 @@ process star_mapping{
         log.error("Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.")
         exit('Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.')
     }
+    // Check expected cell count
     if (cells_expected != "NA"){
         starparams = starparams + ' --nExpectedCells ' + cells_expected.replaceAll('!', '')
     }
