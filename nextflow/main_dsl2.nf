@@ -507,13 +507,19 @@ process star_mapping{
     cells_expected = cells_expected[0]
 
     // Check strandedness and read order
-    if ( starparams.contains('--soloBarcodeMate 1' )){
+    if ( starparams.contains('--soloBarcodeMate' )){
+        if ( starparams.contains('--soloBarcodeMate 1' )){
+            read1 = r2
+            read2 = r1
+        }else if ( starparams.contains('--soloBarcodeMate 2' )){
+            read1 = r1
+            read2 = r2
+        }else{
+            error('specified --soloBarcodeMate with unknown read')
+        }
+    }else{
         read1 = r2
         read2 = r1
-        
-    }else{
-        read1 = r1
-        read2 = r2
     }
     // Check whitelist
     if( (whitelist.size() >0) and (chemistry != 'ScaleBio')){
