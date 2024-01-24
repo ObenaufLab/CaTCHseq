@@ -70,6 +70,7 @@ ENV SAMTOOLS_INSTALL_DIR=/home/.local/bin/samtools
 RUN cd /home && \
 	wget https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 && \
   	tar --bzip2 -xf samtools-${SAMTOOLS_VERSION}.tar.bz2 \
+	cd samtools-${SAMTOOLS_VERSION} \
 	./configure --prefix=${SAMTOOLS_INSTALL_DIR} && \
   	make && \
   	make install \
