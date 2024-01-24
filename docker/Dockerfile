@@ -68,15 +68,15 @@ ARG SAMTOOLS_VERSION=1.19.1
 ENV SAMTOOLS_INSTALL_DIR=/home/.local/bin/samtools
 
 RUN cd /home && \
-	wget https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 && \
-  	tar --bzip2 -xf samtools-${SAMTOOLS_VERSION}.tar.bz2 && \
-	cd samtools-${SAMTOOLS_VERSION} && \
-	./configure --prefix=${SAMTOOLS_INSTALL_DIR} && \
-  	make && \
-  	make install \
-	cp ${SAMTOOLS_INSTALL_DIR}/bin/samtools /usr/local/bin && \
-	cd /home && \
-  	rm -rf samtools-${SAMTOOLS_VERSION}.tar.bz2
+		wget https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 && \
+		tar --bzip2 -xf samtools-${SAMTOOLS_VERSION}.tar.bz2 && \
+		cd samtools-${SAMTOOLS_VERSION} && \
+		./configure --prefix=${SAMTOOLS_INSTALL_DIR} && \
+		make && \
+		make install && \
+		cp ${SAMTOOLS_INSTALL_DIR}/bin/samtools /usr/local/bin && \
+		cd /home && \
+		rm -rf samtools-${SAMTOOLS_VERSION}.tar.bz2
 
 # Install FASTQC
 ARG FASTQC_VERSION=0.12.1
