@@ -513,10 +513,10 @@ process star_mapping{
     }
     // Check chemistry specific settings
     if (chemistry.contains("10X")){
-        extraparams = params.star_droplet
+        extraparams = params.star_10X
     }else if (chemistry == "Droplet"){
         log.info("Running StarSolo on unspecified Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
-        extraparams = params.star_10X
+        extraparams = params.star_droplet
     } else if (chemistry == 'ScaleBio'){
         extraparams = params.star_scalebio
     } else if (chemistry == "Smart"){
