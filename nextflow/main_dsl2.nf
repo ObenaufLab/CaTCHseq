@@ -559,9 +559,9 @@ process star_mapping{
     STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${sampleName}.Unmapped.out.mate1 ${sampleName}.Unmapped.out.mate2 && cat ${sampleName}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R1_unmapped.fastq.gz && cat ${sampleName}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done && \
     mv ${sampleName}.Solo.out ${sampleName} && \
     ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix && \
-    zcat ${sampleName}_filtered_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_filtered_feature_bc_matrix/barcodes.tsv && \
+    #zcat ${sampleName}_filtered_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_filtered_feature_bc_matrix/barcodes.tsv && \
     ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix && \
-    zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv
+    #zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv
     """
 
 }
