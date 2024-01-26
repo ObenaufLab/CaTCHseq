@@ -496,7 +496,7 @@ process star_mapping{
     tuple val(sampleName), path("*Log.out"), emit: logs
     tuple val(sampleName), path("*.tab"), emit: sjtab
     tuple val(sampleName), path("*_unmapped.fastq.gz", includeInputs:false), emit: unmapped
-    tuple val(sampleName), path("Summary.csv"), emit: qc
+    //tuple val(sampleName), path("Summary.csv"), emit: qc
 
     script:
     idxdir = idx.toRealPath()
