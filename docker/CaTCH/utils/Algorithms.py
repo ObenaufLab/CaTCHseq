@@ -1,24 +1,28 @@
 import sys
 from typing import List, Tuple
+
 from CaTCH.base.Exceptions import BarcodeLengthException
 
 
 class Algorithms:
-
-    def calculateHammingDistance(seq1: str, seq2: str, stopafter: int = sys.maxsize) -> int:
+    def calculateHammingDistance(
+        seq1: str, seq2: str, stopafter: int = sys.maxsize
+    ) -> int:
         if len(seq1) != len(seq2):
+            print(f"seq1: {seq1}, seq2: {seq2}")
             raise BarcodeLengthException(seq1, seq2)
 
         nMM = 0
-        for a,b in zip(seq1, seq2):
+        for a, b in zip(seq1, seq2):
             if a != b:
                 nMM += 1
                 if nMM > stopafter:
                     return nMM
         return nMM
 
-
-    def findSimilarBarcodes(barcode: str, whitelist: List[str], maxDist: int = 2) -> List[Tuple[str, int]]:
+    def findSimilarBarcodes(
+        barcode: str, whitelist: List[str], maxDist: int = 2
+    ) -> List[Tuple[str, int]]:
         """
         Iterates through the list of specified valid barcodes (whitelist) and finds all
         barcodes with the Hamming distance of at most maxDist to the query barcode sequence.
@@ -36,7 +40,7 @@ class Algorithms:
         """
         result = []
         for bc in whitelist:
-            d = Algorithms.calculateHammingDistance(barcode, bc, stopafter = maxDist) 
+            d = Algorithms.calculateHammingDistance(barcode, bc, stopafter=maxDist)
             if d <= maxDist:
                 result.append((bc, d))
         return result
