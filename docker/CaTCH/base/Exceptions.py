@@ -15,7 +15,6 @@ class BarcodeMismatchException(Exception):
 
 class BarcodeLengthException(Exception):
     def __init__(self, bc1: str, bc2: str):
-        sys.exit(f"bc1: {bc1}, bc2: {bc2}")
         super().__init__(
             f"Cannot calculate the Hamming distance for {bc1} and {bc2} since they have different lengths"
         )
