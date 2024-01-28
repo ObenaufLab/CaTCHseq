@@ -9,7 +9,6 @@ class Algorithms:
         seq1: str, seq2: str, stopafter: int = sys.maxsize
     ) -> int:
         if len(seq1) != len(seq2):
-            print(f"seq1: {seq1}, seq2: {seq2}")
             raise BarcodeLengthException(seq1, seq2)
 
         nMM = 0
