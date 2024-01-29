@@ -226,7 +226,6 @@ process mqc{
     //conda "$MAPENV"+".yaml"
     //cpus THREADS
 	cache 'lenient'
-    //label 'big_mem'
     //validExitStatus 0,1
     tag "${sampleName}"
 
