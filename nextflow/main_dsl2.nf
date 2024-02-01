@@ -386,7 +386,7 @@ process useCellrangerData{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("feature_bc_matrix") >0)       "OUTPUT/CellRanger/${sampleName}/${file(filename).getName()}"
+        if (filename.indexOf("feature_bc_matrix") >0)       "OUTPUT/CellRanger/${file(filename).getName()}"
         else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
         else                                                     "OUTPUT/CellRanger/${file(filename).getName()}"
     }
