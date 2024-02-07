@@ -24,10 +24,10 @@ def get_always(parameter){
 
 //parse params into map
 def chemistry_params_to_map(xtra){
-    xtra = xtra.trim().replaceAll(" +", "&")
+    xtra = xtra.trim().replaceAll(" \n", "&")
     tmpmap = xtra.tokenize("&").collectEntries{ 
                it.split(" ",2).with{ 
-                   [ (it[0]..replaceAll("--", "")): (it.size()<2) ? null : it[1] ?: null ] 
+                   [ (it[0].replaceAll("--", "")): (it.size()<2) ? null : it[1] ?: null ] 
                 }
             }
     map = ["bc_10x_start" : tmpmap["soloCBstart"], "bc_10x_length" : tmpmap["soloCBlen"], "umi_start" : tmpmap["soloUMIstart"], "umi_length" : tmpmap["soloUMIlen"]]
@@ -508,7 +508,7 @@ process star_mapping{
     tuple val(sampleName), path("*Log.out"), emit: logs
     tuple val(sampleName), path("*.tab"), emit: sjtab
     tuple val(sampleName), path("*_unmapped.fastq.gz", includeInputs:false), emit: unmapped
-    tuple val(sampleName), path("chemistry_params.txt"), emit: chemistry_params
+    tuple val(sampleName), path("chemistry_params.json"), emit: chemistry_params
     //tuple val(sampleName), path("Summary.csv"), emit: qc
 
     script:
@@ -547,8 +547,11 @@ process star_mapping{
     // Build params
     starparams = starparams + ' ' + extraparams
 
-    // Convert extraparams to barcode indices for postprocessing tools
+    // Convert extraparams to barcode indices json for postprocessing tools
     xtra = chemistry_params_to_map(extraparams)
+    def json = new groovy.json.JsonBuilder()
+    json rootKey: xtra
+    xtra =  groovy.json.JsonOutput.prettyPrint(json.toString())
 
     // Check read order
     if ( starparams.contains('--soloBarcodeMate' )){
@@ -576,7 +579,7 @@ process star_mapping{
     mv ${sampleName}.Solo.out ${sampleName} && \
     ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix && \
     ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix && \
-    echo "${xtra}" > chemistry_params.txt
+    echo "${xtra}" > chemistry_params.json
     """
 
 }

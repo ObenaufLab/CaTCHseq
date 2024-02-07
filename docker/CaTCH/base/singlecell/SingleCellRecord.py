@@ -21,6 +21,29 @@ class SingleCellRecord:
         umi_start: int = 16,
         umi_length: int = 12,
     ):
+        '''
+        Set the features of the barcodes and UMI in the read sequences.
+        The default values are set to the ones used in the original CaTCH
+        paper. The user can change these values to match the ones used in 
+        their own experiments.
+
+        Args:
+            bc_catch_start: int = 4
+                The position of the CaTCH barcode in the read sequence.
+            bc_catch_length: int = 68
+                The length of the CaTCH barcode.
+            bc_10x_start: int = 0
+                The position of the 10X barcode in the read sequence.
+            bc_10x_length: int = 16
+                The length of the 10X barcode.
+            umi_start: int = 16
+                The position of the UMI in the read sequence.
+            umi_length: int = 12
+                The length of the UMI.
+
+        Returns:
+            None
+        '''
         cls.BC_CATCH_START = bc_catch_start
         cls.BC_CATCH_LENGTH = bc_catch_length
         cls.BC_10X_START = bc_10x_start
