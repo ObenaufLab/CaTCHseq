@@ -622,7 +622,7 @@ process countBarcodesInChunks{
         log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory .of this pipeline. There is no automatic sanity check!")
         extraparams = chemistry_params_to_str(params.star_smart)
     } else{
-        log.info("No chemistry specified, will run with standard 10X parameters")
+        log.info("No chemistry specified for counting, will run with standard 10X parameters")
         extraparams = ''
     }
 
