@@ -30,8 +30,8 @@ def chemistry_params_to_str(xtra){
                    [ (it[0].replaceAll("--", "")): (it.size()<2) ? null : it[1] ?: null ] 
                 }
             }
-    map = ["--bcStart" : tmpmap["soloCBstart"], "--bcLength" : tmpmap["soloCBlen"], "--umiStart" : tmpmap["soloUMIstart"], "--umiLength" : tmpmap["soloUMIlen"]]
-    xtra = map.collect{ k, v -> v ? k + " " + v : "" }.join(" ")
+    map = ["bcStart" : tmpmap["soloCBstart"], "bcLength" : tmpmap["soloCBlen"], "umiStart" : tmpmap["soloUMIstart"], "umiLength" : tmpmap["soloUMIlen"]]
+    xtra = map.collect{ k, v -> v ? "--" + k + " " + v : "" }.join(" ")
     return xtra
 }
 
