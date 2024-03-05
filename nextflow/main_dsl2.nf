@@ -612,19 +612,20 @@ process countBarcodesInChunks{
     chemistry = chemistry[0]
 
     if (chemistry.contains("10X")){
-        extraparams = params.star_10X
+        extraparams = chemistry_params_to_str(params.star_10X)
     }else if (chemistry == "Droplet"){
         log.info("Running StarSolo on unspecified Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
-        extraparams = params.star_droplet
+        extraparams = chemistry_params_to_str(params.star_droplet)
     } else if (chemistry == 'ScaleBio'){
-        extraparams = params.star_scalebio
+        extraparams = chemistry_params_to_str(params.star_scalebio)
     } else if (chemistry == "Smart"){
         log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory .of this pipeline. There is no automatic sanity check!")
-        extraparams = params.star_smart
+        extraparams = chemistry_params_to_str(params.star_smart)
     } else{
         log.info("No chemistry specified, will run with standard 10X parameters")
         extraparams = ''
     }
+
     """
     ${scriptDirPy}countBarcodesInChunks.py \
         --r1 ${r1} \
