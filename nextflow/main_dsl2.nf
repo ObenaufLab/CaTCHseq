@@ -613,17 +613,19 @@ process countBarcodesInChunks{
 
     if (chemistry.contains("10X")){
         extraparams = chemistry_params_to_str(params.star_10X)
+        log.info("${sampleName}: Counting 10X chemistry with following parameters: ${extraparams}")
     }else if (chemistry == "Droplet"){
-        log.info("Running StarSolo on unspecified Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
         extraparams = chemistry_params_to_str(params.star_droplet)
+        log.info("${sampleName}: Counting Droplet chemistry with following parameters: ${extraparams}")
     } else if (chemistry == 'ScaleBio'){
         extraparams = chemistry_params_to_str(params.star_scalebio)
+        log.info("${sampleName}: Counting ScaleBio chemistry with following parameters: ${extraparams}")
     } else if (chemistry == "Smart"){
-        log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory .of this pipeline. There is no automatic sanity check!")
         extraparams = chemistry_params_to_str(params.star_smart)
+        log.info("${sampleName}: Counting Smart chemistry with following parameters: ${extraparams}")
     } else{
-        log.info("No chemistry specified for counting, will run with standard 10X parameters")
         extraparams = ''
+        log.info("${sampleName}: Counting unset chemistry with default 10X parameters: ${extraparams}")
     }
 
     """
