@@ -601,7 +601,7 @@ process countBarcodesInChunks{
     }
 
     input:
-        tuple val(sampleName), path(r1), path(r2), val(chemistry)
+        tuple val(sampleName), path(r1), path(r2), val(chemistry), path(cellIDs)
 
     output:
         tuple val(sampleName), path('Counts'), path('Reads'), emit: counts_chunks_out
