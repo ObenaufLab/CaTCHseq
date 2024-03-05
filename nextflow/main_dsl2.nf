@@ -24,8 +24,8 @@ def get_always(parameter){
 
 //parse chemistry params into defined paramstring
 def chemistry_params_to_str(xtra){
-    xtra = xtra.trim().replaceAll(" \n", "&")
-    tmpmap = xtra.tokenize("&").collectEntries{ 
+    xtra = xtra.trim().replaceAll(" \n", "")
+    tmpmap = xtra.tokenize("--").collectEntries{ 
                it.split(" ",2).with{ 
                    [ (it[0].replaceAll("--", "")): (it.size()<2) ? null : it[1] ?: null ] 
                 }
