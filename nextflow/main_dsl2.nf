@@ -22,18 +22,18 @@ def get_always(parameter){
     return params[parameter]
 }
 
-//parse params into map
-def chemistry_params_to_map(xtra){
+//parse chemistry params into defined paramstring
+def chemistry_params_to_str(xtra){
     xtra = xtra.trim().replaceAll(" \n", "&")
     tmpmap = xtra.tokenize("&").collectEntries{ 
                it.split(" ",2).with{ 
                    [ (it[0].replaceAll("--", "")): (it.size()<2) ? null : it[1] ?: null ] 
                 }
             }
-    map = ["bc_10x_start" : tmpmap["soloCBstart"], "bc_10x_length" : tmpmap["soloCBlen"], "umi_start" : tmpmap["soloUMIstart"], "umi_length" : tmpmap["soloUMIlen"]]
-    return map
+    map = ["--bcStart" : tmpmap["soloCBstart"], "--bcLength" : tmpmap["soloCBlen"], "--umiStart" : tmpmap["soloUMIstart"], "--umiLength" : tmpmap["soloUMIlen"]]
+    xtra = map.collect{ k, v -> v ? k + " " + v : "" }.join(" ")
+    return xtra
 }
-
 
 //Params from CL
 absDir = workflow.launchDir
@@ -508,7 +508,6 @@ process star_mapping{
     tuple val(sampleName), path("*Log.out"), emit: logs
     tuple val(sampleName), path("*.tab"), emit: sjtab
     tuple val(sampleName), path("*_unmapped.fastq.gz", includeInputs:false), emit: unmapped
-    tuple val(sampleName), path("chemistry_params.json"), emit: chemistry_params
     //tuple val(sampleName), path("Summary.csv"), emit: qc
 
     script:
@@ -547,11 +546,11 @@ process star_mapping{
     // Build params
     starparams = starparams + ' ' + extraparams
 
-    // Convert extraparams to barcode indices json for postprocessing tools
-    xtra = chemistry_params_to_map(extraparams)
-    def json = new groovy.json.JsonBuilder()
-    json rootKey: xtra
-    xtra =  groovy.json.JsonOutput.prettyPrint(json.toString())
+    //// Convert extraparams to barcode indices json for postprocessing tools
+    //xtra = chemistry_params_to_map(extraparams)
+    //def json = new groovy.json.JsonBuilder()
+    //json rootKey: xtra
+    //xtra =  groovy.json.JsonOutput.prettyPrint(json.toString())
 
     // Check read order
     if ( starparams.contains('--soloBarcodeMate' )){
@@ -578,8 +577,7 @@ process star_mapping{
     STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${sampleName}.Unmapped.out.mate1 ${sampleName}.Unmapped.out.mate2 && cat ${sampleName}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R1_unmapped.fastq.gz && cat ${sampleName}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done && \
     mv ${sampleName}.Solo.out ${sampleName} && \
     ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix && \
-    ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix && \
-    echo "${xtra}" > chemistry_params.json
+    ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix
     """
 
 }
@@ -603,13 +601,16 @@ process countBarcodesInChunks{
     }
 
     input:
-        tuple val(sampleName), path(r1), path(r2), path(cellIDs)
+        tuple val(sampleName), path(r1), path(r2), path(cellIDs), val(chemistry)
 
     output:
         tuple val(sampleName), path('Counts'), path('Reads'), emit: counts_chunks_out
 
     script:
     // Check chemistry specific settings
+    extraparams = ''
+    chemistry = chemistry[0]
+
     if (chemistry.contains("10X")){
         extraparams = params.star_10X
     }else if (chemistry == "Droplet"){
@@ -618,11 +619,11 @@ process countBarcodesInChunks{
     } else if (chemistry == 'ScaleBio'){
         extraparams = params.star_scalebio
     } else if (chemistry == "Smart"){
-        log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
+        log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory .of this pipeline. There is no automatic sanity check!")
         extraparams = params.star_smart
     } else{
-        log.error("Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.")
-        exit('Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.')
+        log.info("No chemistry specified, will run with standard 10X parameters")
+        extraparams = ''
     }
     """
     ${scriptDirPy}countBarcodesInChunks.py \
@@ -631,6 +632,7 @@ process countBarcodesInChunks{
         --cellIDs ${cellIDs} \
         --counts Counts \
         --bc_features \
+        ${extraparams} \
     | tee log \
     | grep -Po "Read [0-9,]+ single cell entries" \
     | cut -d" " -f2 > Reads 
@@ -1091,16 +1093,16 @@ workflow{
             useCellrangerData(Ch_map_precomputed)
 
             if (filtering){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
             star_mapping(Ch_map_input)
             if (filtering){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0).combine(star_mapping.out.barcodeinfo, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0).combine(star_mapping.out.chemistry_params, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0)
             }
             
         }

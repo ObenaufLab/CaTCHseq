@@ -61,6 +61,34 @@ def main():
         help="path to the file to save the CaTCH barcode counts into",
     )
 
+    parser.add_argument(
+        "--bcStart",
+        type=int,
+        default=0,
+        help="position of barcode start in the read",
+    )
+
+    parser.add_argument(
+        "--bcLength",
+        type=int,
+        default=16,
+        help="length of barcode",
+    )
+
+    parser.add_argument(
+        "--umiStart",
+        type=int,
+        default=16,
+        help="position of umi start in the read",
+    )
+
+    parser.add_argument(
+        "--umiLength",
+        type=int,
+        default=12,
+        help="length of umi",
+    )
+
     try:
         opts = parser.parse_args()
     except:
@@ -80,7 +108,14 @@ def main():
         crf.CellRecordCaTCHBarcodeFilter(bcf.CaTCHFixedElementsFilter(FIXED_PAMS)),
     ]
 
-    reader = SingleCellDataReader(filenamesR1=opts.r1, filenamesR2=opts.r2)
+    reader = SingleCellDataReader(
+        filenamesR1=opts.r1,
+        filenamesR2=opts.r2,
+        bcStart=opts.bcStart,
+        bcLength=opts.bcLength,
+        umiStart=opts.umiStart,
+        umiLength=opts.umiLength,
+    )
     lib = SingleCellLibrary(filters=cellRecordFilters, whitelist=cellIDs)
     nProcessed = 0
     for sce in reader:
