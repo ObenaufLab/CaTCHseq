@@ -601,7 +601,7 @@ process countBarcodesInChunks{
     }
 
     input:
-        tuple val(sampleName), path(r1), path(r2), val(chemistry), path(cellIDs)
+        tuple val(sampleName), val(chemistry), path(r1), path(r2), path(cellIDs)
 
     output:
         tuple val(sampleName), path('Counts'), path('Reads'), emit: counts_chunks_out
@@ -1096,16 +1096,16 @@ workflow{
             useCellrangerData(Ch_map_precomputed)
 
             if (filtering){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).groupTuple(by: 0).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), row.Chemistry, file(row.R1), file(row.R2) ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).groupTuple(by: 0).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), row.Chemistry, file(row.R1), file(row.R2) ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
             star_mapping(Ch_map_input)
             if (filtering){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).groupTuple(by: 0).combine(star_mapping.out.cell_ids_filtered, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), row.Chemistry, file(row.R1), file(row.R2) ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).groupTuple(by: 0).combine(star_mapping.out.cell_ids_raw, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), row.Chemistry, file(row.R1), file(row.R2) ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0)
             }
             
         }
