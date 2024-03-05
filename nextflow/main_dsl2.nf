@@ -30,6 +30,7 @@ def chemistry_params_to_str(xtra){
                    [ (it[0].replaceAll("--", "")): (it.size()<2) ? null : it[1] ?: null ] 
                 }
             }
+    print(tmpmap)
     map = ["bcStart" : tmpmap["soloCBstart"], "bcLength" : tmpmap["soloCBlen"], "umiStart" : tmpmap["soloUMIstart"], "umiLength" : tmpmap["soloUMIlen"]]
     xtra = map.collect{ k, v -> v ? "--" + k + " " + v : "" }.join(" ")
     return xtra
@@ -1109,7 +1110,7 @@ workflow{
             }
             
         }
-        Ch_count_input.subscribe {  println "InputCount: $it"  }
+        //Ch_count_input.subscribe {  println "InputCount: $it"  }
         
         /**************************************************************
                 STEP 2: Count CaTCH barcodes in chunks separately
