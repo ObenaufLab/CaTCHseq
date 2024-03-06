@@ -630,7 +630,7 @@ process countBarcodesInChunks{
     }
 
     """
-    /usr/bin/env/python ${scriptDirPy}countBarcodesInChunks.py \
+    ${scriptDirPy}countBarcodesInChunks.py \
         --r1 ${r1} \
         --r2 ${r2} \
         --cellIDs ${cellIDs} \
@@ -674,7 +674,7 @@ process mergeBarcodesInChunks{
     find Counts -name "file*" > librarieslist
     find Reads -name "file*" > readcountslist
 
-    /usr/bin/env/python ${scriptDirPy}mergeChunkCounts.py \
+    ${scriptDirPy}mergeChunkCounts.py \
         --libraries librarieslist \
         --readcounts readcountslist \
         --outlib ${sampleName}.sclib \
@@ -709,7 +709,7 @@ process collapseAndFilterBarcodes{
 
     script:
     """
-    /usr/bin/env/python ${scriptDirPy}collapseCaTCHbarcodes.py \
+    ${scriptDirPy}collapseCaTCHbarcodes.py \
         --library ${library} \
         --maxdist ${maxDist} \
         --minsupport ${minReads} \
@@ -745,7 +745,7 @@ process resolveMultiplets{
 
     script:
     """
-    /usr/bin/env/python ${scriptDirPy}resolveMultiplets.py \
+    ${scriptDirPy}resolveMultiplets.py \
         --library ${library} \
         --majority ${majorityVote} \
         --outlib ${sampleName}.resolved_multiplets.sclib \
@@ -781,7 +781,7 @@ process generateReports{
 
     script:
     """
-    /usr/bin/env/python ${scriptDirPy}generateOutputTables.py \
+    ${scriptDirPy}generateOutputTables.py \
         --library ${library} \
         --CaTCH ${sampleName}.CaTCHbarcodes \
         --cells ${sampleName}.cells
