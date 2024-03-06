@@ -614,19 +614,19 @@ process countBarcodesInChunks{
 
     if (chemistry.contains("10X")){
         extraparams = chemistry_params_to_str(params.star_10X)
-        log.info("${sampleName}: Counting 10X chemistry with following parameters: ${extraparams}")
+        log.debug("${sampleName}: Counting 10X chemistry with following parameters: ${extraparams}")
     }else if (chemistry == "Droplet"){
         extraparams = chemistry_params_to_str(params.star_droplet)
-        log.info("${sampleName}: Counting Droplet chemistry with following parameters: ${extraparams}")
+        log.debug("${sampleName}: Counting Droplet chemistry with following parameters: ${extraparams}")
     } else if (chemistry == 'ScaleBio'){
         extraparams = chemistry_params_to_str(params.star_scalebio)
-        log.info("${sampleName}: Counting ScaleBio chemistry with following parameters: ${extraparams}")
+        log.debug("${sampleName}: Counting ScaleBio chemistry with following parameters: ${extraparams}")
     } else if (chemistry == "Smart"){
         extraparams = chemistry_params_to_str(params.star_smart)
-        log.info("${sampleName}: Counting Smart chemistry with following parameters: ${extraparams}")
+        log.debug("${sampleName}: Counting Smart chemistry with following parameters: ${extraparams}")
     } else{
         extraparams = ''
-        log.info("${sampleName}: Counting unset chemistry with default 10X parameters: ${extraparams}")
+        log.debug("${sampleName}: Counting unset chemistry with default 10X parameters: ${extraparams}")
     }
 
     """
