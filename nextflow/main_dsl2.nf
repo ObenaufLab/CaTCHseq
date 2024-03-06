@@ -635,7 +635,6 @@ process countBarcodesInChunks{
         --r2 ${r2} \
         --cellIDs ${cellIDs} \
         --counts Counts \
-        --bc_features \
         ${extraparams} \
     | tee log \
     | grep -Po "Read [0-9,]+ single cell entries" \
