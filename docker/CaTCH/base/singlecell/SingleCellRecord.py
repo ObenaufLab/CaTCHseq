@@ -83,7 +83,7 @@ class SingleCellRecord:
         )
 
     def __str__(self) -> str:
-        return f"Since cell entry - 10X barcode '{self._10x_bc}', UMI '{self.umi_10X}', CaTCH barcode '{self._catch_bc.seq}'"
+        return f"Since cell entry - 10X barcode '{self._10x_bc}', UMI '{self.umi_10X}', CaTCH barcode '{self._catch_bc.seq}'; bc_start: {self.BC_CATCH_START}, bc_length: {self.BC_CATCH_LENGTH}, umi_start: {self.UMI_START}, umi_length: {self.UMI_LENGTH}"
 
     def _get_catch_bc_(self) -> CaTCHBarcode:
         return self._catch_bc
