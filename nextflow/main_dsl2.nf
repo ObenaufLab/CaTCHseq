@@ -31,7 +31,7 @@ def chemistry_params_to_str(xtra){
                 }
             }
     //print(tmpmap)
-    map = ["bcStart" : tmpmap["soloCBstart"], "bcLength" : tmpmap["soloCBlen"], "umiStart" : tmpmap["soloUMIstart"], "umiLength" : tmpmap["soloUMIlen"]]
+    map = ["bcStart" : tmpmap["soloCBstart"]-1, "bcLength" : tmpmap["soloCBlen"], "umiStart" : tmpmap["soloUMIstart"]-1, "umiLength" : tmpmap["soloUMIlen"]]
     xtra = map.collect{ k, v -> v ? "--" + k + " " + v : "" }.join(" ")
     return xtra
 }
