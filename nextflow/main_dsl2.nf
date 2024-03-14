@@ -520,7 +520,7 @@ process star_mapping{
     cells_expected = cells_expected[0]
     
     // Check whitelist
-    if( (whitelist.size() >0) && (chemistry != 'ScaleBio')){
+    if( (whitelist.size() > 0 ) && (chemistry != 'ScaleBio')){
         starparams = starparams + " --soloCBwhitelist ${whitelist}"
     }else{
         starparams = starparams + " --soloCBwhitelist None"
