@@ -15,7 +15,7 @@ params.maxDist = 2
 params.minReads = 10
 params.majorityVote = 90
 params.refName = "Day0"
-params.crindex = "GENOMES/Human/INDICES/cellranger_t2t"
+params.crindex = ""
 params.max_mt_percent = 10
 params.min_detected_features = 500
 params.hvg_cutoff = 0.1
@@ -463,11 +463,12 @@ process preprocessSingleCellData {
 
     script:
     """
-    #Rscript --vanilla /tools/scripts/R/preprocessData.R 
-    Rscript --vanilla ${script} \
+    Rscript --vanilla /tools/scripts/R/preprocessData.R 
+    #Rscript --vanilla ${script} \
        --sample ${sampleName} \
        --data10X ${featureMatrix} \
        --catchBC ${catchBarcodes} \
+       --gtf ${index}/genes/genes.gtf.gz \
        --max_mt ${params.max_mt_percent} \
        --min_features ${params.min_detected_features} \
        --hvg_cutoff ${params.hvg_cutoff} \
