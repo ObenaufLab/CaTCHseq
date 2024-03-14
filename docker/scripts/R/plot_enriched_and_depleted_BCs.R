@@ -124,6 +124,7 @@ if (!("CaTCH.BC_ID" %in% colnames(sce@meta.data))) {
 
 
 ### Count Barcodes ###
+#TODO: add a check for the number of cells that express a barcode in the reference condition and remove barcodes that are not expressed in a minimum number of cells, also check whether we want to average those counts over all cells per condition or not
 bc.counts <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet") %>%
     select(CaTCH.BCs, Sample, CaTCH.BC_ID) %>%
