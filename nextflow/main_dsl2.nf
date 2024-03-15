@@ -883,7 +883,7 @@ process preprocessSingleCellData{
     FEATURES=\${FEATURES:0:-1}
     BCS=\${BCS:0:-1}
 
-    Rscript --vanilla ${scriptDirR}preprocessData.R \
+    Rscript --vanilla ${scriptDirR}preprocessData_dsl2.R \
        --sample \$SAMPLES \
        --data10X \$FEATURES \
        --catchBC \$BCS \
