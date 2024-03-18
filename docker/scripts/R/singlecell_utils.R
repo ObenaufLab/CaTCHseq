@@ -54,41 +54,6 @@ assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scal
 }
 
 
-createValueDistrPlot <- function(sce, grp.col = "Cluster", val.col = "CMO", colors = NULL, grp.order = NULL, xlab = NULL, ylab = NULL, title = NULL) {
-    if (is.null(sce)) {
-        stop("'sce' must be specified and cannot be NULL")
-    }
-
-    plot.data <- sce@meta.data %>%
-        dplyr::count(.data[[grp.col]], .data[[val.col]]) %>%
-        dplyr::group_by(.data[[grp.col]]) %>%
-        dplyr::mutate(Proportion = n / sum(n) * 100)
-    if (!is.null(grp.order)) {
-        tmp <- tibble()
-        for (x in grp.order) {
-            tmp <- rbind(tmp, plot.data[which(plot.data[[grp.col]] == x), ])
-        }
-        tmp[[grp.col]] <- factor(tmp[[grp.col]], levels = grp.order)
-        plot.data <- tmp
-    }
-    plot <- ggplot2::ggplot(data = plot.data, ggplot2::aes(fill = .data[[val.col]], x = .data[[grp.col]], y = Proportion)) +
-        ggplot2::geom_bar(position = "stack", stat = "identity")
-    if (!is.null(colors)) {
-        plot <- plot + ggplot2::scale_fill_manual(values = colors)
-    }
-    if (!is.null(xlab)) {
-        plot <- plot + ggplot2::xlab(xlab)
-    }
-    if (!is.null(ylab)) {
-        plot <- plot + ggplot2::ylab(ylab)
-    }
-    if (!is.null(title)) {
-        plot <- plot + ggplot2::ggtitle(title)
-    }
-    return(plot)
-}
-
-
 ### Create sce objects with corresponding CaTCH barcodes ###
 create_SCEs <- function(smpl, data10X, bc) {
     samplelist <- str_split(smpl, ",")[[1]]
@@ -196,7 +161,6 @@ load_BCs <- function(bc) {
     return(data.catch)
 }
 
-
 normalize_SCE <- function(sce) {
     print("   Normalizing and scaling SCE ...")
     
@@ -207,13 +171,11 @@ normalize_SCE <- function(sce) {
     return(sce)
 }
 
-
 sctransform_SCE <- function(sce) {
     sce <- SCTransform(sce, vst.flavor = "v2", vars.to.regress = "percent.mt", verbose = FALSE)
     # sce[["SCT"]] <- as(object = sce[["SCT"]], Class = "Assay5")  # this actually breaks downstream code as SCTAssay is still v3 (https://github.com/satijalab/seurat/issues/7542)
     return(sce)
 }
-
 
 reduceDims_SCE <- function(sce, assay = "RNA", reduction.name = "pca") {
     print("   Reducing dimensions ...")
@@ -221,7 +183,6 @@ reduceDims_SCE <- function(sce, assay = "RNA", reduction.name = "pca") {
     sce <- RunPCA(sce, assay = assay, reduction.name = reduction.name)
     return(sce)
 }
-
 
 cluster_SCE <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster", resolution = .2) {
     print("   Clustering ...")
@@ -231,7 +192,6 @@ cluster_SCE <- function(sce, assay = "RNA_integrated.cca", reduction = "integrat
     
     return(sce)
 }
-
 
 integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize", ...) {
     print("   Integrating samples ...")
@@ -243,14 +203,12 @@ integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.redu
     return(sce)
 }
 
-
 umap_SCE <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.1, spread = 5) {
     print("   Preparing UMAP ...")
     
     sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors, min.dist = min.dist, spread = spread)
     return(sce)
 }
-
 
 # Split for integrated analysis
 split_SCE <- function(sce, by = "Sample") {
@@ -260,7 +218,6 @@ split_SCE <- function(sce, by = "Sample") {
     return(sce)
 }
 
-
 # Join for DE
 join_SCE <- function(sce, assay = "RNA", layers = "data", new = "joined_data") {
     print("   Joining SCE layers  ...")
@@ -268,7 +225,6 @@ join_SCE <- function(sce, assay = "RNA", layers = "data", new = "joined_data") {
     sce <- JoinLayers(sce, assay = assay, layers = layers, new = new)
     return(sce)
 }
-
 
 ## Run DESeq2/Edger ####
 
@@ -465,6 +421,18 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     # relevel to base condition B
     dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
     
+    ## normalize with TMM
+    dgen <- calcNormFactors(dge, method = "TMM")
+
+    ## create file normalized table
+    tmm <- as.data.frame(cpm(dge))
+    colnames(tmm) <- t(dgen$samples$samples)
+    tmm$ID <- dgen$genes$genes
+    tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
+
+    write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
+    rm(dgen)
+
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
     #dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
@@ -587,9 +555,13 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
     res_shrink <- left_join(res_shrink %>%
                                 as_tibble(rownames = NA) %>%
                                 rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
-        mutate(p.adj = as.numeric(as.character(padj))) %>%
-        select(-padj)
-    
+                mutate(p.adj = as.numeric(as.character(padj))) %>%
+                select(-padj) %>%
+                group_by(CaTCH.BC_ID, Sample) %>%
+                summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+                ungroup() %>%
+                unique()
+        
     # sort and output
     resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
     
@@ -600,8 +572,15 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
     res <- resn[order(resn$log2FoldChange), ]
     res <- left_join(res %>%
                          as_tibble(rownames = NA) %>%
-                         rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID")
-    
+                         rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
+                group_by(CaTCH.BC_ID, log2FoldChange) %>%
+                summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+                ungroup() %>%
+                mutate(p.adj = as.numeric(as.character(padj))) %>%
+                select(-padj) %>%
+                unique()
+                
+        
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
     
     r <- results(dds,
@@ -615,8 +594,12 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         arrange(desc(Type), desc(abs(log2FoldChange))) 
     
     r <- r %>%
-        mutate(p.adj=as.numeric(as.character(padj))) %>%
-        select(-padj)
+        group_by(CaTCH.BC_ID, log2FoldChange) %>%
+        summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+        ungroup() %>%
+        mutate(p.adj = as.numeric(as.character(padj))) %>%
+        select(-padj) %>%
+        unique()
     
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))
@@ -673,12 +656,24 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
     
     ## filter low counts
-    # keep <- filterByExpr(dge)
-    # dge <- dge[keep, , keep.lib.sizes = FALSE]
+    #keep <- filterByExpr(dge, min.count = 1)
+    #dge <- dge[keep, keep.lib.sizes = FALSE]
     
     # relevel to base condition B
     dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
     
+    ## normalize with TMM
+    dgen <- calcNormFactors(dge, method = "TMM")
+
+    ## create file normalized table
+    tmm <- as.data.frame(cpm(dge))
+    colnames(tmm) <- t(dgen$samples$samples)
+    tmm$ID <- dgen$genes$genes
+    tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
+
+    write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
+    rm(dgen)
+
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
     # dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
@@ -688,12 +683,16 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
     tops <- left_join(tops %>%
-                          as_tibble(rownames = NA) %>%
-                          rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCHBC_ID") %>%
-        mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
-        select(-logFC) %>%
-        mutate(p.adj = as.numeric(as.character(FDR))) %>%
-        select(-FDR)
+                        as_tibble(rownames = NA) %>%
+                        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%            
+            group_by(CaTCH.BC_ID, logFC) %>%
+            summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+            ungroup() %>%
+            mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
+            select(-logFC) %>%
+            mutate(p.adj = as.numeric(as.character(FDR))) %>%
+            select(-FDR) %>%
+            unique()
     
     write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
     
