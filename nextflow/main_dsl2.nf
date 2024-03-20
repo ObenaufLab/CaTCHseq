@@ -11,7 +11,7 @@ Authors
 ************************************************************************/
 
 //Version Check
-nextflowVersion = '>=23.04.2'
+nextflowVersion = '>=20.01.0.5264'  // '>=23.04.2'
 nextflow.enable.dsl=2
 
 //define unset Params
