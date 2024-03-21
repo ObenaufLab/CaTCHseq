@@ -489,7 +489,8 @@ process star_mapping{
         else if (filename.indexOf(".sam.gz") >0)     "OUTPUT/STAR/MAPPED/"+"${file(filename).getName()}"
         else if (filename.indexOf(".bam") >0)     "OUTPUT/STAR/MAPPED/"+"${filename}"
         else if (filename.indexOf(".tab") >0)        "OUTPUT/STAR/MAPPED/"+"${filename}"
-        else if (filename.indexOf("Log.out") >0)        "OUTPUT/STAR/LOGS/${file(filename).getName()}"
+        else if (filename.indexOf("Log*.out") >0)        "OUTPUT/STAR/LOGS/${file(filename).getName()}"
+        else if (filename.indexOf("*.log") >0)        "OUTPUT/STAR/LOGS/${file(filename).getName()}"
         else if (filename.indexOf("Summary.csv") >0)        "OUTPUT/STAR/SUMMARY/${sampleName}_${file(filename).getName()}"
         else                                            "OUTPUT/STAR/${filename}"
     }
@@ -507,7 +508,8 @@ process star_mapping{
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*.bam"), emit: bam
     tuple val(sampleName), path("*.bai"), emit: bai
-    tuple val(sampleName), path("*Log.out"), emit: logs
+    tuple val(sampleName), path("*.log"), emit: logs
+    tuple val(sampleName), path("*Log*.out"), emit: xtralogs
     tuple val(sampleName), path("*.tab"), emit: sjtab
     tuple val(sampleName), path("*_unmapped.fastq.gz", includeInputs:false), emit: unmapped
     //tuple val(sampleName), path("Summary.csv"), emit: qc
@@ -577,7 +579,7 @@ process star_mapping{
     gb = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.bam")
 
     """
-    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${sampleName}.Unmapped.out.mate1 ${sampleName}.Unmapped.out.mate2 && cat ${sampleName}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R1_unmapped.fastq.gz && cat ${sampleName}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R2_unmapped.fastq.gz && for f in *.Log.*.out; do mv "\$f" "\$(echo "\$f" | sed 's/.Log.*.out/.log/')"; done && \
+    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${sampleName}.Unmapped.out.mate1 ${sampleName}.Unmapped.out.mate2 && cat ${sampleName}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R1_unmapped.fastq.gz && cat ${sampleName}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R2_unmapped.fastq.gz && mv *Log.out ${sampleName}_mapping.log && \
     mv ${of} ${gb} && \
     samtools index ${gb} && \
     mv ${sampleName}.Solo.out ${sampleName} && \
