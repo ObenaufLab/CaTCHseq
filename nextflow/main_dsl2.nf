@@ -65,6 +65,7 @@ hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
 pval_cutoff = get_always('pcal_cutoff') ?: 0.1
 lfc_cutoff = get_always('lfc_cutoff') ?: 1
 markerfile = get_always('markers') ?: '/tools/data/R/stagemarkers_xue2020.rds'
+marker = get_always('marker') ?: null
 reportsDir = get_always('reportsDir') ?: "${absDir}/REPORTS"
 outputDir = get_always('outputDir') ?: "${absDir}/scCaTCH_nf_OUTPUT"
 
