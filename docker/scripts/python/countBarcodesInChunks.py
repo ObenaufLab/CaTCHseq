@@ -5,6 +5,7 @@
 """
 
 import argparse
+import gzip
 import os
 import sys
 from datetime import datetime
@@ -21,7 +22,9 @@ FIXED_PAMS = [(21, 24, "CCG"), (32, 35, "CCN"), (45, 48, "CCG")]
 def loadValidCellIDs(filenames: List[str]) -> List[str]:
     cellIDs = []
     for f in filenames:
-        with open(f, "rt") as hInput:
+        with (gzip.open if f.endswith(".gz") else open)(
+            f
+        ) as hInput:  # Auto detect gzip based on extension
             next(hInput)
             for line in hInput:
                 chunks = line.split(",")

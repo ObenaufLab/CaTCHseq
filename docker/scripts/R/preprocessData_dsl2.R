@@ -132,6 +132,8 @@ sce <- umap_SCE(sce, assay = "RNA", reduction = "pca", dims = 1:30, reduction.na
 
 sce <- umap_SCE(sce, assay = "SCT_integrated", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 sce <- umap_SCE(sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_pca_sct", n.neighbors = 30L, min.dist = 0.1, spread = 5)
+
+
 ### Assign cell stage and categories
 
 print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
@@ -142,7 +144,7 @@ s.genes <- markerfile$S
 g2m.genes <- markerfile$G2M
 tryCatch(
     {
-        sce <- CellCycleScoring(sce, assay = "RNA_integrated.cca", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
+        sce <- CellCycleScoring(sce, assay = "RNA", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
     },
     error = function(e) {
         print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF CELL STAGE AND SET TO DEFAULT G0"))

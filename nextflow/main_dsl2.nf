@@ -104,8 +104,8 @@ def helpMessage() {
         --index                 Path to mapper index directory (default: ${mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
         --mapper                Which mapper to run (default: CellRanger, optional: STAR)
         --withQC                Boolean, run FastQC and MultiQC (default: ${runqc})
-        --reference             Path to reference fasta.gz for mapper
-        --annotation            Path to annotation gtf.gz for mapper
+        --reference             Path to reference fasta.gz
+        --annotation            Path to annotation gtf.gz 
         --whitelist             Path to barcode whitelist
         --fastqc_params         Optional parameters for FASTQC
         --star_params           Optional parameters for STAR mapping
@@ -329,8 +329,8 @@ process runCellrangerCount{
     
     output:
         path "${sampleName}", emit: name
-        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_filtered
-        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix/barcodes.tsv"), emit: cell_ids_raw
+        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv.gz"), emit: cell_ids_filtered
+        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix/barcodes.tsv.gz"), emit: cell_ids_raw
         tuple val(sampleName), path("${sampleName}_filtered_feature_bc_matrix"), emit: cell_data_filtered
         tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
     
@@ -386,7 +386,7 @@ process runCellrangerCount{
     mv rundir/outs ${sampleName}
     ln -fs ${sampleName}/filtered_feature_bc_matrix ${sampleName}_filtered_feature_bc_matrix
     ln -fs ${sampleName}/raw_feature_bc_matrix ${sampleName}_raw_feature_bc_matrix
-    zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv 
+    cat ${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv.gz |gzip > ${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv.gz
     """
 }
 
@@ -503,8 +503,8 @@ process star_mapping{
     tuple val(sampleName), path("${sampleName}"), emit: out
     tuple val(sampleName), path("${sampleName}_filtered_feature_bc_matrix"), emit: cell_data_filtered
     tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
-    tuple val(sampleName), path("${sampleName}/Gene/filtered/barcodes.tsv"), emit: cell_ids_filtered
-    tuple val(sampleName), path("${sampleName}/Gene/raw/barcodes.tsv"), emit: cell_ids_raw
+    tuple val(sampleName), path("${sampleName}/Gene/filtered/barcodes.tsv.gz"), emit: cell_ids_filtered
+    tuple val(sampleName), path("${sampleName}/Gene/raw/barcodes.tsv.gz"), emit: cell_ids_raw
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*.bam"), emit: bam
     tuple val(sampleName), path("*.bai"), emit: bai
@@ -579,11 +579,14 @@ process star_mapping{
     gb = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.bam")
 
     """
-    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${sampleName}.Unmapped.out.mate1 ${sampleName}.Unmapped.out.mate2 && cat ${sampleName}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R1_unmapped.fastq.gz && cat ${sampleName}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R2_unmapped.fastq.gz && mv *Log.out ${sampleName}_mapping.log && \
-    mv ${of} ${gb} && \
-    samtools index ${gb} && \
-    mv ${sampleName}.Solo.out ${sampleName} && \
-    ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix && \
+    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${sampleName}.Unmapped.out.mate1 ${sampleName}.Unmapped.out.mate2 && cat ${sampleName}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R1_unmapped.fastq.gz && cat ${sampleName}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R2_unmapped.fastq.gz && mv *Log.out ${sampleName}_mapping.log
+
+    mv ${of} ${gb}
+    samtools index ${gb}
+    mv ${sampleName}.Solo.out ${sampleName}
+    gzip ${sampleName}/Gene/filtered/*
+    gzip ${sampleName}/Gene/raw/*
+    ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix
     ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix
     """
 
@@ -825,7 +828,7 @@ process generateAnalyticsPlots{
 
 
 /************************************************************************
-                    STEP 8: Generate SingleCellExperiment object
+                    STEP 8: Generate SingleCellExperiment/Seurat objects
 ************************************************************************/
 
 process preprocessSingleCellData{
@@ -885,10 +888,12 @@ process preprocessSingleCellData{
     FEATURES=\${FEATURES:0:-1}
     BCS=\${BCS:0:-1}
 
-    Rscript --vanilla ${scriptDirR}preprocessData_dsl2.R \
+    Rscript --vanilla ${scriptDirR}preprocessData.R \
        --sample \$SAMPLES \
        --data10X \$FEATURES \
        --catchBC \$BCS \
+       --annotation \$gtf \
+       --features 
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
