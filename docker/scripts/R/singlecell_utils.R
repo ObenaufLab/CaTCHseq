@@ -281,6 +281,109 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
 }
 
 
+### Create sce objects with corresponding CaTCH barcodes ###
+create_SCE_only <- function(smpl, data10X, bc, annotation) {
+    samplelist <- str_split(smpl, ",")[[1]]
+    data10Xs <- str_split(data10X, ",")[[1]]
+    bcs <- str_split(bc, ",")[[1]]
+
+    if (length(samplelist) == 1) {
+        print(paste("Processing the sample ", smpl, sep = ""))
+        print("   Loading 10X data ...")
+        sceData <- Seurat::Read10X(
+            data.dir = data10X,
+            gene.column = 2,
+            cell.column = 1,
+            strip.suffix = TRUE
+        )
+        sce <- SingleCellExperiment(assays = list(counts = sceData))
+
+        # Add both gene symbol and gene ID to rowData
+        rowData(sce)[c("GeneID", "Symbol")] <- read_tsv(
+            file = paste(data10X, "features.tsv.gz", sep = "/"),
+            col_names = c("GeneID", "Symbol"),
+            col_types = "cc-"
+        )
+
+        # Add the biotype and the locus data
+        gtf <- read_gtf(annotation)
+
+        rowData(sce)[c("Biotype", "Locus")] <- rowData(sce) %>%
+            as_tibble() %>%
+            left_join(y = gtf, by = c("GeneID" = "gene_id")) %>%
+            select(biotype, locus)
+
+
+        sce$Sample <- smpl
+        sce$CellID <- colnames(sce)
+        print(paste("   Loaded expression data for ", ncol(sce), " cells", sep = ""))
+
+        #### Now load the CaTCH barcodes ####
+        data.catch <- load_BCs(bc)
+        print(paste0(" Loading Barcodes from ", bc))
+        # print(head(data.catch))
+        # print(head(colData(sce) %>%
+        #    as_tibble() %>%
+        #    left_join(y = data.catch, by = "CellID")))
+
+        colData(sce)[, c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
+            as_tibble() %>%
+            left_join(y = data.catch, by = "CellID") %>%
+            select(CaTCH.BCs, CaTCH.BC.counts)
+
+        #### Count the CaTCH barcode reads and find the abundance of the two most abundant CaTCH barcodes ####
+        bc.data <- lapply(X = sce$CaTCH.BC.counts, FUN = function(x) {
+            v <- str_split(string = x, pattern = ";", simplify = TRUE) %>%
+                as.numeric()
+            return(c(sum(v), v[1], v[2]))
+        }) %>%
+            unlist() %>%
+            matrix(data = ., ncol = 3, byrow = TRUE)
+        colnames(bc.data) <- c("CaTCH.Sum", "CaTCH.BC1", "CaTCH.BC2")
+        colData(sce) <- cbind(colData(sce), bc.data)
+        colData(sce)["CaTCH.Status"] <- colData(sce) %>%
+            as_tibble() %>%
+            mutate(
+                CaTCH.Status = if_else(is.na(CaTCH.Sum),
+                    "No barcode",
+                    if_else(is.na(CaTCH.BC2),
+                        "Singlet",
+                        if_else(CaTCH.BC1 / CaTCH.Sum >= 0.8,
+                            "Putative singlet",
+                            "Multiplet"
+                        )
+                    )
+                ),
+                CaTCH.Status = factor(CaTCH.Status, levels = c(
+                    "Singlet",
+                    "Putative singlet",
+                    "Multiplet",
+                    "No barcode"
+                ))
+            ) %>%
+            select(CaTCH.Status)
+        
+        return(sce)
+
+    } else {
+        scetomerge <- list()        
+        for (i in 1:length(samplelist)) {
+            if (i == 1) {
+                print("Loading first sce dataset")
+                firstsce <- create_SCE_only(samplelist[i], data10Xs[i], bcs[i])                 
+            } else {
+                print(paste0("Loading sce dataset ", i))
+                  sce <- create_SCE_only(samplelist[i], data10Xs[i], bcs[i])
+                  scetomerge[[i - 1]] <- sce
+            }
+        }
+
+        sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets        
+        return(sce)
+    }
+}
+
+
 ggplotColours <- function(n = 6, h = c(0, 360) + 15) {
     if ((diff(h) %% 360) < 1) h[2] <- h[2] - 360 / n
     hcl(h = (seq(h[1], h[2], length = n)), c = 100, l = 65)
