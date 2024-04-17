@@ -33,5 +33,7 @@ BioConductor::decoupleR
 BioConductor::OmnipathR
 BioConductor::scran
 BioConductor::scater
+BioConductor::SingleR
+BioConductor::celldex
 #BiocConductor::glmGamPoi
 #BioConductor::ComplexHeatmap
