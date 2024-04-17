@@ -1036,7 +1036,7 @@ workflow{
                 STEP 0: Prepare Input and Indices and run QC
         ***********************************************************/
         
-        Ch_csv = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
+        Ch_csv = Channel.fromPath(libraries).splitCsv(sep: ",", header: true)
         //Ch_csv.subscribe {  println "CSV: $it"  }
 
         Ch_csv_GEX_split = Ch_csv.filter { it.LibraryType == "GEX" }.branch{
