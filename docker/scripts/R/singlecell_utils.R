@@ -276,7 +276,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
         sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets
         seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH")  # merge all the seurat datasets
 
-        return(list(sce = sce, seurat_sce = seurat_sce)
+        return(list(sce = sce, seurat_sce = seurat_sce))
     }
 }
 
