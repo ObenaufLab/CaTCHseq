@@ -254,7 +254,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
         seurat_sce <- RenameAssays(seurat_sce, assay.name = "originalexp", new.assay.name = "RNA")
         seurat_sce[["RNA"]] <- as(object = seurat_sce[["RNA"]], Class = "Assay5")
 
-        return(list(sce = sce, seurat_sce = seurat_sce)
+        return(list(sce = sce, seurat_sce = seurat_sce))
 
     } else {
         scetomerge <- list()
