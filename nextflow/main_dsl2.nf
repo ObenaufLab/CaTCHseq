@@ -857,7 +857,10 @@ process preprocessSingleCellData{
         //path(script)
 
     output:
-        path("scCaTCH*.rds.gz"), emit: basic_sce
+        path("scCaTCH*_filtered_seurat_sce.rds.gz"), emit: basic_seurat_sce
+        path("scCaTCH*_filtered_sce.rds.gz"), emit: basic_sce
+        path("scCaTCH*_raw_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
+        path("scCaTCH*_raw_sce.rds.gz"), emit: basic_raw_sce
         //path("*.sce.prefiltered.tsne.gz"), emit: basic_sce_tsne
         //path("*.sce.prefiltered.metadata.gz"), emit: basic_sce_metadata
         path("*.pdf"), emit: basic_sce_qc, optional: true
@@ -1206,14 +1209,14 @@ workflow{
         /**************************************************************
                 STEP 9: Generate overview plots
         ***************************************************************/
-        createOverviewPlots(preprocessSingleCellData.out.basic_sce)
+        createOverviewPlots(preprocessSingleCellData.out.basic_seurat_sce)
         
         /**************************************************************
                 STEP 10: Run DE Analysis for Barcodes and Genes
         ***************************************************************/
         
-        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_sce)        
-        identifyDEGenes(preprocessSingleCellData.out.basic_sce)
+        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce)        
+        identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce)
     //emit:
     //createOverviewPlots.out.pdf
     //createBarcodeEnrichmentPlots.out.pdf
