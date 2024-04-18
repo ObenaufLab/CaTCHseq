@@ -72,8 +72,8 @@ sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation)
 
 sce <- sl$sce
 seurat_sce <- sl$seurat_sce
-seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "counts", new = "counts")
-seurat_sce <- DietSeurat(seurat_sce, layers = "counts")  # Get rid of artificial data slot
+#seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "counts", new = "counts")
+#seurat_sce <- DietSeurat(seurat_sce, layers = "counts")  # Get rid of artificial data slot
 
 rm(sl) # clean up
 
@@ -82,7 +82,7 @@ sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) unlist(str_spli
 sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split(x, "_"))[2], unlist(str_split(x, "_"))[3], sep = "_"))))
 sce$Sample <- as.factor(unlist(lapply(sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
 
-seurat_sce$Sample.orig <- seurat_sce$Sample
+seurat_sce$Sample.orig <- as.factor(seurat_sce$Sample)
 seurat_sce$Condition <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[2])))
 seurat_sce$Replicate <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) paste(unlist(str_split(x, "_"))[2], unlist(str_split(x, "_"))[3], sep = "_"))))
 seurat_sce$Sample <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
@@ -119,7 +119,6 @@ sce <- sce %>%
 seurat_sce <- normalize_Seurat(seurat_sce)
 
 #### annotate low yield and damaged cells ####
-seurat_sce[["is.mitochondrial"]] <- is.mitochondrial
 seurat_sce[["is.damaged"]] <- seurat_sce@meta.data %>%
   pull(percent.mt) %>%
   {
@@ -130,6 +129,13 @@ seurat_sce[["is.low_yield"]] <- seurat_sce@meta.data %>%
   {
     case_when(. < opt$min_features ~ TRUE, .default = FALSE)
   }
+
+
+is.mitochondrial <- grepl(
+  pattern = "^MT-",
+  x = rownames(sce),
+  ignore.case = TRUE # Needed e.g. for mouse 10x data with cellranger prebuilt index
+)
 
 rowData(sce)["is.mitochondrial"] <- is.mitochondrial
 colData(sce)["is.damaged"] <- colData(sce)[, "subsets_MT_percent"] > opt$max_mt
@@ -157,9 +163,36 @@ colData(sce)["Category"] <- colData(sce) %>%
   dplyr::select(Class)
 
 
+### Assign cell stage and categories
+print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
+markerfile <- loadRDS(opt$marker)
+
+#### Attempting to assign cell phase via Seurat ####
+s.genes <- markerfile$S
+g2m.genes <- markerfile$G2M
+
+seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "data", new = "data")
+seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "counts", new = "counts")
+
+tryCatch(
+  {
+    seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
+  },
+  error = function(e) {
+    print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF SEURAT CELL PHASE AND SET TO DEFAULT G0"))
+    seurat_sce@meta.data$Phase <- "G0"
+    seurat_sce@meta.data$S.Score <- 0
+    seurat_sce@meta.data$G2M.Score <- 0
+  }
+)
+
+### Split SCE again
+seurat_sce <- split_Seurat(seurat_sce, by = seurat_sce$Sample.orig)
+
 #### Save unfiltered sce and seurat_sce objects ####
 saveRDS(sce, file = paste0(opt$out, "_unfiltered_sce.rds"))
 saveRDS(seurat_sce, file = paste0(opt$out, "_unfiltered_seurat_sce.rds"))
+
 
 ### Filter for MT content and min reads
 #seurat_sce <- subset(seurat_sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
@@ -170,25 +203,6 @@ sce <- sce[, sce$is.low_yield == FALSE & sce$is.damaged == FALSE]
 #sce <- sce[, mask]
 print(paste0("Keeping ",ncol(sce)," Cells from SCE object and ", ncol(seurat_sce), " Cells from Seurat object."))
 
-### Assign cell stage and categories
-print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
-markerfile <- loadRDS(opt$marker)
-
-#### Attempting to assign cell phase via Seurat ####
-s.genes <- markerfile$S
-g2m.genes <- markerfile$G2M
-
-tryCatch(
-  {
-    seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
-  },
-  error = function(e) {
-    print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF SEURAT CELL PHASE AND SET TO DEFAULT G0"))
-    seurat_sce@meta.data$Phase <- "G0"
-    seurat_sce@meta.data$S.Score <- 0
-    seurat_sce@meta.data$G2M.Score <- 0
-  }
-)
 
 #### Run PCA and UMAP ####
 print("Identify the top variable genes...")
@@ -209,9 +223,6 @@ cluster <- igraph::cluster_walktrap(g)$membership
 colData(sce)["Cluster"] <- factor(cluster)
 
 
-### Split SCE for integrative analysis
-### ALREADY DONE BY MERGE
-seurat_sce <- split_Seurat(seurat_sce, by = Sample.orig)
 ### SCtransform counts
 seurat_sce <- sctransform_Seurat(seurat_sce)
 ### Run initial dim reduction for norm
@@ -234,7 +245,6 @@ seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA", reduction = "pca", dims = 1
 
 seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_pca_sct", n.neighbors = 30L, min.dist = 0.1, spread = 5)
-
 
 #### Assign CaTCH barcode indices based on their abundance in the reference samples ####
 tmp <- colData(sce) %>%

@@ -289,13 +289,19 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
         #saveRDS(tmplist, "SEURAT_for_merging.rds", compress = "gzip")
         #rm(tmplist)
         #sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets
+        print("Merging SCE")
         sce <- firstsce
         for (x in scetomerge) { 
           sce <-cbind(sce, x) 
         }
         
-        seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH", merge.data = FALSE)  # merge all the seurat datasets
-
+        print("Merging Seurat")
+        seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH", merge.data = TRUE, merge.dr = FALSE)  # merge all the seurat datasets
+        
+        #print("Cleaning SCE")
+        #metadata = seurat_sce@meta.data
+        #seurat_sce <- CreateSeuratObject(LayerData(seurat_sce, assay = "RNA", layer = "counts"), assay = "RNA", project = "scCaTCH", meta.data = metadata, names.field = 4)
+        
         return(list(sce = sce, seurat_sce = seurat_sce))
     }
 }
