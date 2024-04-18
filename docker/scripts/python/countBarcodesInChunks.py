@@ -22,8 +22,8 @@ FIXED_PAMS = [(21, 24, "CCG"), (32, 35, "CCN"), (45, 48, "CCG")]
 def loadValidCellIDs(filenames: List[str]) -> List[str]:
     cellIDs = []
     for f in filenames:
-        with (gzip.open("r") if f.endswith(".gz") else open)(
-            f
+        with (gzip.open if f.endswith(".gz") else open)(
+            f, "r"
         ) as hInput:  # Auto detect gzip based on extension
             next(hInput)
             for line in hInput:
