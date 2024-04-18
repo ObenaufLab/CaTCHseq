@@ -23,7 +23,7 @@ def loadValidCellIDs(filenames: List[str]) -> List[str]:
     cellIDs = []
     for f in filenames:
         with (gzip.open if f.endswith(".gz") else open)(
-            f, "r"
+            f, "rt"
         ) as hInput:  # Auto detect gzip based on extension
             next(hInput)
             for line in hInput:
