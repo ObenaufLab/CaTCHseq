@@ -13,14 +13,14 @@ R.filesets
 #Signac
 
 #Seurats little helpers
-#remotes::install_github("satijalab/seurat-data")
+#remotes::satijalab/seurat-data
 remotes::satijalab/seurat-wrappers
 remotes::immunogenomics/presto
 remotes::bnprks/BPCells
 remotes::satijalab/sctransform
 remotes::kevinblighe/EnhancedVolcano
 remotes::jokergoo/ComplexHeatmap
-#remotes::install_github("satijalab/azimuth", ref = "master", quiet = TRUE)
+#remotes::satijalab/azimuth
 
 # BioConductor packages installed through BiocManager
 BioConductor::SingleCellExperiment
@@ -35,5 +35,5 @@ BioConductor::scran
 BioConductor::scater
 BioConductor::SingleR
 BioConductor::celldex
-#BiocConductor::glmGamPoi
-#BioConductor::ComplexHeatmap
+BiocConductor::glmGamPoi
+BioConductor::ComplexHeatmap
