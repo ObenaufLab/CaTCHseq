@@ -495,10 +495,10 @@ umap_Seurat <- function(sce, assay = "RNA", reduction = "integrated.cca", dims =
 }
 
 # Split for integrated analysis
-split_Seurat <- function(sce, by = "Sample") {
+split_Seurat <- function(sce, assay = "RNA", by = "Sample") {
     print("   Splitting SCE by Sample ...")
 
-    sce[["RNA"]] <- split(sce[["RNA_split"]], f = sce[by])
+    sce[[assay]] <- split(sce[[assay]], f = by)
     return(sce)
 }
 

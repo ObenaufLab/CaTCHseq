@@ -67,7 +67,6 @@ library(SeuratWrappers)
 library(sctransform)
 library(R.filesets)
 
-
 ### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
 sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation)
 
@@ -83,6 +82,7 @@ sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) unlist(str_spli
 sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split(x, "_"))[2], unlist(str_split(x, "_"))[3], sep = "_"))))
 sce$Sample <- as.factor(unlist(lapply(sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
 
+seurat_sce$Sample.orig <- seurat_sce$Sample
 seurat_sce$Condition <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[2])))
 seurat_sce$Replicate <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) paste(unlist(str_split(x, "_"))[2], unlist(str_split(x, "_"))[3], sep = "_"))))
 seurat_sce$Sample <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
@@ -211,7 +211,7 @@ colData(sce)["Cluster"] <- factor(cluster)
 
 ### Split SCE for integrative analysis
 ### ALREADY DONE BY MERGE
-seurat_sce <- split_Seurat(seurat_sce)
+seurat_sce <- split_Seurat(seurat_sce, by = Sample.orig)
 ### SCtransform counts
 seurat_sce <- sctransform_Seurat(seurat_sce)
 ### Run initial dim reduction for norm
