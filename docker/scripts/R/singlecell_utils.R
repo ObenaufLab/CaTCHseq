@@ -2,19 +2,28 @@
 
 activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
     # check if logcounts is present
-    stopifnot("logcounts" %in% names(assays(sce)))
+    stopifnot(class(sce)[1] == "SingleCellExperiment" & logcounts %in% names(assays(sce)))
 
     # determine shared features between sce and signature
     shared_features <- intersect(signature, rownames(sce))
     stopifnot(length(shared_features) > 0)
 
-    # calculate scaled log-means of signature
-    return(sce[shared_features, ] %>%
-        assay("logcounts") %>%
-        Matrix::colMeans() %>%
-        # use scale by default, but allow other functions and additional arguments
-        fn.scale(...) %>%
-        as.numeric())
+    if (class(sce)[1] == "SingleCellExperiment"){
+      # calculate scaled log-means of signature
+      return(sce[shared_features, ] %>%
+          assay("logcounts") %>%
+          Matrix::colMeans() %>%
+          # use scale by default, but allow other functions and additional arguments
+          fn.scale(...) %>%
+          as.numeric())
+    }else{
+      return(subset(sce, features=shared_features) %>%
+               LayerData(., assay = "RNA", layer = "data") %>%
+               Matrix::colMeans() %>%
+               # use scale by default, but allow other functions and additional arguments
+               fn.scale(...) %>%
+               as.numeric())
+    }
 }
 
 
@@ -173,7 +182,8 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
     samplelist <- str_split(smpl, ",")[[1]]
     data10Xs <- str_split(data10X, ",")[[1]]
     bcs <- str_split(bc, ",")[[1]]
-
+    anno <- annotation
+    
     if (length(samplelist) == 1) {
         print(paste("Processing the sample ", smpl, sep = ""))
         print("   Loading 10X data ...")
@@ -262,19 +272,29 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
         for (i in 1:length(samplelist)) {
             if (i == 1) {
                 print("Loading first sce dataset")
-                sl <- create_SCEs(samplelist[i], data10Xs[i], bcs[i])
+                sl <- create_SCEs(samplelist[i], data10Xs[i], bcs[i], anno)
                 firstsce <- sl$sce
                 firstseurat <- sl$seurat_sce
             } else {
                 print(paste0("Loading sce dataset ", i))
-                  sl <- create_SCEs(samplelist[i], data10Xs[i], bcs[i])
+                  sl <- create_SCEs(samplelist[i], data10Xs[i], bcs[i], anno)
                   scetomerge[[i - 1]] <- sl$sce
                   seurattomerge[[i - 1]] <- sl$seurat_sce
             }
         }
 
-        sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets
-        seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH")  # merge all the seurat datasets
+        #tmplist <- list(first=firstsce, rest = scetomerge)
+        #saveRDS(tmplist, "SCE_for_merging.rds", compress = "gzip")
+        #tmplist <- list(first=firstseurat, rest = seurattomerge)
+        #saveRDS(tmplist, "SEURAT_for_merging.rds", compress = "gzip")
+        #rm(tmplist)
+        #sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets
+        sce <- firstsce
+        for (x in scetomerge) { 
+          sce <-cbind(sce, x) 
+        }
+        
+        seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH", merge.data = FALSE)  # merge all the seurat datasets
 
         return(list(sce = sce, seurat_sce = seurat_sce))
     }
@@ -425,7 +445,7 @@ read_gtf <- function(anno) {
 }
 
 
-normalize_SCE <- function(sce) {
+normalize_Seurat <- function(sce) {
     print("   Normalizing and scaling SCE ...")
 
     sce <- NormalizeData(sce, normalization.method = "LogNormalize", scale.factor = 10000)
@@ -435,20 +455,20 @@ normalize_SCE <- function(sce) {
     return(sce)
 }
 
-sctransform_SCE <- function(sce) {
+sctransform_Seurat <- function(sce) {
     sce <- SCTransform(sce, vst.flavor = "v2", vars.to.regress = "percent.mt", verbose = FALSE)
     # sce[["SCT"]] <- as(object = sce[["SCT"]], Class = "Assay5")  # this actually breaks downstream code as SCTAssay is still v3 (https://github.com/satijalab/seurat/issues/7542)
     return(sce)
 }
 
-reduceDims_SCE <- function(sce, assay = "RNA", reduction.name = "pca") {
+reduceDims_Seurat <- function(sce, assay = "RNA", reduction.name = "pca") {
     print("   Reducing dimensions ...")
 
     sce <- RunPCA(sce, assay = assay, reduction.name = reduction.name)
     return(sce)
 }
 
-cluster_SCE <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster", resolution = .2) {
+cluster_Seurat <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster", resolution = .2) {
     print("   Clustering ...")
 
     sce <- FindNeighbors(sce, assay = assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")))
@@ -457,7 +477,7 @@ cluster_SCE <- function(sce, assay = "RNA_integrated.cca", reduction = "integrat
     return(sce)
 }
 
-integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize", ...) {
+integrate_Seurat <- function(sce, assay = "RNA", method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize", ...) {
     print("   Integrating samples ...")
 
     sce <- IntegrateLayers(object = sce, assay = assay, method = method, orig.reduction = orig.reduction, new.reduction = new.reduction, normalization.method = normalization.method, verbose = FALSE, ...)
@@ -467,7 +487,7 @@ integrate_SCE <- function(sce, assay = "RNA", method = CCAIntegration, orig.redu
     return(sce)
 }
 
-umap_SCE <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.1, spread = 5) {
+umap_Seurat <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.1, spread = 5) {
     print("   Preparing UMAP ...")
 
     sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors, min.dist = min.dist, spread = spread)
@@ -475,7 +495,7 @@ umap_SCE <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:
 }
 
 # Split for integrated analysis
-split_SCE <- function(sce, by = "Sample") {
+split_Seurat <- function(sce, by = "Sample") {
     print("   Splitting SCE by Sample ...")
 
     sce[["RNA"]] <- split(sce[["RNA_split"]], f = sce[by])
@@ -483,7 +503,7 @@ split_SCE <- function(sce, by = "Sample") {
 }
 
 # Join for DE
-join_SCE <- function(sce, assay = "RNA", layers = "data", new = "joined_data") {
+join_Seurat <- function(sce, assay = "RNA", layers = "data", new = "joined_data") {
     print("   Joining SCE layers  ...")
 
     sce <- JoinLayers(sce, assay = assay, layers = layers, new = new)

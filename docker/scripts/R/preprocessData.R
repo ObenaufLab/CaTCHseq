@@ -15,6 +15,10 @@ option_list <- list(
     type = "character", default = NULL,
     help = "path to the file with CaTCH barcodes"
   ),
+  make_option(c("--annotation"),
+    type = "character", default = NULL,
+    help = "path to the matching annotation file in GTF format"
+  ),
   make_option(c("--max_mt"),
     type = "numeric", default = 10,
     help = "maximum percent of mitochondrial reads in a valid cell"
@@ -42,13 +46,13 @@ opt <- parse_args(opt_parser)
 
 print(paste0("CLI: ", opt))
 
-if (is.null(opt$sample) || is.null(opt$out)) {
+if (is.null(opt$sample) || is.null(opt$out) || is.null(opt$annotation)) {
   print_help(opt_parser)
   stop("Not enough parameters")
 }
 
 #### Source Functions ####
-source("../R_collection/singlecell_utils.R")
+source("singlecell_utils.R")
 
 ############################
 
@@ -65,33 +69,28 @@ library(R.filesets)
 
 
 ### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
-sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC)
+sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation)
 
 sce <- sl$sce
 seurat_sce <- sl$seurat_sce
+seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "counts", new = "counts")
+seurat_sce <- DietSeurat(seurat_sce, layers = "counts")  # Get rid of artificial data slot
 
 rm(sl) # clean up
 
-#### Run QC ####
-is.mitochondrial <- grepl(
-  pattern = "^MT-",
-  x = rownames(sce),
-  ignore.case = TRUE # Needed e.g. for mouse 10x data with cellranger prebuilt index
-)
+#### Annotate Samples, Conditions and Replicates ####
+sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) unlist(str_split(x, "_"))[2])))
+sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split(x, "_"))[2], unlist(str_split(x, "_"))[3], sep = "_"))))
+sce$Sample <- as.factor(unlist(lapply(sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
 
-# calculate percentage of MT reads SEURAT
+seurat_sce$Condition <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[2])))
+seurat_sce$Replicate <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) paste(unlist(str_split(x, "_"))[2], unlist(str_split(x, "_"))[3], sep = "_"))))
+seurat_sce$Sample <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
+
+ref.Condition <- opt$baseCond
+
+#### calculate percentage of MT reads SEURAT ####
 seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^MT-|^mt-", col.name = "percent.mt")
-seurat_sce[["is.low_yield"]] <- seurat_sce@meta.data %>%
-  pull(nFeature_RNA) %>%
-  {
-    case_when(. < opt$min_features ~ TRUE, .default = FALSE)
-  }
-seurat_sce[["is.damaged"]] <- seurat_sce@meta.data %>%
-  pull(percent.mt) %>%
-  {
-    case_when(. > opt$max_mt ~ TRUE, .default = FALSE)
-  }
-
 pdf(file = paste0(opt$out, "_QC_Violin_MT_content.pdf"), width = 30, height = 10)
 VlnPlot(seurat_sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
 dev.off()
@@ -104,25 +103,81 @@ pdf(file = paste0(opt$out, "_QC_Scatter_Feature_content.pdf"), width = 30, heigh
 FeatureScatter(seurat_sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "Sample")
 dev.off()
 
-# calculate percentage of MT reads SCE
+#### normalize counts and calculate percentage of MT reads SCE ####
 print("Normalize the counts ...")
 sce <- sce %>%
   scater::logNormCounts() %>%
-  scater::addPerCellQC(subsets = list(MT = is.mitochondrial)) %>%
+  scater::addPerCellQC(subsets = list(MT = grepl(
+    pattern = "^MT-",
+    x = rownames(sce),
+    ignore.case = TRUE # Needed e.g. for mouse 10x data with cellranger prebuilt index
+  )
+  )) %>%
   scater::addPerFeatureQC()
 
+### Normalize and scale counts Seurat ####
+seurat_sce <- normalize_Seurat(seurat_sce)
 
-### Filter Seurat for MT content and min reads
-seuart_sce <- subset(seurat_sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
+#### annotate low yield and damaged cells ####
+seurat_sce[["is.mitochondrial"]] <- is.mitochondrial
+seurat_sce[["is.damaged"]] <- seurat_sce@meta.data %>%
+  pull(percent.mt) %>%
+  {
+    case_when(. > opt$max_mt ~ TRUE, .default = FALSE)
+  }
+seurat_sce[["is.low_yield"]] <- seurat_sce@meta.data %>%
+  pull(nFeature_RNA) %>%
+  {
+    case_when(. < opt$min_features ~ TRUE, .default = FALSE)
+  }
 
+rowData(sce)["is.mitochondrial"] <- is.mitochondrial
+colData(sce)["is.damaged"] <- colData(sce)[, "subsets_MT_percent"] > opt$max_mt
+colData(sce)["is.low_yield"] <- colData(sce)[, "detected"] < opt$min_features
+
+#### Categorize the cells ####
+cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
+
+seurat_sce@meta.data$Category <- seurat_sce@meta.data %>%
+  dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
+  dplyr::select("tmp") %>%
+  purrr::map(.f = ~ cell.categories[.x + 1]) %>%
+  tibble::as_tibble() %>%
+  dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
+  dplyr::select(Class)
+
+
+colData(sce)["Category"] <- colData(sce) %>%
+  tibble::as_tibble() %>%
+  dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
+  dplyr::select("tmp") %>%
+  purrr::map(.f = ~ cell.categories[.x + 1]) %>%
+  tibble::as_tibble() %>%
+  dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
+  dplyr::select(Class)
+
+
+#### Save unfiltered sce and seurat_sce objects ####
+saveRDS(sce, file = paste0(opt$out, "_unfiltered_sce.rds"))
+saveRDS(seurat_sce, file = paste0(opt$out, "_unfiltered_seurat_sce.rds"))
+
+### Filter for MT content and min reads
+#seurat_sce <- subset(seurat_sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
+seurat_sce <- subset(seurat_sce, subset = is.low_yield == FALSE & is.damaged == FALSE)
+sce <- sce[, sce$is.low_yield == FALSE & sce$is.damaged == FALSE]
+#sce.unfiltered <- sce
+#mask <- sce$Category == "Good"
+#sce <- sce[, mask]
+print(paste0("Keeping ",ncol(sce)," Cells from SCE object and ", ncol(seurat_sce), " Cells from Seurat object."))
 
 ### Assign cell stage and categories
 print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
 markerfile <- loadRDS(opt$marker)
 
-print("Attempting to assign cell phase via Seurat...")
+#### Attempting to assign cell phase via Seurat ####
 s.genes <- markerfile$S
 g2m.genes <- markerfile$G2M
+
 tryCatch(
   {
     seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
@@ -135,79 +190,6 @@ tryCatch(
   }
 )
 
-
-print("Attempting to assign cell stage to SCEs...")
-sce <- sce %>%
-  assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
-
-seurat_sce <- seurat_sce %>%
-  assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
-
-
-print("Categorize the cells ...")
-cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
-
-sce@meta.data$Category <- sce@meta.data %>%
-  dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
-  dplyr::select("tmp") %>%
-  purrr::map(.f = ~ cell.categories[.x + 1]) %>%
-  tibble::as_tibble() %>%
-  dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
-  dplyr::select(Class)
-
-
-print("Categorize the cells ...")
-rowData(sce)["is.mitochondrial"] <- is.mitochondrial
-colData(sce)["is.damaged"] <- colData(sce)[, "subsets_MT_percent"] > opt$max_mt
-colData(sce)["is.low_yield"] <- colData(sce)[, "detected"] < opt$min_features
-colData(sce)["Category"] <- colData(sce) %>%
-  tibble::as_tibble() %>%
-  dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
-  dplyr::select("tmp") %>%
-  purrr::map(.f = ~ cell.categories[.x + 1]) %>%
-  tibble::as_tibble() %>%
-  dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
-  dplyr::select(Class)
-
-
-#### Annotate the treatments and replicates ####
-annot <- read_tsv(
-  file = opt$csv,
-  col_names = c("Sample", "Treatment", "Replicate", "Type"),
-  col_types = "cccc---",
-  skip = 1
-) %>%
-  filter(Type == "GEX") %>%
-  select(-Type) %>%
-  distinct()
-# Sanity check: the number of samples in the variable `annot` must be the same as
-# the number of distinct samples in the SingleCellExperiment object
-if (nrow(annot) != length(unique(sce$Sample))) {
-  warn("The number of samples in the CSV file does not match the number of distinct samples in SingleCellExperiment object")
-}
-colData(sce)[, c("Treatment", "Replicate")] <- colData(sce) %>%
-  as_tibble() %>%
-  left_join(y = annot, by = "Sample") %>%
-  select(Treatment, Replicate) %>%
-  mutate(Treatment = factor(Treatment, levels = c(opt$reference, setdiff(unique(Treatment), opt$reference))))
-
-tmp <- colData(sce) %>%
-  as_tibble() %>%
-  select(Sample, Treatment) %>%
-  distinct() %>%
-  arrange(Treatment) %>%
-  select(Sample) %>%
-  pull()
-sce$Sample <- factor(sce$Sample, levels = tmp)
-
-
-
-sce.unfiltered <- sce
-mask <- sce$Category == "Good"
-sce <- sce[, mask]
-
-
-
 #### Run PCA and UMAP ####
 print("Identify the top variable genes...")
 gene.var <- modelGeneVar(sce)
@@ -215,7 +197,7 @@ hvg <- getTopHVGs(stats = gene.var, prop = opt$hvg_cutoff)
 
 print("Run the PCA ...")
 sce <- runPCA(sce, subset_row = hvg)
-set.seed(101)
+set.seed(42)
 
 print("Run tSNE and UMAP analyses ...")
 sce <- runTSNE(sce, dimred = "PCA")
@@ -229,32 +211,29 @@ colData(sce)["Cluster"] <- factor(cluster)
 
 ### Split SCE for integrative analysis
 ### ALREADY DONE BY MERGE
-# sce <- split_SCE(sce)
-
-### Normalize and scale counts
-seurat_sce <- normalize_seurat_sce(seurat_sce)
+seurat_sce <- split_Seurat(seurat_sce)
 ### SCtransform counts
-seurat_sce <- sctransform_seurat_sce(seurat_sce)
+seurat_sce <- sctransform_Seurat(seurat_sce)
 ### Run initial dim reduction for norm
-seurat_sce <- reduceDims_seurat_sce(seurat_sce)
+seurat_sce <- reduceDims_Seurat(seurat_sce)
 ### Run initial dim reduction for STC
-seurat_sce <- reduceDims_seurat_sce(seurat_sce, assay = "SCT", reduction.name = "pca_sct")
+seurat_sce <- reduceDims_Seurat(seurat_sce, assay = "SCT", reduction.name = "pca_sct")
 ### Integrate the seurat_sce layers for integrative analysis
-seurat_sce <- integrate_seurat_sce(seurat_sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
+seurat_sce <- integrate_Seurat(seurat_sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
 ### Integrate the seurat_sce layers after SCT for integrative analysis
-seurat_sce <- integrate_seurat_sce(seurat_sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
-### Cluster integrated layers for plotting
-seurat_sce <- cluster_seurat_sce(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
-seurat_sce <- cluster_seurat_sce(seurat_sce, assay = "RNA", reduction = "pca", cluster.name = "pca_cluster")
+seurat_sce <- integrate_Seurat(seurat_sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
+### Cluster integrated and separated layers for plotting
+seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
+seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA", reduction = "pca", cluster.name = "pca_cluster")
 
-seurat_sce <- cluster_seurat_sce(seurat_sce, assay = "SCT", reduction = "pca_sct", cluster.name = "sct_cluster")
-seurat_sce <- cluster_seurat_sce(seurat_sce, assay = "SCT_integrated", reduction = "pca_sct", cluster.name = "sct_integrated_cluster")
+seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", cluster.name = "sct_cluster")
+seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "pca_sct", cluster.name = "sct_integrated_cluster")
 ## Run UMAPs
-seurat_sce <- umap_seurat_sce(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
-seurat_sce <- umap_seurat_sce(seurat_sce, assay = "RNA", reduction = "pca", dims = 1:30, reduction.name = "umap_pca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
+seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
+seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA", reduction = "pca", dims = 1:30, reduction.name = "umap_pca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
 
-seurat_sce <- umap_seurat_sce(seurat_sce, assay = "SCT_integrated", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
-seurat_sce <- umap_seurat_sce(seurat_sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_pca_sct", n.neighbors = 30L, min.dist = 0.1, spread = 5)
+seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
+seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_pca_sct", n.neighbors = 30L, min.dist = 0.1, spread = 5)
 
 
 #### Assign CaTCH barcode indices based on their abundance in the reference samples ####
@@ -276,22 +255,37 @@ tmp <- colData(sce) %>%
   relocate(BC_ID, .after = CaTCH.BCs) %>%
   select(CaTCH.BCs, BC_ID)
 
-colData(sce)["BC_ID"] <- colData(sce) %>%
+colData(sce)["CaTCH.BC_ID"] <- colData(sce) %>%
   as_tibble() %>%
   left_join(y = tmp, by = "CaTCH.BCs") %>%
-  mutate(BC_ID = factor(BC_ID, levels = str_sort(unique(BC_ID), numeric = TRUE))) %>%
-  select(BC_ID)
+  mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(BC_ID), numeric = TRUE))) %>%
+  select(CaTCH.BC_ID)
 
-save(sce.unfiltered, sce, file = opt$out)
+seurat_sce@meta.data$CaTCH.BC_ID <- seurat_sce@meta.data %>%
+  left_join(y = tmp, by = "CaTCH.BCs") %>%
+  mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
+  pull(CaTCH.BC_ID)
 
-# Prepare the data for the report plots
-tmp <- reducedDim(sce, "TSNE", withDimnames = FALSE)
-data.tsne <- tibble(
-  tSNE1 = tmp[, 1],
-  tSNE2 = tmp[, 2],
-  Sample = sce$Sample
-) %>%
-  write.table(x = ., file = paste0(opt$out, ".tsne"), quote = FALSE, row.names = FALSE)
+#### Attempting to assign cell stage to SCEs ####
+sce <- sce %>%
+  assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
 
-colData(sce) %>%
-  write.table(x = ., file = paste0(opt$out, ".metadata"), quote = FALSE, row.names = FALSE)
+seurat_sce <- seurat_sce %>%
+  assignCategoryByMarker(markers = markerfile, col.name = "CellStage", obj.type = "SEURAT")
+
+
+#### Save final objects ####
+saveRDS(sce, file = paste0(opt$out, "_filtered_sce.rds"))
+saveRDS(seurat_sce, file = paste0(opt$out, "_filtered_seurat_sce.rds"))
+
+## Prepare the data for the report plots
+#tmp <- reducedDim(sce, "TSNE", withDimnames = FALSE)
+#data.tsne <- tibble(
+#  tSNE1 = tmp[, 1],
+#  tSNE2 = tmp[, 2],
+#  Sample = sce$Sample
+#) %>%
+#  write.table(x = ., file = paste0(opt$out, ".tsne"), quote = FALSE, row.names = FALSE)
+#
+#colData(sce) %>%
+#  write.table(x = ., file = paste0(opt$out, ".metadata"), quote = FALSE, row.names = FALSE)
