@@ -203,13 +203,14 @@ process check_samplesheet {
     path samplesheet
 
     output:
-    path '*.csv', emit: csv
+    path 'Valid_*.csv', emit: csv
     path 'sanity_check', emit: check
 
     script: 
     """
     ${scriptDirPy}checkSampleSheet.py \
-        $samplesheet 
+        ${samplesheet} \
+    && mv ${samplesheet} Valid_${samplesheet}
     """
 }
 
