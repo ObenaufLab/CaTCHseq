@@ -18,7 +18,7 @@ activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
 }
 
 
-assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, ..., center = TRUE) {
+assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, center = TRUE, ...) {
   if (is.null(sce)) {
     stop("'sce' must be specified and cannot be NULL")
   }
@@ -82,7 +82,7 @@ activity_by_logmeans2 <- function(signature, sce, fn.scale = scale, ...) {
 }
 
 
-assignCategoryByMarker2 <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, ..., center = TRUE) {
+assignCategoryByMarker2 <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, center = TRUE, ...) {
     if (is.null(sce)) {
         stop("'sce' must be specified and cannot be NULL")
     }
