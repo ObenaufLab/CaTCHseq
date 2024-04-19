@@ -1065,11 +1065,12 @@ workflow{
                         log.error("SampleSheet is empty!")
                     }
                 }else{
-                    log.error("SampleSheet is not a CSV file!")
+                    log.error("SampleSheet is without .csv ending!")
                 }
             }else{
                 log.error("SampleSheet is not a file!")
             }
+        }
 
         check_samplesheet(Channel.fromPath(libraries))
 
@@ -1257,6 +1258,5 @@ workflow{
         identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce)
     //emit:
     //createOverviewPlots.out.pdf
-    //createBarcodeEnrichmentPlots.out.pdf
-    
+    //createBarcodeEnrichmentPlots.out.pdf   
 }
