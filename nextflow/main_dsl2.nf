@@ -208,7 +208,7 @@ process check_samplesheet {
 
     script: 
     """
-    check_samplesheet.py \\
+    checkSampleSheet.py \\
         $samplesheet 
     """
 }
