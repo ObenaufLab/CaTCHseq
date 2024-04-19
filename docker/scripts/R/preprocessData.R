@@ -229,46 +229,46 @@ seurat_sce <- sctransform_Seurat(seurat_sce)
 seurat_sce <- reduceDims_Seurat(seurat_sce)
 ### Run initial dim reduction for STC
 seurat_sce <- reduceDims_Seurat(seurat_sce, assay = "SCT", reduction.name = "pca_sct")
-### Integrate the seurat_sce layers for integrative analysis
-seurat_sce <- integrate_Seurat(seurat_sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
-### Integrate the seurat_sce layers after SCT for integrative analysis
-seurat_sce <- integrate_Seurat(seurat_sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
+#### Integrate the seurat_sce layers for integrative analysis
+#seurat_sce <- integrate_Seurat(seurat_sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
+#### Integrate the seurat_sce layers after SCT for integrative analysis
+#seurat_sce <- integrate_Seurat(seurat_sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
 ### Cluster integrated and separated layers for plotting
-seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
+#seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
 seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA", reduction = "pca", cluster.name = "pca_cluster")
 
 seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", cluster.name = "sct_cluster")
-seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "pca_sct", cluster.name = "sct_integrated_cluster")
+#seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "pca_sct", cluster.name = "sct_integrated_cluster")
 ## Run UMAPs
-seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
+#seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
 seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA", reduction = "pca", dims = 1:30, reduction.name = "umap_pca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
 
-seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
+#seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_pca_sct", n.neighbors = 30L, min.dist = 0.1, spread = 5)
 
 #### Assign CaTCH barcode indices based on their abundance in the reference samples ####
 tmp <- colData(sce) %>%
   as_tibble() %>%
-  filter(CaTCH.Status == "Singlet", Treatment == opt$reference) %>%
+  filter(CaTCH.Status == "Singlet", Condition == opt$baseCond) %>%
   select(CaTCH.BCs, Sample) %>%
   group_by(CaTCH.BCs, Sample) %>%
   mutate(n = n()) %>%
   ungroup() %>%
   distinct() %>%
   pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
-  filter(rowSums(across(starts_with(opt$reference))) > 0) %>%
-  mutate(.Means = rowMeans(across(starts_with(opt$reference)))) %>%
+  filter(rowSums(across(starts_with(opt$baseCond))) > 0) %>%
+  mutate(.Means = rowMeans(across(starts_with(opt$baseCond)))) %>%
   arrange(by = desc(.Means)) %>%
   rowid_to_column(".ID") %>%
-  mutate(BC_ID = paste0("BC_", .ID)) %>%
+  mutate(CaTCH.BC_ID = paste0("BC_", .ID)) %>%
   select(-.Means, -.ID) %>%
-  relocate(BC_ID, .after = CaTCH.BCs) %>%
-  select(CaTCH.BCs, BC_ID)
+  relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
+  select(CaTCH.BCs, CaTCH.BC_ID)
 
 colData(sce)["CaTCH.BC_ID"] <- colData(sce) %>%
   as_tibble() %>%
   left_join(y = tmp, by = "CaTCH.BCs") %>%
-  mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(BC_ID), numeric = TRUE))) %>%
+  mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
   select(CaTCH.BC_ID)
 
 seurat_sce@meta.data$CaTCH.BC_ID <- seurat_sce@meta.data %>%
