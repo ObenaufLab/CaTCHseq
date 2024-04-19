@@ -1061,7 +1061,7 @@ workflow{
         if (file(libraries).exists()){
             if (file(libraries).isFile()){
                 if (libraries.endsWith(".csv")){
-                    if (file(libraries).length() == 0){
+                    if (file(libraries).size() == 0){
                         log.error("SampleSheet is empty!")
                     }
                 }else{
