@@ -72,7 +72,6 @@ sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation)
 
 sce <- sl$sce
 seurat_sce <- sl$seurat_sce
-#seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "counts", new = "counts")
 #seurat_sce <- DietSeurat(seurat_sce, layers = "counts")  # Get rid of artificial data slot
 
 rm(sl) # clean up
@@ -150,7 +149,7 @@ seurat_sce@meta.data$Category <- seurat_sce@meta.data %>%
   purrr::map(.f = ~ cell.categories[.x + 1]) %>%
   tibble::as_tibble() %>%
   dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
-  dplyr::select(Class)
+  dplyr::pull(Class)
 
 
 colData(sce)["Category"] <- colData(sce) %>%
@@ -186,6 +185,10 @@ tryCatch(
   }
 )
 
+#### Attempting to assign cell stage to SCEs ####
+sce <- sce %>% assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
+seurat_sce <- seurat_sce %>% assignCategoryByMarker(markers = markerfile, col.name = "CellStage", obj.type = "SEURAT")
+
 ### Split SCE again
 seurat_sce <- split_Seurat(seurat_sce, by = seurat_sce$Sample.orig)
 
@@ -193,14 +196,10 @@ seurat_sce <- split_Seurat(seurat_sce, by = seurat_sce$Sample.orig)
 saveRDS(sce, file = paste0(opt$out, "_unfiltered_sce.rds"))
 saveRDS(seurat_sce, file = paste0(opt$out, "_unfiltered_seurat_sce.rds"))
 
-
 ### Filter for MT content and min reads
 #seurat_sce <- subset(seurat_sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
 seurat_sce <- subset(seurat_sce, subset = is.low_yield == FALSE & is.damaged == FALSE)
 sce <- sce[, sce$is.low_yield == FALSE & sce$is.damaged == FALSE]
-#sce.unfiltered <- sce
-#mask <- sce$Category == "Good"
-#sce <- sce[, mask]
 print(paste0("Keeping ",ncol(sce)," Cells from SCE object and ", ncol(seurat_sce), " Cells from Seurat object."))
 
 
@@ -229,21 +228,11 @@ seurat_sce <- sctransform_Seurat(seurat_sce)
 seurat_sce <- reduceDims_Seurat(seurat_sce)
 ### Run initial dim reduction for STC
 seurat_sce <- reduceDims_Seurat(seurat_sce, assay = "SCT", reduction.name = "pca_sct")
-#### Integrate the seurat_sce layers for integrative analysis
-#seurat_sce <- integrate_Seurat(seurat_sce, assay = "RNA", orig.reduction = "pca", new.reduction = "integrated.cca", normalization.method = "LogNormalize")
-#### Integrate the seurat_sce layers after SCT for integrative analysis
-#seurat_sce <- integrate_Seurat(seurat_sce, assay = "SCT", orig.reduction = "pca_sct", new.reduction = "sct_integrated.cca", normalization.method = "SCT")
-### Cluster integrated and separated layers for plotting
-#seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster")
+### Cluster 
 seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA", reduction = "pca", cluster.name = "pca_cluster")
-
 seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", cluster.name = "sct_cluster")
-#seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "pca_sct", cluster.name = "sct_integrated_cluster")
 ## Run UMAPs
-#seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
 seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA", reduction = "pca", dims = 1:30, reduction.name = "umap_pca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
-
-#seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT_integrated", reduction = "sct_integrated.cca", dims = 1:10, reduction.name = "umap_integrated.cca", n.neighbors = 30L, min.dist = 0.01, spread = 5)
 seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_pca_sct", n.neighbors = 30L, min.dist = 0.1, spread = 5)
 
 #### Assign CaTCH barcode indices based on their abundance in the reference samples ####
@@ -275,14 +264,6 @@ seurat_sce@meta.data$CaTCH.BC_ID <- seurat_sce@meta.data %>%
   left_join(y = tmp, by = "CaTCH.BCs") %>%
   mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
   pull(CaTCH.BC_ID)
-
-#### Attempting to assign cell stage to SCEs ####
-sce <- sce %>%
-  assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
-
-seurat_sce <- seurat_sce %>%
-  assignCategoryByMarker(markers = markerfile, col.name = "CellStage", obj.type = "SEURAT")
-
 
 #### Save final objects ####
 saveRDS(sce, file = paste0(opt$out, "_filtered_sce.rds"))
