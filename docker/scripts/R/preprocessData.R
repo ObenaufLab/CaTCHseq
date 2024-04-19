@@ -187,7 +187,7 @@ tryCatch(
 
 #### Attempting to assign cell stage to SCEs ####
 sce <- sce %>% assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
-seurat_sce <- seurat_sce %>% assignCategoryByMarker(markers = markerfile, col.name = "CellStage", obj.type = "SEURAT")
+seurat_sce <- seurat_sce %>% assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
 
 ### Split SCE again
 seurat_sce <- split_Seurat(seurat_sce, by = seurat_sce$Sample.orig)
