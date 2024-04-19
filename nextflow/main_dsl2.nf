@@ -208,7 +208,7 @@ process check_samplesheet {
 
     script: 
     """
-    checkSampleSheet.py \\
+    ${scriptDirPy}checkSampleSheet.py \
         $samplesheet 
     """
 }
