@@ -91,13 +91,12 @@ def helpMessage() {
                                     SampleName      name of the sample (can appear in multiple lines, in case
                                                     the library was sequenced in several runs)
                                     Condition       condition for this sample (e.g. timepoint, KO, treatment)
-                                    Replicate       replicate (even if a single replicate is present, this column
-                                                    cannot be missing or be empty)
+                                    Replicate       replicate (even if a single replicate is present, this column cannot be missing or be empty)
                                     LibraryType     either GEX or scCaTCH
                                     R1              path to the R1 read
                                     R2              path to the R2 read (if available)
-                                    CellNumber      number of expected cells (or NA if not available)
-                                    Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq), this does not set adequate parameters for mappers automatically, make sure you provide them accordingly
+                                    CellNumber      number of expected cells (NA if not available, number for soft constraint, number! for hard constraint)
+                                    Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq), this may not set adequate parameters for mappers automatically, make sure you check them accordingly
 
       Optional arguments:
         --chunkSize             number of reads per chunk (default: ${chunkSize})
@@ -193,6 +192,26 @@ if (filtering){
 // For more information about syntax, please refer to the nextflow documentation at https://www.nextflow.io/docs/latest/index.html
 stopOnWarn = (stopOnWarnings) ? "yes" : "no"
 
+/************************************************************************
+                SANITY CHECK SAMPLESHEET
+************************************************************************/
+
+process check_samplesheet {
+    tag "$samplesheet"
+
+    input:
+    path samplesheet
+
+    output:
+    path '*.csv', emit: csv
+    path 'sanity_check', emit: check
+
+    script: 
+    """
+    check_samplesheet.py \\
+        $samplesheet 
+    """
+}
 
 /************************************************************************
                 STEP 0: Run read QC
@@ -1036,10 +1055,29 @@ workflow{
     main:
 
         /**********************************************************
+                Validate SampleSheet
+        ***********************************************************/
+
+        if (file(libraries).exists()){
+            if (file(libraries).isFile()){
+                if (libraries.endsWith(".csv")){
+                    if (file(libraries).length() == 0){
+                        log.error("SampleSheet is empty!")
+                    }
+                }else{
+                    log.error("SampleSheet is not a CSV file!")
+                }
+            }else{
+                log.error("SampleSheet is not a file!")
+            }
+
+        check_samplesheet(Channel.fromPath(libraries))
+
+        /**********************************************************
                 STEP 0: Prepare Input and Indices and run QC
         ***********************************************************/
         
-        Ch_csv = Channel.fromPath(libraries).splitCsv(sep: ",", header: true)
+        Ch_csv = check_samplesheet.out.csv.splitCsv(sep: ",", header: true)
         //Ch_csv.subscribe {  println "CSV: $it"  }
 
         Ch_csv_GEX_split = Ch_csv.filter { it.LibraryType == "GEX" }.branch{
