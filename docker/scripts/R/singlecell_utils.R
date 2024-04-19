@@ -1,6 +1,61 @@
 ####### FUNCTIONS #########
 
 activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
+  # check if logcounts is present
+  stopifnot("logcounts" %in% names(assays(sce)))
+  
+  # determine shared features between sce and signature
+  shared_features <- intersect(signature, rownames(sce))
+  stopifnot(length(shared_features) > 0)
+  
+  # calculate scaled log-means of signature
+  return(sce[shared_features, ] %>%
+           assay("logcounts") %>%
+           Matrix::colMeans() %>%
+           # use scale by default, but allow other functions and additional arguments
+           fn.scale(...) %>%
+           as.numeric())
+}
+
+
+assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, ..., center = TRUE) {
+  if (is.null(sce)) {
+    stop("'sce' must be specified and cannot be NULL")
+  }
+  if (is.null(markers)) {
+    stop("'markers' must be specified and cannot be NULL. You can use the provided dataset 'stagemarkers_xue2020'")
+  }
+  if (is.null(col.name)) {
+    stop("'col.name' must be specified and cannot be NULL")
+  }
+  
+  categories <- map_df(markers, activity_by_logmeans, sce = sce, fn.scale = fn.scale, ...)
+  
+  # categories should be a matrix with N rows and M columns, whereas N is the
+  # number of cells in the SingleCellExperiment object `sce` and M is the
+  # number of names of the markers list.
+  # If this is not the case after scaling, transpose it.
+  dims <- dim(categories)
+  if (dims[1] != dim(sce)[2]) {
+    categories <- categories %>%
+      t()
+  }
+  
+  # If the results should be centered around 0, use `scale` to do that on a
+  # per-cell basis and transpose the result.
+  if (center) {
+    categories <- categories %>%
+      apply(1, scale) %>%
+      t()
+  }
+  colnames(categories) <- names(markers)
+  colData(sce)[col.name] <- colnames(categories)[apply(categories, 1, which.max)]
+  return(sce)
+}
+
+
+
+activity_by_logmeans2 <- function(signature, sce, fn.scale = scale, ...) {
     # check if logcounts is present
     stopifnot(class(sce)[1] == "SingleCellExperiment" & logcounts %in% names(assays(sce)))
 
@@ -27,7 +82,7 @@ activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
 }
 
 
-assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, ..., center = TRUE) {
+assignCategoryByMarker2 <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, ..., center = TRUE) {
     if (is.null(sce)) {
         stop("'sce' must be specified and cannot be NULL")
     }
