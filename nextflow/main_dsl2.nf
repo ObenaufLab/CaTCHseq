@@ -916,7 +916,7 @@ process preprocessSingleCellData{
        --sample \$SAMPLES \
        --data10X \$FEATURES \
        --catchBC \$BCS \
-       --annotation \${gtf} \
+       --annotation ${gtf} \
        --features 
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
