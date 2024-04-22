@@ -43,7 +43,7 @@ if ((length(opt$format) == 0) || !(opt$format %in% c("pdf", "png", "jpeg", "tiff
 }
 
 #### Source Functions ####
-source(paste0(libpath, "singlecell_utils.R"))
+source(paste0(opt$libpath, "singlecell_utils.R"))
 
 ########################################################
 library(tidyverse)

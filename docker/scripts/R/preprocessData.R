@@ -56,7 +56,7 @@ if (is.null(opt$sample) || is.null(opt$out) || is.null(opt$annotation)) {
 }
 
 #### Source Functions ####
-source(paste0(libpath, "singlecell_utils.R"))
+source(paste0(opt$libpath, "singlecell_utils.R"))
 
 ############################
 
