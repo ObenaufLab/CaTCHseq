@@ -874,6 +874,7 @@ process preprocessSingleCellData{
     input:
         path(featureMatrix)
         path(catchBarcodes)
+        path(gtf)
         //path(script)
 
     output:
@@ -915,7 +916,7 @@ process preprocessSingleCellData{
        --sample \$SAMPLES \
        --data10X \$FEATURES \
        --catchBC \$BCS \
-       --annotation \$gtf \
+       --annotation \${gtf} \
        --features 
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
@@ -1244,7 +1245,7 @@ workflow{
         //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
         //preprocessSingleCellData(Ch_preprocess_input)
 
-        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect())
+        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect().combine(Channel.fromPath(mapanno)))
 
         /**************************************************************
                 STEP 9: Generate overview plots
