@@ -921,7 +921,8 @@ process preprocessSingleCellData{
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
        --out ${outname} \
-       --marker ${markerfile}
+       --marker ${markerfile} \
+       --libpath ${scriptDirR}
     """
 }
 
@@ -961,7 +962,8 @@ process createOverviewPlots{
         --out ${outname}_overview \
         --format pdf \
         --width 25 \
-        --height 10
+        --height 10 \
+        --libpath ${scriptDirR}
     """
 }
 
@@ -1002,7 +1004,8 @@ process calculateBarcodeEnrichment{
         --height 300 \
         --pcut ${pval_cutoff}\
         --fcut ${lfc_cutoff} \
-        --out ${outname}
+        --out ${outname} \
+        --libpath ${scriptDirR}
     """
 }
 
@@ -1043,7 +1046,8 @@ process identifyDEGenes{
         --organism ${organism}\
         --pcut ${pval_cutoff}\
         --fcut ${lfc_cutoff} \
-        --out ${outname}
+        --out ${outname} \
+        --libpath ${scriptDirR}
     """
 }
 

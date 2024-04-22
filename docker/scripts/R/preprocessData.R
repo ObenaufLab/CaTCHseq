@@ -39,6 +39,10 @@ option_list <- list(
     type = "character", default = "/tools/data/R/stagemarkers_xue2020.rds",
     help = "path to cellcycle marker file in RDS format"
   )
+  make_option(c("--libpath"),
+    type = "character", default = "/tools/scripts/R/",
+    help = "path to R libs, trailing slash is required"
+  )
 )
 
 opt_parser <- OptionParser(option_list = option_list)
@@ -52,7 +56,7 @@ if (is.null(opt$sample) || is.null(opt$out) || is.null(opt$annotation)) {
 }
 
 #### Source Functions ####
-source("singlecell_utils.R")
+source(paste0(libpath, "singlecell_utils.R"))
 
 ############################
 
@@ -72,7 +76,7 @@ sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation)
 
 sce <- sl$sce
 seurat_sce <- sl$seurat_sce
-#seurat_sce <- DietSeurat(seurat_sce, layers = "counts")  # Get rid of artificial data slot
+# seurat_sce <- DietSeurat(seurat_sce, layers = "counts")  # Get rid of artificial data slot
 
 rm(sl) # clean up
 
@@ -110,8 +114,7 @@ sce <- sce %>%
     pattern = "^MT-",
     x = rownames(sce),
     ignore.case = TRUE # Needed e.g. for mouse 10x data with cellranger prebuilt index
-  )
-  )) %>%
+  ))) %>%
   scater::addPerFeatureQC()
 
 ### Normalize and scale counts Seurat ####
@@ -197,10 +200,10 @@ saveRDS(sce, file = paste0(opt$out, "_unfiltered_sce.rds"))
 saveRDS(seurat_sce, file = paste0(opt$out, "_unfiltered_seurat_sce.rds"))
 
 ### Filter for MT content and min reads
-#seurat_sce <- subset(seurat_sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
+# seurat_sce <- subset(seurat_sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
 seurat_sce <- subset(seurat_sce, subset = is.low_yield == FALSE & is.damaged == FALSE)
 sce <- sce[, sce$is.low_yield == FALSE & sce$is.damaged == FALSE]
-print(paste0("Keeping ",ncol(sce)," Cells from SCE object and ", ncol(seurat_sce), " Cells from Seurat object."))
+print(paste0("Keeping ", ncol(sce), " Cells from SCE object and ", ncol(seurat_sce), " Cells from Seurat object."))
 
 
 #### Run PCA and UMAP ####
@@ -228,7 +231,7 @@ seurat_sce <- sctransform_Seurat(seurat_sce)
 seurat_sce <- reduceDims_Seurat(seurat_sce)
 ### Run initial dim reduction for STC
 seurat_sce <- reduceDims_Seurat(seurat_sce, assay = "SCT", reduction.name = "pca_sct")
-### Cluster 
+### Cluster
 seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA", reduction = "pca", cluster.name = "pca_cluster")
 seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", cluster.name = "sct_cluster")
 ## Run UMAPs
@@ -270,13 +273,13 @@ saveRDS(sce, file = paste0(opt$out, "_filtered_sce.rds"))
 saveRDS(seurat_sce, file = paste0(opt$out, "_filtered_seurat_sce.rds"))
 
 ## Prepare the data for the report plots
-#tmp <- reducedDim(sce, "TSNE", withDimnames = FALSE)
-#data.tsne <- tibble(
+# tmp <- reducedDim(sce, "TSNE", withDimnames = FALSE)
+# data.tsne <- tibble(
 #  tSNE1 = tmp[, 1],
 #  tSNE2 = tmp[, 2],
 #  Sample = sce$Sample
-#) %>%
+# ) %>%
 #  write.table(x = ., file = paste0(opt$out, ".tsne"), quote = FALSE, row.names = FALSE)
 #
-#colData(sce) %>%
+# colData(sce) %>%
 #  write.table(x = ., file = paste0(opt$out, ".metadata"), quote = FALSE, row.names = FALSE)

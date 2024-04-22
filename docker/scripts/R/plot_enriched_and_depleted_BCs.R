@@ -39,6 +39,10 @@ option_list <- list(
         type = "character", default = NULL,
         help = "path to the output file"
     )
+    make_option(c("--libpath"),
+    type = "character", default = "/tools/scripts/R/",
+    help = "path to R libs, trailing slash is required"
+  )
 )
 
 opt_parser <- OptionParser(option_list = option_list)
@@ -56,7 +60,7 @@ if (!(opt$format %in% c("pdf", "png", "jpeg", "tiff"))) {
 
 
 #### Source Functions ####
-source("../R_collection/singlecell_utils.R")
+source(paste0(libpath, "singlecell_utils.R"))
 
 ########################################################
 library(tidyverse)
