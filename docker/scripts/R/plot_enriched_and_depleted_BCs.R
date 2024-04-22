@@ -38,11 +38,11 @@ option_list <- list(
     make_option(c("--out"),
         type = "character", default = NULL,
         help = "path to the output file"
-    )
+    ),
     make_option(c("--libpath"),
-    type = "character", default = "/tools/scripts/R/",
-    help = "path to R libs, trailing slash is required"
-  )
+        type = "character", default = "/tools/scripts/R/",
+        help = "path to R libs, trailing slash is required"
+    )
 )
 
 opt_parser <- OptionParser(option_list = option_list)
@@ -128,7 +128,7 @@ if (!("CaTCH.BC_ID" %in% colnames(sce@meta.data))) {
 
 
 ### Count Barcodes ###
-#TODO: add a check for the number of cells that express a barcode in the reference condition and remove barcodes that are not expressed in a minimum number of cells, also check whether we want to average those counts over all cells per condition or not
+# TODO: add a check for the number of cells that express a barcode in the reference condition and remove barcodes that are not expressed in a minimum number of cells, also check whether we want to average those counts over all cells per condition or not
 bc.counts <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet") %>%
     select(CaTCH.BCs, Sample, CaTCH.BC_ID) %>%

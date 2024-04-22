@@ -38,7 +38,7 @@ option_list <- list(
   make_option(c("--marker"),
     type = "character", default = "/tools/data/R/stagemarkers_xue2020.rds",
     help = "path to cellcycle marker file in RDS format"
-  )
+  ),
   make_option(c("--libpath"),
     type = "character", default = "/tools/scripts/R/",
     help = "path to R libs, trailing slash is required"

@@ -38,11 +38,11 @@ option_list <- list(
     make_option(c("--out"),
         type = "character", default = NULL,
         help = "path to the output file"
-    )
+    ),
     make_option(c("--libpath"),
-    type = "character", default = "/tools/scripts/R/",
-    help = "path to R libs, trailing slash is required"
-  )
+        type = "character", default = "/tools/scripts/R/",
+        help = "path to R libs, trailing slash is required"
+    )
 )
 
 opt_parser <- OptionParser(option_list = option_list)
