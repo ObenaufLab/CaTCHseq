@@ -76,6 +76,8 @@ sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation)
 
 sce <- sl$sce
 seurat_sce <- sl$seurat_sce
+
+print(paste("SCE object contains ", ncol(sce), " cells and ", nrow(sce), " genes.\n Seurat object contains ", ncol(seurat_sce), " cells and ", nrow(seurat_sce), " genes."))
 # seurat_sce <- DietSeurat(seurat_sce, layers = "counts")  # Get rid of artificial data slot
 
 rm(sl) # clean up
@@ -110,9 +112,9 @@ dev.off()
 print("Normalize sce ...")
 
 is.mitochondrial <- grepl(
-  pattern = "^MT-",
+  pattern = "^MT-|^mt-",
   x = rownames(sce),
-  ignore.case = TRUE # Needed e.g. for mouse 10x data with cellranger prebuilt index
+  ignore.case = FALSE # Needed e.g. for mouse 10x data with cellranger prebuilt index
 )
 
 sce <- sce %>%
