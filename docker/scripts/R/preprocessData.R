@@ -112,14 +112,15 @@ dev.off()
 print("Normalize sce ...")
 
 is.mitochondrial <- grepl(
-  pattern = "^MT-|^mt-",
+  pattern = "^MT-|^mt-", # Needed e.g. for mouse 10x data with cellranger prebuilt index
   x = rownames(sce),
-  ignore.case = FALSE # Needed e.g. for mouse 10x data with cellranger prebuilt index
+  ignore.case = FALSE,
+  perl = TRUE
 )
 
 sce <- sce %>%
   scater::logNormCounts() %>%
-  scater::addPerCellQC(subsets = is.mitochondrial) %>%
+  scater::addPerCellQC(subsets = list(MT = is.mitochondrial)) %>%
   scater::addPerFeatureQC()
 
 ### Normalize and scale counts Seurat ####
