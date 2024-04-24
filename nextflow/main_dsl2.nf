@@ -349,7 +349,7 @@ process runCellrangerCount{
     
     output:
         path "${sampleName}", emit: name
-        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv.gz"), emit: cell_ids_filtered
+        tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix/barcodes.tsv.gz"), emit: cell_ids_filtered
         tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix/barcodes.tsv.gz"), emit: cell_ids_raw
         tuple val(sampleName), path("${sampleName}_filtered_feature_bc_matrix"), emit: cell_data_filtered
         tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
