@@ -38,36 +38,35 @@ def chemistry_params_to_str(xtra){
 
 //Params from CL
 absDir = workflow.launchDir
-scriptDirR = get_always('scriptDirR') ?: '/tools/scripts/R/'
-scriptDirPy = get_always('scriptDirPy') ?: '/tools/scripts/python/'
-binDir = get_always('binDir') ?: '/usr/local/bin/'
+scriptDirR = get_always('scriptDirR') ?: params.scriptDirR
+scriptDirPy = get_always('scriptDirPy') ?: params.scriptDirPy
+binDir = get_always('binDir') ?: params.binDir
 libraries = get_always('libraries')
-chunkSize = get_always('chunkSize') ?: 1_000_000
-maxDist = get_always('maxDist') ?: 2
-minReads = get_always('minReads') ?: 10
-majorityVote = get_always('majorityVote') ?: 90
-qcparams = get_always('fastqc_params') ?: ''
-mapperbin = get_always('mapper') ?: "CellRanger"
-runqc = get_always('withQC') ?: null
-crparams = get_always('cellranger_params') ?: ""
-starparams = get_always('star_params') ?: "--soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
-idxparams = get_always('idx_params') ?: ""
-whitelist = get_always('whitelist') ?: null
-refName = get_always('refName') ?: "Day0"
-mapindex = get_always('index') ?: null
-mapref = get_always('reference') ?: null
-mapanno = get_always('annotation') ?: null
-filtering = get_always('filter') ?: null
-organism = get_always('organism') ?: "Human"
-max_mt_percent = get_always('max_mt_percent') ?: 10
-min_detected_features = get_always('min_detected_features') ?: 500
-hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
-pval_cutoff = get_always('pcal_cutoff') ?: 0.1
-lfc_cutoff = get_always('lfc_cutoff') ?: 1
-markerfile = get_always('markers') ?: '/tools/data/R/stagemarkers_xue2020.rds'
-reportsDir = get_always('reportsDir') ?: "${absDir}/REPORTS"
-outputDir = get_always('outputDir') ?: "${absDir}/scCaTCH_nf_OUTPUT"
-
+chunkSize = get_always('chunkSize') ?: params.chunkSize
+maxDist = get_always('maxDist') ?: params.maxDist
+minReads = get_always('minReads') ?: params.minReads
+majorityVote = get_always('majorityVote') ?: params.majorityVote
+qcparams = get_always('fastqc_params') ?: params.qcParams
+mapperbin = get_always('mapper') ?: params.mapperBin
+runqc = get_always('withQC') ?: params.runQC
+crparams = get_always('cellranger_params') ?: params.crParams
+starparams = get_always('star_params') ?: params.starMappingParams
+idxparams = get_always('idx_params') ?: params.idxParams
+whitelist = get_always('whitelist') ?: params.whitelist
+refName = get_always('refName') ?: params.refName
+mapindex = get_always('index') ?: params.mapIndex
+mapref = get_always('reference') ?: params.mapRef
+mapanno = get_always('annotation') ?: params.mapAnno
+filtering = get_always('filter') ?: params.filter
+organism = get_always('organism') ?: params.organism
+max_mt_percent = get_always('max_mt_percent') ?: params.maxMtPercent
+min_detected_features = get_always('min_detected_features') ?: params.minFetectedFeatures
+hvg_cutoff = get_always('hvg_cutoff') ?: params.hvgCutoff
+pval_cutoff = get_always('pcal_cutoff') ?: params.pvalCutoff
+lfc_cutoff = get_always('lfc_cutoff') ?: params.lfcCutoff
+markerfile = get_always('markers') ?: params.markerFile
+reportsDir = get_always('reportsDir') ?: params.reportsDir
+outputDir = get_always('outputDir') ?: params.outputDir
 stopOnWarnings = get_always('stopOnWarnings') ?: true
 
 
