@@ -3,3 +3,4 @@ sccatch.tar.gz
 *__pycache__
 .nextflow*
 work/
+testing/

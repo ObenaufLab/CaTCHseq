@@ -65,6 +65,7 @@ hvg_cutoff = get_always('hvg_cutoff') ?: params.hvgCutoff
 pval_cutoff = get_always('pcal_cutoff') ?: params.pvalCutoff
 lfc_cutoff = get_always('lfc_cutoff') ?: params.lfcCutoff
 markerfile = get_always('markers') ?: params.markerFile
+marker = get_always('marker') ?: null
 reportsDir = get_always('reportsDir') ?: params.reportsDir
 outputDir = get_always('outputDir') ?: params.outputDir
 stopOnWarnings = get_always('stopOnWarnings') ?: true
