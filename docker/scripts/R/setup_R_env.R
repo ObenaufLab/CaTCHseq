@@ -24,12 +24,10 @@ bc.packages <- sub(pattern = "^BioConductor::", replacement = "", x = bc.package
 BiocManager::install(bc.packages)
 
 # Install Seurat helpers
-re.packages <- packages[grepl(pattern = "^remotes::", x = packages)]
-re.packages <- sub(pattern = "^remotes::", replacement = "", x = re.packages)
-for (rp in re.packages) {
-    print(paste0("Running remotes::install_github(", rp, ")"))
-    remotes::install_github(rp)
-}
+rm.packages <- packages[grepl(pattern = "^remotes::", x = packages)]
+rm.packages <- sub(pattern = "^remotes::", replacement = "", x = rm.packages)
+print(paste0("Running remotes::install_github(", rm.packages, ")"))
+remotes::install_github(rm.packages)
 
 # Install Seurat
 install.packages("Seurat")

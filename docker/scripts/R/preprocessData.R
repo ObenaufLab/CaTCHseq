@@ -2,262 +2,229 @@
 
 library(optparse)
 
-option_list = list(
-  make_option(c("--sample"), type="character", default = NULL, 
-              help = "sample name"),
-  make_option(c("--data10X"), type="character", default = NULL, 
-              help = "path to the 10X data"),
-  make_option(c("--catchBC"), type="character", default = NULL, 
-              help = "path to the file with CaTCH barcodes"),
-  make_option(c("--reference"), type="character", default = NULL, 
-              help = "name of the treatment to use as the reference"),
-  make_option(c("--gtf"), type="character", default = NULL, 
-              help = "path to the annotation GTF file"),        
-  make_option(c("--max_mt"), type = "numeric", default = 10, 
-              help = "maximum percent of mitochondrial reads in a valid cell"),
-  make_option(c("--min_features"), type = "numeric", default = 500, 
-              help = "minimum number of detected features in a valid cell"),
-  make_option(c("--hvg_cutoff"), type = "numeric", default = 0.1, 
-              help = "cutoff value to call high variable genes (must be between 0 and 1)"),
-  make_option(c("--out"), type="character", default = NULL, 
-              help = "path to the output file")
+option_list <- list(
+  make_option(c("--sample"),
+    type = "character", default = NULL,
+    help = "sample name"
+  ),
+  make_option(c("--data10X"),
+    type = "character", default = NULL,
+    help = "path to the 10X data"
+  ),
+  make_option(c("--catchBC"),
+    type = "character", default = NULL,
+    help = "path to the file with CaTCH barcodes"
+  ),
+  make_option(c("--annotation"),
+    type = "character", default = NULL,
+    help = "path to the matching annotation file in GTF format"
+  ),
+  make_option(c("--max_mt"),
+    type = "numeric", default = 10,
+    help = "maximum percent of mitochondrial reads in a valid cell"
+  ),
+  make_option(c("--min_features"),
+    type = "numeric", default = 500,
+    help = "minimum number of detected features in a valid cell"
+  ),
+  make_option(c("--hvg_cutoff"),
+    type = "numeric", default = 0.1,
+    help = "cutoff value to call percentage of high variable genes (must be between 0 and 1)"
+  ),
+  make_option(c("--out"),
+    type = "character", default = NULL,
+    help = "path to the output file"
+  ),
+  make_option(c("--marker"),
+    type = "character", default = "/tools/data/R/stagemarkers_xue2020.rds",
+    help = "path to cellcycle marker file in RDS format"
+  ),
+  make_option(c("--libpath"),
+    type = "character", default = "/tools/scripts/R/",
+    help = "path to R libs, trailing slash is required"
+  )
 )
 
-opt_parser = OptionParser(option_list = option_list)
-opt = parse_args(opt_parser)
+opt_parser <- OptionParser(option_list = option_list)
+opt <- parse_args(opt_parser)
 
+print(paste0("CLI: ", opt))
 
-#opt <- list()
-#opt$sample <- "/data/gcbds/users/nowoshil/Projects/CaTCH2.0/KRASi_ON_vs_OFF/Exp1220/CaTCH/12d/manual/samples"
-#opt$csv <- "/data/gcbds/users/nowoshil/Projects/CaTCH2.0/KRASi_ON_vs_OFF/Exp1220/CaTCH/12d/libraries.tsv"
-#opt$reference <- "Day0"
-#opt$max_mt <- 10
-#opt$min_features <- 500
-#opt$hvg_cutoff <- 0.1
-#opt$out <- "~/tmp/sce_CaTCH_Exp1220.rda"
-
-
-
-if (is.null(opt$samples) || is.null(opt$out)){
+if (is.null(opt$sample) || is.null(opt$out) || is.null(opt$annotation)) {
   print_help(opt_parser)
   stop("Not enough parameters")
 }
 
+#### Source Functions ####
+source(paste0(opt$libpath, "singlecell_utils.R"))
 
-#### Additional methods ####
-activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
-  # check if logcounts is present
-  stopifnot("logcounts" %in% names(assays(sce)))
-  
-  # determine shared features between sce and signature
-  shared_features <- intersect(signature, rownames(sce))
-  stopifnot(length(shared_features) > 0)
-  
-  # calculate scaled log-means of signature
-  return (sce[shared_features, ] %>%
-          assay("logcounts") %>%
-          Matrix::colMeans() %>%
-          # use scale by default, but allow other functions and additional arguments
-          fn.scale(...) %>%
-          as.numeric())
-}
-
-
-assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scale = scale, ..., center = TRUE) {
-  
-  if (is.null(sce)) {
-    stop("'sce' must be specified and cannot be NULL")
-  }
-  if (is.null(markers)) {
-    stop("'markers' must be specified and cannot be NULL. You can use the provided dataset 'stagemarkers_xue2020'")
-  }
-  if (is.null(col.name)) {
-    stop("'col.name' must be specified and cannot be NULL")
-  }
-  
-  categories <- map_df(markers, activity_by_logmeans, sce = sce, fn.scale = fn.scale, ...)
-  
-  # categories should be a matrix with N rows and M columns, whereas N is the
-  # number of cells in the SingleCellExperiment object `sce` and M is the
-  # number of names of the markers list.
-  # If this is not the case after scaling, transpose it.
-  dims <- dim(categories)
-  if (dims[1] != dim(sce)[2]) {
-    categories <- categories %>%
-                  t()
-  }
-  
-  # If the results should be centered around 0, use `scale` to do that on a
-  # per-cell basis and transpose the result.
-  if (center) {
-    categories <- categories %>%
-                  apply(1, scale) %>%
-                  t()
-  }
-  colnames(categories) <- names(markers)
-  colData(sce)[col.name] <- colnames(categories)[apply(categories, 1, which.max)]
-  return (sce)
-}
 ############################
-
-
 
 library(tidyverse)
 library(scater)
 library(scran)
 library(SingleCellExperiment)
+library(Seurat)
+# options(future.globals.maxSize = 1e9)
+options(Seurat.object.assay.version = "v5")
+library(SeuratWrappers)
+library(sctransform)
+library(R.filesets)
 
-load("/tools/data/R/stagemarkers_xue2020.rda")
+### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
+sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation)
 
-print(paste("Processing the sample ", opt$sample, sep = ""))
-print("   Loading 10X data ...")
-sceData <- Seurat::Read10X(data.dir = opt$data10X,
-                           gene.column = 2,
-                           cell.column = 1,
-                           strip.suffix = TRUE,
-                           unique.features = TRUE)
-sce <- SingleCellExperiment(assays = list(counts = sceData))
+sce <- sl$sce
+seurat_sce <- sl$seurat_sce
 
-# Add both gene symbol and gene ID to rowData
-rowData(sce)[c("GeneID", "Symbol")] <- read_tsv(file = paste(data10X, "features.tsv.gz", sep = "/"),
-                                                col_names = c("GeneID", "Symbol"),
-                                                col_types = "cc-")
+print(paste("SCE object contains ", ncol(sce), " cells and ", nrow(sce), " genes.\n Seurat object contains ", ncol(seurat_sce), " cells and ", nrow(seurat_sce), " genes."))
+# seurat_sce <- DietSeurat(seurat_sce, layers = "counts")  # Get rid of artificial data slot
 
-# Add the biotype and the locus data
-gtf <- read_tsv(opt$gtf,
-                comment = "#",
-                col_names = c("chr", "type", "start", "end", "strand", "attr"),
-                col_types = "c-cdd-c-c") %>%
-       filter(type == "gene") %>%
-       mutate(gene_id = str_extract(attr, 'gene_id "[^"]+"'),
-              biotype = str_extract(attr, 'gene_biotype "[^"]+"')) %>%
-       select(-attr, -type) %>%
-       mutate(gene_id = str_extract(gene_id, '"[^"]+"'),
-              gene_id = str_remove_all(gene_id, "\""),
-              biotype = str_extract(biotype, '"[^"]+"'),
-              biotype = str_remove_all(biotype, "\""),
-              locus = sprintf("%s%s:%d-%d", strand, chr, start, end))
+rm(sl) # clean up
 
-rowData(sce)[c("Biotype", "Locus")] <- rowData(sce) %>%
-                                       as_tibble() %>%
-                                       left_join(y = gtf, by = c("GeneID" = "gene_id")) %>%
-                                       select(biotype, locus)
+#### Annotate Samples, Conditions and Replicates ####
+sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) unlist(str_split(x, "_"))[2])))
+sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split(x, "_"))[2], unlist(str_split(x, "_"))[3], sep = "_"))))
+sce$Sample <- as.factor(unlist(lapply(sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
 
+seurat_sce$Sample.orig <- as.factor(seurat_sce$Sample)
+seurat_sce$Condition <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[2])))
+seurat_sce$Replicate <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) paste(unlist(str_split(x, "_"))[2], unlist(str_split(x, "_"))[3], sep = "_"))))
+seurat_sce$Sample <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
 
-sce$Sample <- opt$sample
-sce$CellID <- colnames(sce)
-print(paste("   Loaded expression data for ", ncol(sce), " cells", sep = ""))
+ref.Condition <- opt$baseCond
 
-print("   Loading CaTCH barcodes ...")
-data.catch <- read_tsv(file = opt$catchBC, 
-                       col_names = c("CellID", "CaTCH.BCs", "CaTCH.BC.counts"),
-                       col_types = "ccc",
-                       skip = 1)
+#### calculate percentage of MT reads SEURAT ####
+seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^MT-|^mt-", col.name = "percent.mt")
+pdf(file = paste0(opt$out, "_QC_Violin_MT_content.pdf"), width = 30, height = 10)
+VlnPlot(seurat_sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
+dev.off()
+#
+pdf(file = paste0(opt$out, "_QC_Scatter_MT_content.pdf"), width = 30, height = 10)
+FeatureScatter(seurat_sce, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "Sample")
+dev.off()
+#
+pdf(file = paste0(opt$out, "_QC_Scatter_Feature_content.pdf"), width = 30, height = 10)
+FeatureScatter(seurat_sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "Sample")
+dev.off()
 
-colData(sce)[,c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
-                                                    as_tibble() %>%
-                                                    left_join(y = data.catch, by = "CellID") %>%
-                                                    select(CaTCH.BCs, CaTCH.BC.counts)
+#### normalize counts and calculate percentage of MT reads SCE ####
+print("Normalize sce ...")
 
+is.mitochondrial <- grepl(
+  pattern = "^MT-|^mt-", # Needed e.g. for mouse 10x data with cellranger prebuilt index
+  x = rownames(sce),
+  ignore.case = FALSE,
+  perl = TRUE
+)
 
-#### Count the CaTCH barcode reads and find the abundance of the two most abundant CaTCH barcodes ####
-bc.data <- lapply(X = sce$CaTCH.BC.counts, FUN = function(x){
-                    v <- str_split(string = x, pattern = ";", simplify = TRUE) %>% 
-                      as.numeric()
-                    return (c(sum(v), v[1], v[2]))
-                  }) %>% 
-           unlist() %>% 
-           matrix(data = ., ncol = 3, byrow = TRUE)
-colnames(bc.data) <- c("CaTCH.Sum", "CaTCH.BC1", "CaTCH.BC2")
-colData(sce) <- cbind(colData(sce), bc.data)
-colData(sce)["CaTCH.Status"] <- colData(sce) %>%
-                                as_tibble() %>%
-                                mutate(CaTCH.Status = if_else(is.na(CaTCH.Sum), 
-                                                              "No barcode", 
-                                                              if_else(is.na(CaTCH.BC2), 
-                                                                      "Singlet",
-                                                                      if_else(CaTCH.BC1 / CaTCH.Sum >= 0.8, 
-                                                                            "Putative singlet", 
-                                                                            "Multiplet"))),
-                                       CaTCH.Status = factor(CaTCH.Status, levels = c("Singlet", 
-                                                                                      "Putative singlet", 
-                                                                                      "Multiplet",
-                                                                                      "No barcode"))) %>%
-                                select(CaTCH.Status)
-
-#### Normalize the data and assign cell categories ####
-is.mitochondrial <- grepl(pattern = "^MT-",
-                          x = rownames(sce),
-                          ignore.case = FALSE)
-cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
-
-print("Normalize the counts ...")
 sce <- sce %>%
-       scater::logNormCounts() %>%
-       scater::addPerCellQC(subsets = list(MT = is.mitochondrial)) %>%
-       scater::addPerFeatureQC() %>%
-       assignCategoryByMarker(markers = stagemarkers_xue2020, col.name = "CellStage")
+  scater::logNormCounts() %>%
+  scater::addPerCellQC(subsets = list(MT = is.mitochondrial)) %>%
+  scater::addPerFeatureQC()
 
-print("Categorize the cells ...")
+### Normalize and scale counts Seurat ####
+print("Normalize Seurat ...")
+
+seurat_sce <- normalize_Seurat(seurat_sce)
+
+#### annotate low yield and damaged cells ####
+print("Annotate sce ...")
 rowData(sce)["is.mitochondrial"] <- is.mitochondrial
 colData(sce)["is.damaged"] <- colData(sce)[, "subsets_MT_percent"] > opt$max_mt
 colData(sce)["is.low_yield"] <- colData(sce)[, "detected"] < opt$min_features
+
+print("Annotate seurat ...")
+seurat_sce[["is.damaged"]] <- seurat_sce@meta.data %>%
+  pull(percent.mt) %>%
+  {
+    case_when(. > opt$max_mt ~ TRUE, .default = FALSE)
+  }
+seurat_sce[["is.low_yield"]] <- seurat_sce@meta.data %>%
+  pull(nFeature_RNA) %>%
+  {
+    case_when(. < opt$min_features ~ TRUE, .default = FALSE)
+  }
+
+#### Categorize the cells ####
+cell.categories <- c("Good", "Damaged", "Few features", "Damaged AND few features")
+
+print("Categorize sce ...")
 colData(sce)["Category"] <- colData(sce) %>%
-                            tibble::as_tibble() %>%
-                            dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
-                            dplyr::select("tmp") %>%
-                            purrr::map(.f = ~ cell.categories[.x + 1]) %>%
-                            tibble::as_tibble() %>%
-                            dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
-                            dplyr::select(Class)
+  tibble::as_tibble() %>%
+  dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
+  dplyr::select("tmp") %>%
+  purrr::map(.f = ~ cell.categories[.x + 1]) %>%
+  tibble::as_tibble() %>%
+  dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
+  dplyr::select(Class)
+
+print("Categorize seurat ...")
+
+seurat_sce@meta.data$Category <- seurat_sce@meta.data %>%
+  dplyr::mutate(tmp = as.integer(is.damaged) * 1 + as.integer(is.low_yield) * 2) %>%
+  dplyr::select("tmp") %>%
+  purrr::map(.f = ~ cell.categories[.x + 1]) %>%
+  tibble::as_tibble() %>%
+  dplyr::mutate(Class = factor(tmp, levels = cell.categories)) %>%
+  dplyr::pull(Class)
+
+### Assign cell stage and categories
+print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
+markerfile <- loadRDS(opt$marker)
+
+#### Attempting to assign cell phase via Seurat ####
+print("Phasing seurat ...")
+
+s.genes <- markerfile$S
+g2m.genes <- markerfile$G2M
+
+seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "data", new = "data")
+seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "counts", new = "counts")
+
+tryCatch(
+  {
+    seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
+  },
+  error = function(e) {
+    print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF SEURAT CELL PHASE AND SET TO DEFAULT G0"))
+    seurat_sce@meta.data$Phase <- "G0"
+    seurat_sce@meta.data$S.Score <- 0
+    seurat_sce@meta.data$G2M.Score <- 0
+  }
+)
+
+#### Attempting to assign cell stage to SCEs ####
+print("Cellstage sce ...")
+sce <- sce %>% assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
+print("Cellstage seurat ...")
+seurat_sce <- seurat_sce %>% assignCategoryByMarker(markers = markerfile, col.name = "CellStage")
+
+### Split SCE again
+seurat_sce <- split_Seurat(seurat_sce, by = seurat_sce$Sample.orig)
+
+#### Save unfiltered sce and seurat_sce objects ####
+print("Save unfiltered ...")
+saveRDS(sce, file = paste0(opt$out, "_unfiltered_sce.rds"))
+saveRDS(seurat_sce, file = paste0(opt$out, "_unfiltered_seurat_sce.rds"))
+
+### Filter for MT content and min reads
+print("Filter seurat ...")
+# seurat_sce <- subset(seurat_sce, subset = nFeature_RNA > opt$min_features & percent.mt < opt$max_mt)
+seurat_sce <- subset(seurat_sce, subset = is.low_yield == FALSE & is.damaged == FALSE)
+print("Filter sce ...")
+sce <- sce[, sce$is.low_yield == FALSE & sce$is.damaged == FALSE]
+print(paste0("Keeping ", ncol(sce), " Cells from SCE object and ", ncol(seurat_sce), " Cells from Seurat object."))
 
 
-
-
-#### Annotate the treatments and replicates ####
-annot = read_tsv(file = opt$csv,
-              col_names = c("Sample", "Treatment", "Replicate", "Type"),
-              col_types = "cccc---",
-              skip = 1) %>%
-        filter(Type == "GEX") %>%
-        select(-Type) %>%
-        distinct()
-# Sanity check: the number of samples in the variable `annot` must be the same as
-# the number of distinct samples in the SingleCellExperiment object
-if (nrow(annot) != length(unique(sce$Sample))) {
-  warn("The number of samples in the CSV file does not match the number of distinct samples in SingleCellExperiment object")
-}
-colData(sce)[, c("Treatment", "Replicate")] <- colData(sce) %>%
-                                               as_tibble() %>%
-                                               left_join(y = annot, by = "Sample") %>%
-                                               select(Treatment, Replicate) %>%
-                                               mutate(Treatment = factor(Treatment, levels = c(opt$reference, setdiff(unique(Treatment), opt$reference))))
-
-tmp <- colData(sce) %>% 
-       as_tibble() %>% 
-       select(Sample, Treatment) %>% 
-       distinct() %>% 
-       arrange(Treatment) %>% 
-       select(Sample) %>% 
-       pull()
-sce$Sample <- factor(sce$Sample, levels = tmp)
-
-
-
-sce.unfiltered <- sce
-mask <- sce$Category == "Good"
-sce <- sce[, mask]
-
-
-
-#### Run PCA, tSNE and UMAP ####
+#### Run PCA and UMAP ####
 print("Identify the top variable genes...")
 gene.var <- modelGeneVar(sce)
 hvg <- getTopHVGs(stats = gene.var, prop = opt$hvg_cutoff)
 
 print("Run the PCA ...")
 sce <- runPCA(sce, subset_row = hvg)
-set.seed(101)
+set.seed(42)
 
 print("Run tSNE and UMAP analyses ...")
 sce <- runTSNE(sce, dimred = "PCA")
@@ -269,40 +236,72 @@ cluster <- igraph::cluster_walktrap(g)$membership
 colData(sce)["Cluster"] <- factor(cluster)
 
 
+### SCtransform counts
+print("SCtransform Seurat ...")
+seurat_sce <- sctransform_Seurat(seurat_sce)
+### Run initial dim reduction for norm
+print("PCA Seurat ...")
+seurat_sce <- reduceDims_Seurat(seurat_sce)
+### Run initial dim reduction for STC
+seurat_sce <- reduceDims_Seurat(seurat_sce, assay = "SCT", reduction.name = "pca_sct")
+### Cluster
+print("Clustering Seurat ...")
+seurat_sce <- cluster_Seurat(seurat_sce, assay = "RNA", reduction = "pca", cluster.name = "pca_cluster")
+seurat_sce <- cluster_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", cluster.name = "sct_cluster")
+## Run UMAPs
+print("UMAP Seurat ...")
+seurat_sce <- umap_Seurat(seurat_sce, assay = "RNA", reduction = "pca", dims = 1:30, reduction.name = "umap_pca", n.neighbors = 30L, min.dist = 0.1, spread = 5)
+seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", dims = 1:30, reduction.name = "umap_pca_sct", n.neighbors = 30L, min.dist = 0.1, spread = 5)
+
 #### Assign CaTCH barcode indices based on their abundance in the reference samples ####
-tmp <- colData(sce) %>% 
-       as_tibble() %>%
-       filter(CaTCH.Status == "Singlet", Treatment == opt$reference) %>%
-       select(CaTCH.BCs, Sample) %>%
-       group_by(CaTCH.BCs, Sample) %>%
-       mutate(n = n()) %>%
-       ungroup() %>%
-       distinct() %>%
-       pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
-       filter(rowSums(across(starts_with(opt$reference))) > 0) %>% 
-       mutate(.Means = rowMeans(across(starts_with(opt$reference)))) %>%
-       arrange(by = desc(.Means)) %>%
-       rowid_to_column(".ID") %>%
-       mutate(BC_ID = paste0("BC_", .ID)) %>%
-       select(-.Means, -.ID) %>%
-       relocate(BC_ID, .after = CaTCH.BCs) %>%
-       select(CaTCH.BCs, BC_ID)
+print("Assign CaTCH barcodes ...")
 
-colData(sce)["BC_ID"] <-  colData(sce) %>%
-                          as_tibble() %>%
-                          left_join(y = tmp, by = "CaTCH.BCs") %>%
-                          mutate(BC_ID = factor(BC_ID, levels = str_sort(unique(BC_ID), numeric = TRUE))) %>%
-                          select(BC_ID)
+tmp <- colData(sce) %>%
+  as_tibble() %>%
+  select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
+  filter(CaTCH.Status == "Singlet", Condition == opt$baseCond) %>%
+  select(CaTCH.BCs, Sample) %>%
+  group_by(CaTCH.BCs, Sample) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
+  filter(rowSums(across(starts_with(opt$baseCond))) > 0) %>%
+  mutate(.Means = rowMeans(across(starts_with(opt$baseCond)))) %>%
+  arrange(by = desc(.Means)) %>%
+  rowid_to_column(".ID") %>%
+  mutate(CaTCH.BC_ID = ifelse(is.na(.ID), "BC_0", paste0("BC_", .ID))) %>%
+  select(-.Means, -.ID) %>%
+  relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
+  select(CaTCH.BCs, CaTCH.BC_ID)
 
-save(sce.unfiltered, sce, file = opt$out)
+colData(sce)["CaTCH.BC_ID"] <- colData(sce) %>%
+  as_tibble() %>%
+  left_join(y = tmp, by = "CaTCH.BCs") %>%
+  mutate(CaTCH.BC_ID = ifelse(is.na(CaTCH.BC_ID), "BC_0", CaTCH.BC_ID)) %>%
+  mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
+  pull(CaTCH.BC_ID)
 
-# Prepare the data for the report plots
-tmp <- reducedDim(sce, "TSNE", withDimnames = FALSE)
-data.tsne <- tibble(tSNE1 = tmp[, 1], 
-                    tSNE2 = tmp[, 2], 
-                    Sample = sce$Sample) %>%
-             write.table(x = ., file = paste0(opt$out, ".tsne"), quote = FALSE, row.names = FALSE)
+seurat_sce@meta.data$CaTCH.BC_ID <- seurat_sce@meta.data %>%
+  left_join(y = tmp, by = "CaTCH.BCs") %>%
+  mutate(CaTCH.BC_ID = ifelse(is.na(CaTCH.BC_ID), "BC_0", CaTCH.BC_ID)) %>%
+  mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
+  pull(CaTCH.BC_ID)
 
-colData(sce) %>%
-  write.table(x = ., file = paste0(opt$out, ".metadata"), quote = FALSE, row.names = FALSE)
+#### Save final objects ####
+print("Final Save ...")
 
+saveRDS(sce, file = paste0(opt$out, "_filtered_sce.rds"))
+saveRDS(seurat_sce, file = paste0(opt$out, "_filtered_seurat_sce.rds"))
+
+## Prepare the data for the report plots
+# tmp <- reducedDim(sce, "TSNE", withDimnames = FALSE)
+# data.tsne <- tibble(
+#  tSNE1 = tmp[, 1],
+#  tSNE2 = tmp[, 2],
+#  Sample = sce$Sample
+# ) %>%
+#  write.table(x = ., file = paste0(opt$out, ".tsne"), quote = FALSE, row.names = FALSE)
+#
+# colData(sce) %>%
+#  write.table(x = ., file = paste0(opt$out, ".metadata"), quote = FALSE, row.names = FALSE)

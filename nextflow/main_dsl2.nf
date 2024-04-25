@@ -38,37 +38,35 @@ def chemistry_params_to_str(xtra){
 
 //Params from CL
 absDir = workflow.launchDir
-scriptDirR = get_always('scriptDirR') ?: '/tools/scripts/R/'
-scriptDirPy = get_always('scriptDirPy') ?: '/tools/scripts/python/'
-binDir = get_always('binDir') ?: '/usr/local/bin/'
+scriptDirR = get_always('scriptDirR') ?: params.scriptDirR
+scriptDirPy = get_always('scriptDirPy') ?: params.scriptDirPy
+binDir = get_always('binDir') ?: params.binDir
 libraries = get_always('libraries')
-chunkSize = get_always('chunkSize') ?: 1_000_000
-maxDist = get_always('maxDist') ?: 2
-minReads = get_always('minReads') ?: 10
-majorityVote = get_always('majorityVote') ?: 90
-qcparams = get_always('fastqc_params') ?: ''
-mapperbin = get_always('mapper') ?: "CellRanger"
-runqc = get_always('withQC') ?: null
-crparams = get_always('cellranger_params') ?: ""
-starparams = get_always('star_params') ?: "--soloFeatures Gene GeneFull SJ Velocyto --soloMultiMappers EM --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM --outSAMtype BAM SortedByCoordinate --outSAMprimaryFlag AllBestScore"
-idxparams = get_always('idx_params') ?: ""
-whitelist = get_always('whitelist') ?: null
-refName = get_always('refName') ?: "Day0"
-mapindex = get_always('index') ?: null
-mapref = get_always('reference') ?: null
-mapanno = get_always('annotation') ?: null
-filtering = get_always('filter') ?: null
-organism = get_always('organism') ?: "Human"
-max_mt_percent = get_always('max_mt_percent') ?: 10
-min_detected_features = get_always('min_detected_features') ?: 500
-hvg_cutoff = get_always('hvg_cutoff') ?: 0.1
-pval_cutoff = get_always('pcal_cutoff') ?: 0.1
-lfc_cutoff = get_always('lfc_cutoff') ?: 1
-markerfile = get_always('markers') ?: '/tools/data/R/stagemarkers_xue2020.rds'
-marker = get_always('marker') ?: null
-reportsDir = get_always('reportsDir') ?: "${absDir}/REPORTS"
-outputDir = get_always('outputDir') ?: "${absDir}/scCaTCH_nf_OUTPUT"
-
+chunkSize = get_always('chunkSize') ?: params.chunkSize
+maxDist = get_always('maxDist') ?: params.maxDist
+minReads = get_always('minReads') ?: params.minReads
+majorityVote = get_always('majorityVote') ?: params.majorityVote
+qcparams = get_always('fastqc_params') ?: params.qcParams
+mapperbin = get_always('mapper') ?: params.mapperBin
+runqc = get_always('withQC') ?: params.runQC
+crparams = get_always('cellranger_params') ?: params.crParams
+starparams = get_always('star_params') ?: params.starMappingParams
+idxparams = get_always('idx_params') ?: params.idxParams
+whitelist = get_always('whitelist') ?: params.whitelist
+refName = get_always('refName') ?: params.refName
+mapindex = get_always('index') ?: params.mapIndex
+mapref = get_always('reference') ?: params.mapRef
+mapanno = get_always('annotation') ?: params.mapAnno
+filtering = get_always('filter') ?: params.filter
+organism = get_always('organism') ?: params.organism
+max_mt_percent = get_always('max_mt_percent') ?: params.maxMtPercent
+min_detected_features = get_always('min_detected_features') ?: params.minDetectedFeatures
+hvg_cutoff = get_always('hvg_cutoff') ?: params.hvgCutoff
+pval_cutoff = get_always('pcal_cutoff') ?: params.pvalCutoff
+lfc_cutoff = get_always('lfc_cutoff') ?: params.lfcCutoff
+markerfile = get_always('markers') ?: params.markerFile
+reportsDir = get_always('reportsDir') ?: params.reportsDir
+outputDir = get_always('outputDir') ?: params.outputDir
 stopOnWarnings = get_always('stopOnWarnings') ?: true
 
 
@@ -92,21 +90,20 @@ def helpMessage() {
                                     SampleName      name of the sample (can appear in multiple lines, in case
                                                     the library was sequenced in several runs)
                                     Condition       condition for this sample (e.g. timepoint, KO, treatment)
-                                    Replicate       replicate (even if a single replicate is present, this column
-                                                    cannot be missing or be empty)
+                                    Replicate       replicate (even if a single replicate is present, this column cannot be missing or be empty)
                                     LibraryType     either GEX or scCaTCH
                                     R1              path to the R1 read
                                     R2              path to the R2 read (if available)
-                                    CellNumber      number of expected cells (or NA if not available)
-                                    Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq), this does not set adequate parameters for mappers automatically, make sure you provide them accordingly
+                                    CellNumber      number of expected cells (NA if not available, number for soft constraint, number! for hard constraint)
+                                    Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq), this may not set adequate parameters for mappers automatically, make sure you check them accordingly
 
       Optional arguments:
         --chunkSize             number of reads per chunk (default: ${chunkSize})
         --index                 Path to mapper index directory (default: ${mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
         --mapper                Which mapper to run (default: CellRanger, optional: STAR)
         --withQC                Boolean, run FastQC and MultiQC (default: ${runqc})
-        --reference             Path to reference fasta.gz for mapper
-        --annotation            Path to annotation gtf.gz for mapper
+        --reference             Path to reference fasta.gz
+        --annotation            Path to annotation gtf.gz 
         --whitelist             Path to barcode whitelist
         --fastqc_params         Optional parameters for FASTQC
         --star_params           Optional parameters for STAR mapping
@@ -194,6 +191,27 @@ if (filtering){
 // For more information about syntax, please refer to the nextflow documentation at https://www.nextflow.io/docs/latest/index.html
 stopOnWarn = (stopOnWarnings) ? "yes" : "no"
 
+/************************************************************************
+                SANITY CHECK SAMPLESHEET
+************************************************************************/
+
+process check_samplesheet {
+    tag "$samplesheet"
+
+    input:
+    path samplesheet
+
+    output:
+    path 'Valid_*.csv', emit: csv
+    path 'sanity_check', emit: check
+
+    script: 
+    """
+    ${scriptDirPy}checkSampleSheet.py \
+        ${samplesheet} \
+    && mv ${samplesheet} Valid_${samplesheet}
+    """
+}
 
 /************************************************************************
                 STEP 0: Run read QC
@@ -330,8 +348,8 @@ process runCellrangerCount{
     
     output:
         path "${sampleName}", emit: name
-        tuple val(sampleName), path("${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv"), emit: cell_ids_filtered
-        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix/barcodes.tsv"), emit: cell_ids_raw
+        tuple val(sampleName), path("${sampleName}/filtered_feature_bc_matrix/barcodes.tsv.gz"), emit: cell_ids_filtered
+        tuple val(sampleName), path("${sampleName}/raw_feature_bc_matrix/barcodes.tsv.gz"), emit: cell_ids_raw
         tuple val(sampleName), path("${sampleName}_filtered_feature_bc_matrix"), emit: cell_data_filtered
         tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
     
@@ -387,7 +405,7 @@ process runCellrangerCount{
     mv rundir/outs ${sampleName}
     ln -fs ${sampleName}/filtered_feature_bc_matrix ${sampleName}_filtered_feature_bc_matrix
     ln -fs ${sampleName}/raw_feature_bc_matrix ${sampleName}_raw_feature_bc_matrix
-    zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv 
+    cat ${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv.gz |gzip > ${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv.gz
     """
 }
 
@@ -504,8 +522,8 @@ process star_mapping{
     tuple val(sampleName), path("${sampleName}"), emit: out
     tuple val(sampleName), path("${sampleName}_filtered_feature_bc_matrix"), emit: cell_data_filtered
     tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
-    tuple val(sampleName), path("${sampleName}/Gene/filtered/barcodes.tsv"), emit: cell_ids_filtered
-    tuple val(sampleName), path("${sampleName}/Gene/raw/barcodes.tsv"), emit: cell_ids_raw
+    tuple val(sampleName), path("${sampleName}/Gene/filtered/barcodes.tsv.gz"), emit: cell_ids_filtered
+    tuple val(sampleName), path("${sampleName}/Gene/raw/barcodes.tsv.gz"), emit: cell_ids_raw
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*.bam"), emit: bam
     tuple val(sampleName), path("*.bai"), emit: bai
@@ -580,11 +598,14 @@ process star_mapping{
     gb = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.bam")
 
     """
-    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${sampleName}.Unmapped.out.mate1 ${sampleName}.Unmapped.out.mate2 && cat ${sampleName}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R1_unmapped.fastq.gz && cat ${sampleName}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R2_unmapped.fastq.gz && mv *Log.out ${sampleName}_mapping.log && \
-    mv ${of} ${gb} && \
-    samtools index ${gb} && \
-    mv ${sampleName}.Solo.out ${sampleName} && \
-    ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix && \
+    STAR ${starparams} --runThreadN ${task.cpus} --genomeDir ${idxdir} --readFilesCommand zcat --readFilesIn ${read1} ${read2} --outFileNamePrefix ${sampleName}. --outReadsUnmapped Fastx &&samtools view -h ${of} | gzip > ${gf} && touch ${sampleName}.Unmapped.out.mate1 ${sampleName}.Unmapped.out.mate2 && cat ${sampleName}.Unmapped.out.mate1 | paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R1_unmapped.fastq.gz && cat ${sampleName}.Unmapped.out.mate2| paste - - - - |tr \"\\t\" \"\\n\"| gzip > ${sampleName}_R2_unmapped.fastq.gz && mv *Log.out ${sampleName}_mapping.log
+
+    mv ${of} ${gb}
+    samtools index ${gb}
+    mv ${sampleName}.Solo.out ${sampleName}
+    gzip ${sampleName}/Gene/filtered/*
+    gzip ${sampleName}/Gene/raw/*
+    ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix
     ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix
     """
 
@@ -826,7 +847,7 @@ process generateAnalyticsPlots{
 
 
 /************************************************************************
-                    STEP 8: Generate SingleCellExperiment object
+                    STEP 8: Generate SingleCellExperiment/Seurat objects
 ************************************************************************/
 
 process preprocessSingleCellData{
@@ -852,10 +873,14 @@ process preprocessSingleCellData{
     input:
         path(featureMatrix)
         path(catchBarcodes)
+        path(gtf)
         //path(script)
 
     output:
-        path("scCaTCH*.rds.gz"), emit: basic_sce
+        path("scCaTCH*_filtered_seurat_sce.rds.gz"), emit: basic_seurat_sce
+        path("scCaTCH*_filtered_sce.rds.gz"), emit: basic_sce
+        path("scCaTCH*_raw_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
+        path("scCaTCH*_raw_sce.rds.gz"), emit: basic_raw_sce
         //path("*.sce.prefiltered.tsne.gz"), emit: basic_sce_tsne
         //path("*.sce.prefiltered.metadata.gz"), emit: basic_sce_metadata
         path("*.pdf"), emit: basic_sce_qc, optional: true
@@ -886,15 +911,17 @@ process preprocessSingleCellData{
     FEATURES=\${FEATURES:0:-1}
     BCS=\${BCS:0:-1}
 
-    Rscript --vanilla ${scriptDirR}preprocessData_dsl2.R \
+    Rscript --vanilla ${scriptDirR}preprocessData.R \
        --sample \$SAMPLES \
        --data10X \$FEATURES \
        --catchBC \$BCS \
+       --annotation ${gtf} \
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
        --out ${outname} \
-       --marker ${markerfile}
+       --marker ${markerfile} \
+       --libpath ${scriptDirR}
     """
 }
 
@@ -934,7 +961,8 @@ process createOverviewPlots{
         --out ${outname}_overview \
         --format pdf \
         --width 25 \
-        --height 10
+        --height 10 \
+        --libpath ${scriptDirR}
     """
 }
 
@@ -975,7 +1003,8 @@ process calculateBarcodeEnrichment{
         --height 300 \
         --pcut ${pval_cutoff}\
         --fcut ${lfc_cutoff} \
-        --out ${outname}
+        --out ${outname} \
+        --libpath ${scriptDirR}
     """
 }
 
@@ -1016,7 +1045,8 @@ process identifyDEGenes{
         --organism ${organism}\
         --pcut ${pval_cutoff}\
         --fcut ${lfc_cutoff} \
-        --out ${outname}
+        --out ${outname} \
+        --libpath ${scriptDirR}
     """
 }
 
@@ -1029,10 +1059,30 @@ workflow{
     main:
 
         /**********************************************************
+                Validate SampleSheet
+        ***********************************************************/
+
+        if (file(libraries).exists()){
+            if (file(libraries).isFile()){
+                if (libraries.endsWith(".csv")){
+                    if (file(libraries).size() == 0){
+                        log.error("SampleSheet is empty!")
+                    }
+                }else{
+                    log.error("SampleSheet is without .csv ending!")
+                }
+            }else{
+                log.error("SampleSheet is not a file!")
+            }
+        }
+
+        check_samplesheet(Channel.fromPath(libraries))
+
+        /**********************************************************
                 STEP 0: Prepare Input and Indices and run QC
         ***********************************************************/
         
-        Ch_csv = Channel.fromPath(libraries).splitCsv(sep: "\t", header: true)
+        Ch_csv = check_samplesheet.out.csv.splitCsv(sep: ",", header: true)
         //Ch_csv.subscribe {  println "CSV: $it"  }
 
         Ch_csv_GEX_split = Ch_csv.filter { it.LibraryType == "GEX" }.branch{
@@ -1081,7 +1131,8 @@ workflow{
         if (mapperbin == 'CellRanger'){
             Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0).combine( Ch_mapping_idx )
             
-            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }
+            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }.groupTuple(by: 0)
+            
         }else if (mapperbin == 'STAR'){
            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0).combine( Ch_mapping_idx ).combine( Ch_whitelist )
         }
@@ -1196,21 +1247,20 @@ workflow{
         //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
         //preprocessSingleCellData(Ch_preprocess_input)
 
-        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect())
+        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect(), Channel.fromPath(mapanno))
 
         /**************************************************************
                 STEP 9: Generate overview plots
         ***************************************************************/
-        createOverviewPlots(preprocessSingleCellData.out.basic_sce)
+        createOverviewPlots(preprocessSingleCellData.out.basic_seurat_sce)
         
         /**************************************************************
                 STEP 10: Run DE Analysis for Barcodes and Genes
         ***************************************************************/
         
-        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_sce)        
-        identifyDEGenes(preprocessSingleCellData.out.basic_sce)
+        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce)        
+        identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce)
     //emit:
     //createOverviewPlots.out.pdf
-    //createBarcodeEnrichmentPlots.out.pdf
-    
+    //createBarcodeEnrichmentPlots.out.pdf   
 }
