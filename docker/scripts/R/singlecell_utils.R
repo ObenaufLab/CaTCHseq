@@ -1,35 +1,43 @@
 ####### FUNCTIONS #########
 activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
     # check if logcounts is present
-    if(class(sce)[1] == "SingleCellExperiment"){
-      if(!("logcounts" %in% names(assays(sce)))){
-        stop()
-      }
-    }else{
-      if(!("data" %in% Layers(sce))){
-        stop()
-      }
+    if (class(sce)[1] == "SingleCellExperiment") {
+        if (!("logcounts" %in% names(assays(sce)))) {
+            stop()
+        }
+    } else {
+        if (!("data" %in% Layers(sce))) {
+            stop()
+        }
     }
 
     # determine shared features between sce and signature
-    shared_features <- intersect(signature, rownames(sce))
+    shared_features <- intersect(unlist(signature), rownames(sce))
+    if (length(shared_features) == 0) {
+        print("Trying to match case title, no intersect found")
+        shared_features <- intersect(str_to_title(unlist(signature)), rownames(sce))
+    }
+    if (length(shared_features) == 0) {
+        print("Trying to match case lower, no intersect found")
+        shared_features <- intersect(str_to_lower(unlist(signature)), rownames(sce))
+    }
     stopifnot(length(shared_features) > 0)
 
-    if (class(sce)[1] == "SingleCellExperiment"){
-      # calculate scaled log-means of signature
-      return(sce[shared_features, ] %>%
-          assay("logcounts") %>%
-          Matrix::colMeans() %>%
-          # use scale by default, but allow other functions and additional arguments
-          fn.scale(...) %>%
-          as.numeric())
-    }else{
-      return(subset(sce, features=shared_features) %>%
-               LayerData(., assay = "RNA", layer = "data") %>%
-               Matrix::colMeans() %>%
-               # use scale by default, but allow other functions and additional arguments
-               fn.scale(...) %>%
-               as.numeric())
+    if (class(sce)[1] == "SingleCellExperiment") {
+        # calculate scaled log-means of signature
+        return(sce[shared_features, ] %>%
+            assay("logcounts") %>%
+            Matrix::colMeans() %>%
+            # use scale by default, but allow other functions and additional arguments
+            fn.scale(...) %>%
+            as.numeric())
+    } else {
+        return(LayerData(sce, assay = "RNA", layer = "data") %>%
+            .[shared_features, ] %>%
+            Matrix::colMeans() %>%
+            # use scale by default, but allow other functions and additional arguments
+            fn.scale(...) %>%
+            as.numeric())
     }
 }
 
@@ -44,7 +52,7 @@ assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scal
     if (is.null(col.name)) {
         stop("'col.name' must be specified and cannot be NULL")
     }
-    
+
     categories <- map_df(markers, activity_by_logmeans, sce = sce, fn.scale = fn.scale, ...)
 
     # categories should be a matrix with N rows and M columns, whereas N is the
@@ -65,10 +73,10 @@ assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scal
             t()
     }
     colnames(categories) <- names(markers)
-    if (class(sce)[1] == "SingleCellExperiment"){
-      colData(sce)[col.name] <- colnames(categories)[apply(categories, 1, which.max)]  
-    }else{
-      seurat_sce@meta.data[[col.name]] <- colnames(categories)[apply(categories, 1, which.max)]
+    if (class(sce)[1] == "SingleCellExperiment") {
+        colData(sce)[col.name] <- colnames(categories)[apply(categories, 1, which.max)]
+    } else {
+        seurat_sce@meta.data[[col.name]] <- colnames(categories)[apply(categories, 1, which.max)]
     }
     return(sce)
 }
@@ -194,7 +202,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
     data10Xs <- str_split(data10X, ",")[[1]]
     bcs <- str_split(bc, ",")[[1]]
     anno <- annotation
-    
+
     if (length(samplelist) == 1) {
         print(paste("Processing the sample ", smpl, sep = ""))
         print("   Loading 10X data ...")
@@ -276,7 +284,6 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
         seurat_sce[["RNA"]] <- as(object = seurat_sce[["RNA"]], Class = "Assay5")
 
         return(list(sce = sce, seurat_sce = seurat_sce))
-
     } else {
         scetomerge <- list()
         seurattomerge <- list()
@@ -288,31 +295,31 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
                 firstseurat <- sl$seurat_sce
             } else {
                 print(paste0("Loading sce dataset ", i))
-                  sl <- create_SCEs(samplelist[i], data10Xs[i], bcs[i], anno)
-                  scetomerge[[i - 1]] <- sl$sce
-                  seurattomerge[[i - 1]] <- sl$seurat_sce
+                sl <- create_SCEs(samplelist[i], data10Xs[i], bcs[i], anno)
+                scetomerge[[i - 1]] <- sl$sce
+                seurattomerge[[i - 1]] <- sl$seurat_sce
             }
         }
 
-        #tmplist <- list(first=firstsce, rest = scetomerge)
-        #saveRDS(tmplist, "SCE_for_merging.rds", compress = "gzip")
-        #tmplist <- list(first=firstseurat, rest = seurattomerge)
-        #saveRDS(tmplist, "SEURAT_for_merging.rds", compress = "gzip")
-        #rm(tmplist)
-        #sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets
+        # tmplist <- list(first=firstsce, rest = scetomerge)
+        # saveRDS(tmplist, "SCE_for_merging.rds", compress = "gzip")
+        # tmplist <- list(first=firstseurat, rest = seurattomerge)
+        # saveRDS(tmplist, "SEURAT_for_merging.rds", compress = "gzip")
+        # rm(tmplist)
+        # sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets
         print("Merging SCE")
         sce <- firstsce
-        for (x in scetomerge) { 
-          sce <-cbind(sce, x) 
+        for (x in scetomerge) {
+            sce <- cbind(sce, x)
         }
-        
+
         print("Merging Seurat")
-        seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH", merge.data = TRUE, merge.dr = FALSE)  # merge all the seurat datasets
-        
-        #print("Cleaning SCE")
-        #metadata = seurat_sce@meta.data
-        #seurat_sce <- CreateSeuratObject(LayerData(seurat_sce, assay = "RNA", layer = "counts"), assay = "RNA", project = "scCaTCH", meta.data = metadata, names.field = 4)
-        
+        seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH", merge.data = TRUE, merge.dr = FALSE) # merge all the seurat datasets
+
+        # print("Cleaning SCE")
+        # metadata = seurat_sce@meta.data
+        # seurat_sce <- CreateSeuratObject(LayerData(seurat_sce, assay = "RNA", layer = "counts"), assay = "RNA", project = "scCaTCH", meta.data = metadata, names.field = 4)
+
         return(list(sce = sce, seurat_sce = seurat_sce))
     }
 }
@@ -399,23 +406,22 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
                 ))
             ) %>%
             select(CaTCH.Status)
-        
-        return(sce)
 
+        return(sce)
     } else {
-        scetomerge <- list()        
+        scetomerge <- list()
         for (i in 1:length(samplelist)) {
             if (i == 1) {
                 print("Loading first sce dataset")
-                firstsce <- create_SCE_only(samplelist[i], data10Xs[i], bcs[i])                 
+                firstsce <- create_SCE_only(samplelist[i], data10Xs[i], bcs[i])
             } else {
                 print(paste0("Loading sce dataset ", i))
-                  sce <- create_SCE_only(samplelist[i], data10Xs[i], bcs[i])
-                  scetomerge[[i - 1]] <- sce
+                sce <- create_SCE_only(samplelist[i], data10Xs[i], bcs[i])
+                scetomerge[[i - 1]] <- sce
             }
         }
 
-        sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets        
+        sce <- cbind(firstsce, scetomerge) # merge all the sce datasets
         return(sce)
     }
 }

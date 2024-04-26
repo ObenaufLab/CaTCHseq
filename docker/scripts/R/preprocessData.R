@@ -173,14 +173,16 @@ seurat_sce@meta.data$Category <- seurat_sce@meta.data %>%
 print(paste0("Loading cell stage markers from ", opt$marker, sep = ""))
 markerfile <- loadRDS(opt$marker)
 
+#### Joining seurat layers for downstream annotation ####
+print("Joining seurat layers ...")
+seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "data", new = "data")
+seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "counts", new = "counts")
+
 #### Attempting to assign cell phase via Seurat ####
-print("Phasing seurat ...")
+print("Phase annotation seurat ...")
 
 s.genes <- markerfile$S
 g2m.genes <- markerfile$G2M
-
-seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "data", new = "data")
-seurat_sce <- join_Seurat(seurat_sce, assay = "RNA", layers = "counts", new = "counts")
 
 tryCatch(
   {
