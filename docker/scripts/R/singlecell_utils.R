@@ -34,10 +34,11 @@ activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
             .[shared_features, ] %>% # use scale by default, but allow other functions and additional arguments
             fn.scale(...)
     }
-    res <- ifelse(is.matrix(res), res %>%
-        Matrix::colMeans(), res %>% mean())
-    res <- res %>%
-        as.numeric()
+    if (is.matrix(res)) {
+        res <- Matrix::colMeans(res)
+    } else {
+        res <- mean(res)
+    }
     return(res)
 }
 
