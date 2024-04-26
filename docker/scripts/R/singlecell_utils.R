@@ -76,7 +76,7 @@ assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scal
     if (class(sce)[1] == "SingleCellExperiment") {
         colData(sce)[col.name] <- colnames(categories)[apply(categories, 1, which.max)]
     } else {
-        seurat_sce@meta.data[[col.name]] <- colnames(categories)[apply(categories, 1, which.max)]
+        sce@meta.data[[col.name]] <- colnames(categories)[apply(categories, 1, which.max)]
     }
     return(sce)
 }
