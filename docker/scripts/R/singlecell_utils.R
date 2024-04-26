@@ -20,7 +20,7 @@ activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
     }
     if (length(shared_features) == 0) {
         print("Trying to match case lower, no intersect found")
-        shared_features <- intersect(str_to_lower(signature)), rownames(sce))
+        shared_features <- intersect(str_to_lower(signature), rownames(sce))
     }
     stopifnot(length(shared_features) > 0)
 
@@ -33,8 +33,8 @@ activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
             .[shared_features, ]
     }
     res <- ifelse(is.matrix(res), res %>%
-            Matrix::colMeans(), res %>% mean)
-    res <- res %>%  
+        Matrix::colMeans(), res %>% mean())
+    res <- res %>%
         # use scale by default, but allow other functions and additional arguments
         fn.scale(...) %>%
         as.numeric()
