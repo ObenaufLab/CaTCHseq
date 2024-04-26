@@ -27,16 +27,16 @@ activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
     if (class(sce)[1] == "SingleCellExperiment") {
         # calculate scaled log-means of signature
         res <- sce[shared_features, ] %>%
-            assay("logcounts")
+            assay("logcounts") %>% # use scale by default, but allow other functions and additional arguments
+            fn.scale(...)
     } else {
         res <- LayerData(sce, assay = "RNA", layer = "data") %>%
-            .[shared_features, ]
+            .[shared_features, ] %>% # use scale by default, but allow other functions and additional arguments
+            fn.scale(...)
     }
     res <- ifelse(is.matrix(res), res %>%
         Matrix::colMeans(), res %>% mean())
     res <- res %>%
-        # use scale by default, but allow other functions and additional arguments
-        fn.scale(...) %>%
         as.numeric()
     return(res)
 }
