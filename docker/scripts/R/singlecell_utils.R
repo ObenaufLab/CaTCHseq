@@ -12,14 +12,15 @@ activity_by_logmeans <- function(signature, sce, fn.scale = scale, ...) {
     }
 
     # determine shared features between sce and signature
-    shared_features <- intersect(unlist(signature), rownames(sce))
+    signature <- unlist(signature)
+    shared_features <- intersect(signature, rownames(sce))
     if (length(shared_features) == 0) {
         print("Trying to match case title, no intersect found")
-        shared_features <- intersect(str_to_title(unlist(signature)), rownames(sce))
+        shared_features <- intersect(str_to_title(signature), rownames(sce))
     }
     if (length(shared_features) == 0) {
         print("Trying to match case lower, no intersect found")
-        shared_features <- intersect(str_to_lower(unlist(signature)), rownames(sce))
+        shared_features <- intersect(str_to_lower(signature), rownames(sce))
     }
     stopifnot(length(shared_features) > 0)
 
