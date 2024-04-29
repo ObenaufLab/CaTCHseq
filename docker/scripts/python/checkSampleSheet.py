@@ -39,7 +39,7 @@ class RowChecker:
         R2_col="R2",
         cellnr_col="CellNumber",
         chem_col="Chemistry",
-        **kwargs,
+        **kwargs
     ):
         """
         Initialize the row checker with the expected column names.
