@@ -74,10 +74,12 @@ assignCategoryByMarker <- function(sce, markers = NULL, col.name = NULL, fn.scal
             t()
     }
     colnames(categories) <- names(markers)
+    categories[is.na(categories)] <- 0.0 # Replace NANs by 0 otherwise length of intersect error
+
     if (class(sce)[1] == "SingleCellExperiment") {
-        colData(sce)[col.name] <- colnames(categories)[apply(categories, 1, which.max)]
+        colData(sce)[col.name] <- colnames(categories)[unlist(apply(categories, 1, which.max))]
     } else {
-        sce@meta.data[[col.name]] <- colnames(categories)[apply(categories, 1, which.max)]
+        sce@meta.data[[col.name]] <- colnames(categories)[unlist(apply(categories, 1, which.max))]
     }
     return(sce)
 }
