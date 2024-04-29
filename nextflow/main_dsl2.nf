@@ -915,6 +915,7 @@ process preprocessSingleCellData{
        --sample \$SAMPLES \
        --data10X \$FEATURES \
        --catchBC \$BCS \
+       --baseCond ${refName} \
        --annotation ${gtf} \
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
@@ -958,6 +959,7 @@ process createOverviewPlots{
     """
     Rscript --vanilla ${scriptDirR}create_overview_plots.R \
         --sce ${sce} \
+        --baseCond ${refName} \
         --out ${outname}_overview \
         --format pdf \
         --width 25 \
