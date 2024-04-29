@@ -553,7 +553,7 @@ process star_mapping{
         log.info("Running StarSolo on unspecified Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
         extraparams = params.star_droplet
     } else if (chemistry == 'ScaleBio'){
-        extraparams = params.star_scalebio
+        starparams = params.starMappingParams_Scale
     } else if (chemistry == "Smart"){
         log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
         extraparams = params.star_smart
