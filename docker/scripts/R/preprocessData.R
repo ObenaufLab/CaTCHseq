@@ -215,8 +215,8 @@ seurat_sce <- split_Seurat(seurat_sce, by = seurat_sce$Sample.orig)
 
 #### Save unfiltered sce and seurat_sce objects ####
 print("Save unfiltered ...")
-saveRDS(sce, file = paste0(opt$out, "_unfiltered_sce.rds"))
-saveRDS(seurat_sce, file = paste0(opt$out, "_unfiltered_seurat_sce.rds"))
+saveRDS(sce, file = paste0(opt$out, "_unfiltered_sce.rds.gz"), compress = "gzip")
+saveRDS(seurat_sce, file = paste0(opt$out, "_unfiltered_seurat_sce.rds.gz"), compress = "gzip")
 
 ### Filter for MT content and min reads
 print("Filter seurat ...")
@@ -301,8 +301,8 @@ seurat_sce@meta.data$CaTCH.BC_ID <- seurat_sce@meta.data %>%
 #### Save final objects ####
 print("Final Save ...")
 
-saveRDS(sce, file = paste0(opt$out, "_filtered_sce.rds"))
-saveRDS(seurat_sce, file = paste0(opt$out, "_filtered_seurat_sce.rds"))
+saveRDS(sce, file = paste0(opt$out, "_filtered_sce.rds.gz"), compress = "gzip")
+saveRDS(seurat_sce, file = paste0(opt$out, "_filtered_seurat_sce.rds.gz"), compress = "gzip")
 
 ## Prepare the data for the report plots
 # tmp <- reducedDim(sce, "TSNE", withDimnames = FALSE)
