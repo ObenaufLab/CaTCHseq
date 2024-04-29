@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 
 """ 
@@ -27,7 +27,7 @@ class RowChecker:
 
     """
 
-    VALID_FORMATS = (".fastq.gz",)
+    VALID_FORMATS = (".fastq.gz")
 
     def __init__(
         self,
@@ -163,10 +163,7 @@ class RowChecker:
     def _validate_fastq_format(self, filename):
         """Assert that a given filename has one of the expected FASTQ extensions."""
         if not any(filename.endswith(extension) for extension in self.VALID_FORMATS):
-            raise AssertionError(
-                f"The FASTQ file has an unrecognized extension: {filename}\n"
-                f"It should be one of: {', '.join(self.VALID_FORMATS)}"
-            )
+            raise AssertionError('The FASTQ file has an unrecognized extension: {}. It should be one of: {}'.format(filename, ", ".join(self.VALID_FORMATS)))
 
     def validate_unique_samples(self):
         """
@@ -182,7 +179,7 @@ class RowChecker:
         for row in self.modified:
             sample = row[self._sample_col]
             seen[sample] += 1
-            row[self._sample_col] = f"{sample}_T{seen[sample]}"
+            row[self._sample_col] = "{}_T{}".format(sample, seen[sample])
 
 
 def read_head(handle, num_lines=10):
@@ -257,7 +254,7 @@ def check_samplesheet(file_in):
         if not required_columns.issubset(reader.fieldnames):
             req_cols = ", ".join(required_columns)
             logger.critical(
-                f"The sample sheet **must** contain these column headers: {req_cols}."
+                "The sample sheet **must** contain these column headers: {}. Found: {}.".format(req_cols, reader.fieldnames)
             )
             sys.exit(1)
         # Validate each row.
@@ -266,7 +263,7 @@ def check_samplesheet(file_in):
             try:
                 checker.validate_and_transform(row)
             except AssertionError as error:
-                logger.critical(f"{str(error)} On line {i + 2}.")
+                logger.critical("{} On line {}.".format(str(error), i + 2))
                 sys.exit(1)
         checker.validate_unique_samples()
     header = list(reader.fieldnames)
@@ -303,7 +300,7 @@ def main(argv=None):
     args = parse_args(argv)
     logging.basicConfig(level=args.log_level, format="[%(levelname)s] %(message)s")
     if not args.file_in.is_file():
-        logger.error(f"The given input file {args.file_in} was not found!")
+        logger.error("The given input file {} was not found!".format(args.file_in))
         sys.exit(2)
     check_samplesheet(args.file_in)
 
