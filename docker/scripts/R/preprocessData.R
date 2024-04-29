@@ -186,9 +186,15 @@ g2m.genes <- markerfile$G2M
 
 tryCatch(
   {
-    seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = toupper(s.genes), g2m.features = toupper(g2m.genes), set.ident = FALSE)
+    seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = str_to_upper(s.genes), g2m.features = str_to_upper(g2m.genes), set.ident = FALSE)
   },
-  error = function(e) {
+  warning = function(w) {
+    if("Could not find enough features in the object" %in% w$message){
+      print("WARNING COUGHT:  Could not find enough features in the object. Will try to match case")
+      seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = str_to_title(s.genes), g2m.features = str_to_title(g2m.genes), set.ident = FALSE)
+    }
+  },
+  error = function(e) {    
     print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF SEURAT CELL PHASE AND SET TO DEFAULT G0"))
     seurat_sce@meta.data$Phase <- "G0"
     seurat_sce@meta.data$S.Score <- 0
