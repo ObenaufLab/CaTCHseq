@@ -879,8 +879,8 @@ process preprocessSingleCellData{
     output:
         path("scCaTCH*_filtered_seurat_sce.rds.gz"), emit: basic_seurat_sce
         path("scCaTCH*_filtered_sce.rds.gz"), emit: basic_sce
-        path("scCaTCH*_raw_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
-        path("scCaTCH*_raw_sce.rds.gz"), emit: basic_raw_sce
+        path("scCaTCH*_unfiltered_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
+        path("scCaTCH*_unfiltered_sce.rds.gz"), emit: basic_raw_sce
         //path("*.sce.prefiltered.tsne.gz"), emit: basic_sce_tsne
         //path("*.sce.prefiltered.metadata.gz"), emit: basic_sce_metadata
         path("*.pdf"), emit: basic_sce_qc, optional: true
