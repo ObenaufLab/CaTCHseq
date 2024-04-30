@@ -536,8 +536,6 @@ join_Seurat <- function(sce, assay = "RNA", layers = "data", new = "joined_data"
     return(sce)
 }
 
-## Run DESeq2/Edger ####
-
 run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
