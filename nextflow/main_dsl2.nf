@@ -1021,7 +1021,7 @@ process identifyDEGenes{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
-        else                                     "OUTPUT/DE/GENES/${file(filename).getName()}"
+        else                                    "OUTPUT/DE/GENES/${file(filename).getName()}"
     }
 
     input:
