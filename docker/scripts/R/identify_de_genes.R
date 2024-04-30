@@ -91,82 +91,101 @@ if (DefaultAssay(sce) != "RNA") {
 ### set reference condition ###
 ref.Condition <- opt$baseCond
 
+# ### Change Ident
+orig.ident <- Idents(sce)
+Idents(sce) <- sce[[]]$pca_cluster
+ 
 ### Generate Pseudobulk ####
-pseudo <- AggregateExpression(sce, assays = "RNA", return.seurat = T, group.by = c("Condition", "Replicate", "ident"))
-
-pseudo$de.ident <- pseudo$Condition
+pseudo <- AggregateExpression(sce, assays = "RNA", return.seurat = T, group.by = c("Condition", "ident"))
+ 
+pseudo$de.ident <- pseudo[[]] %>% 
+   select(Condition) %>%
+   mutate(Condition = as.factor(gsub("-", ".", Condition)))
 Idents(pseudo) <- "de.ident"
-
+ 
 # Extract Count Data
 countData <- pseudo@assays$RNA$counts %>%
-    as_tibble(rownames = NA)
+  as_tibble(rownames = NA) %>%
+  rename_with(., ~ gsub("-|_", ".", ., perl = T)) %>%
+  rename_with(., ~ gsub("\\.([0-9]+)", "_\\1", ., perl = T))
 
 pseudo$Sample <- pseudo@meta.data %>%
-    rownames_to_column(., var = "Sample") %>%
-    pull(Sample)
+   rownames_to_column(., var = "Sample") %>%
+   mutate(Sample = gsub("-|_", ".", Sample, perl = T)) %>%
+   mutate(Sample = gsub("\\.([0-9]+)", "_\\1", Sample, perl = T)) %>%
+   pull(Sample)
 
+ 
 # Extract Metadata
 metadata <- pseudo@meta.data %>%
-    select(Sample, Condition) %>%
-    distinct()
-metadata <- metadata %>% mutate(Condition = as.factor(gsub("-", ".", Condition)))
+   as_tibble(rownames = NA) %>%
+   select(Sample, Condition) %>%
+   distinct() %>%
+   as.data.frame()
+metadata <- metadata %>%
+  mutate(Condition = as.factor(gsub("-|_", ".", Condition, perl = T))) %>%
+  mutate(Condition = as.factor(gsub("\\.([0-9]+)", "_\\1", Condition, perl = T)))
 row.names(metadata) <- NULL
 
-# Run DE Analysis ####
+### Pseudo Gene DE #####
 comparison_objs <- list()
-for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
-    print(sprintf("Processing the Condition '%s'...", t))
 
-    contrast_name <- paste(t, ref.Condition, sep = "-vs-")
+for (refcond in levels(metadata$Condition)) {
+  for (t in setdiff(levels(metadata$Condition), refcond)) {
+    if (t == refcond) {
+      next
+    }
+    
+    contrast_name <- paste(t, refcond, sep = "-vs-")
+    print(paste("ANALYSING ", contrast_name))
+    
     detool <- "DESeq2"
-    if (length(metadata$Replicate) >= length(metadata$Sample) * 2) {
-        print("Enough replicates found, running DESeq2")
-
-        ddslist <- run_deseq(contrast_name, metadata, countData, ids)
+    if (length(unique(metadata$Sample)) >= length(unique(metadata$Condition)) * 2) {
+      print("Enough replicates found, running DESeq2")
+      ddslist <- run_deseq(contrast_name, metadata, countData, cooksCutoff = FALSE)
     } else {
-        print("Not enough replicates found, running edgeR")
-        detool <- "EdgeR"
-        ddslist <- run_edger(contrast_name, metadata, countData, ids)
+      print("Not enough replicates found, running edgeR")
+      detool <- "EdgeR"
+      ddslist <- run_edger(contrast_name, metadata, countData)
     }
     comparison_objs[[contrast_name]] <- ddslist
-
-    r <- ddslist[["res"]]
-
-    if (nrow(r) > 1) {
-        write.table(as.data.frame(r), gzfile(paste("DE_", detool, "_", contrast_name, "_BCs_fdr", opt$pcut, ".tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
-
-        pdf(
-            file = paste("DE_", detool, "_", contrast_name, "_BCs_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
-            width = 15, height = 10
-        )
-
-
-        print(EnhancedVolcano(deres,
-            lab = rownames(deres),
-            x = "avg_log2FC",
-            y = "p_val_adj",
-            title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
-            pCutoff = opt$pcut,
-            FCcutoff = opt$fcut,
-            pointSize = 2.0,
-            labSize = 4.0,
-            colAlpha = .2,
-            ylab = bquote(~ Log[10] ~ "padj"),
-            xlab = bquote(~ Log[2] ~ "fold change"),
-            boxedLabels = TRUE,
-            # parseLabels = TRUE,
-            legendLabels = c(
-                "Not sig.", "Log (base 2) FC", "p-value",
-                "p-value & Log (base 2) FC"
-            ),
-            legendPosition = "bottom",
-            legendLabSize = 10,
-            legendIconSize = 8.0,
-            drawConnectors = TRUE,
-            widthConnectors = 0.25
-        ) + coord_flip())
-        dev.off()
+    
+    deres <- ddslist[["res"]]
+    
+    if (nrow(deres) > 1) {
+      write.table(deres, gzfile(paste("DE_", detool, contrast_name, "_GENES_all.tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
+      
+      pdf(
+        file = paste("DE_", detool, contrast_name, "_GENES_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
+        width = 15, height = 10
+      )
+      print(EnhancedVolcano(deres,
+                            lab = deres$Gene,
+                            x = "log2FoldChange",
+                            y = "p.adj",
+                            title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
+                            pCutoff = opt$pcut,
+                            FCcutoff = opt$fcut,
+                            pointSize = 2.0,
+                            labSize = 4.0,
+                            colAlpha = .2,
+                            xlab = bquote(~ Log[2] ~ "fold change"),
+                            ylab = bquote(~ Log[10] ~ "padj"),
+                            boxedLabels = TRUE,
+                            # parseLabels = TRUE,
+                            legendLabels = c(
+                              "Not sig.", "Log (base 2) FC", "p-value",
+                              "p-value & Log (base 2) FC"
+                            ),
+                            legendPosition = "bottom",
+                            legendLabSize = 10,
+                            legendIconSize = 8.0,
+                            drawConnectors = TRUE,
+                            widthConnectors = 0.25
+      ) + coord_flip())
+      dev.off()
     }
+  }
 }
 
 saveRDS(comparison_objs, file = paste0(opt$out, "_DE_pseudobulk_list.rds.gz"), compress = "gzip")
@@ -225,20 +244,16 @@ top_acts_mat <- df %>%
     column_to_rownames("cluster") %>%
     as.matrix()
 
-# Choose color palette
-palette_length <- 100
-my_color <- colorRampPalette(c("Darkblue", "white", "red"))(palette_length)
-
-my_breaks <- c(
-    seq(-2, 0, length.out = ceiling(palette_length / 2) + 1),
-    seq(0.05, 2, length.out = floor(palette_length / 2))
-)
-
 # Plot
 print("Plotting")
+dev.off()
 pdf(
     file = paste("DE_", "Seurat_Pathway_Heatmap.pdf", sep = ""),
     width = 15, height = 10
 )
 print(Heatmap(top_acts_mat))
 dev.off()
+
+# Reset Idents
+Idents(sce) <- orig.ident
+
