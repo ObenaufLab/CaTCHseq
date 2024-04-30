@@ -88,11 +88,6 @@ if (DefaultAssay(sce) != "RNA") {
     DefaultAssay(sce) <- "RNA" # NOT "RNA_integrated.cca"
 }
 
-#### Define new Idents ####
-sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) str_split_1(x, "_")[1])))
-sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split_1(x, "_"))[-1], collapse = "-"))))
-# sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) str_split_1(x, "_")[2])))
-
 ### set reference condition ###
 ref.Condition <- opt$baseCond
 
