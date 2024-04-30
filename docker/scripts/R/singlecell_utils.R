@@ -121,6 +121,50 @@ progeny.CaTCH <- function(expr, scale = TRUE, organism = "Human", top = 100, ver
     return(result)
 }
 
+# create Plots 
+createValueDistrPlot <- function(sce, grp.col = "Cluster", val.col = "CMO", colors = NULL, grp.order = NULL, xlab = NULL, ylab = NULL, title = NULL) {
+  
+  if (is.null(sce)) {
+    stop("'sce' must be specified and cannot be NULL")
+  }
+  if (class(sce)[1] == "SingleCellExperiment") {
+    plot.data <- colData(sce) %>%
+      tibble::as_tibble() %>%
+      dplyr::count(.data[[grp.col]], .data[[val.col]]) %>%
+      dplyr::group_by(.data[[grp.col]]) %>%
+      dplyr::mutate(Proportion = n / sum(n) * 100)
+  } else {
+    plot.data <- sce@meta.data %>%
+      tibble::as_tibble() %>%
+      dplyr::count(.data[[grp.col]], .data[[val.col]]) %>%
+      dplyr::group_by(.data[[grp.col]]) %>%
+      dplyr::mutate(Proportion = n / sum(n) * 100)
+  }
+  
+  if (!is.null(grp.order)) {
+    tmp <- tibble()
+    for (x in grp.order) {
+      tmp <- rbind(tmp, plot.data[which(plot.data[[grp.col]] == x),])
+    }
+    tmp[[grp.col]] <- factor(tmp[[grp.col]], levels = grp.order)
+    plot.data <- tmp
+  }
+  plot <- ggplot2::ggplot(data = plot.data, ggplot2::aes(fill = .data[[val.col]], x = .data[[grp.col]], y = Proportion)) +
+    ggplot2::geom_bar(position = "stack", stat="identity")
+  if(!is.null(colors)) {
+    plot <- plot + ggplot2::scale_fill_manual(values = colors)
+  }
+  if(!is.null(xlab)) {
+    plot <- plot + ggplot2::xlab(xlab)
+  }
+  if(!is.null(ylab)) {
+    plot <- plot + ggplot2::ylab(ylab)
+  }
+  if(!is.null(title)) {
+    plot <- plot + ggplot2::ggtitle(title)
+  }
+  return (plot)
+}
 
 # Generates the heatmap based on the provided output of findMarkers
 generateHeatmaps <- function(markers,

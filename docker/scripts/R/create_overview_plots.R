@@ -66,8 +66,8 @@ library(R.filesets)
 sce <- loadRDS(opt$sce)
 
 ### Switching to integrated assay ###
-if (DefaultAssay(sce) != "RNA_integrated.cca") {
-    DefaultAssay(sce) <- "RNA_integrated.cca" # DefaultAssay(sce) <- "RNA_integrated.cca"
+if (DefaultAssay(sce) != "RNA") {
+    DefaultAssay(sce) <- "RNA" # DefaultAssay(sce) <- "RNA_integrated.cca"
 }
 
 #### Plots ####
@@ -85,7 +85,7 @@ if (opt$format == "png") {
     pdf(file = qcout, width = opt$width, height = opt$height)
 }
 
-FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "Phase")
+FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "Condition")
 dev.off()
 
 qcout <- paste0(opt$out, "_QC_Feature_content_filtered.", opt$format)
@@ -99,32 +99,18 @@ if (opt$format == "png") {
     pdf(file = qcout, width = opt$width, height = opt$height)
 }
 
-FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "Phase")
+FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "Condition")
 dev.off()
 
 ## Plot UMAPs
-reduction.name <- "umap_integrated.cca"
-
-p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "integrated.cca_cluster", label.size = 1, alpha = .3) +
-    ggtitle("Overview by cluster") +
-    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
-
-p.umap_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
-    ggtitle("Overview by samples") +
-    guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
-
-
 reduction.name <- "umap_pca"
-p.umap_noint_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "pca_cluster", label.size = 1, alpha = .3) +
+p.umap_clusters <- DimPlot(sce, reduction = reduction.name, group.by = "pca_cluster", label.size = 1, alpha = .3) +
     ggtitle("Overview by non-integrated cluster") +
     guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
 
-p.umap_noint_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
+p.umap_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", label.size = 1, alpha = .3) +
     ggtitle("Overview by non-integrated samples") +
     guides(colour = guide_legend(override.aes = list(size = 2)), shape = "none")
-
-# LabelClusters(plot = p.umap_samples, id = "ident")
-
 
 ## Add additional labels
 # LabelClusters(plot = plot, id = "ident")
@@ -141,16 +127,6 @@ p.status_distr <- DimPlot(sce, reduction = reduction.name, group.by = "CaTCH.Sta
     guides(colour = guide_legend(override.aes = list(size = 4))) +
     scale_color_manual(values = status.colors, name = "Catch.Status")
 
-p.status_distr_cluster <- createValueDistrPlot(sce,
-    grp.col = "integrated.cca_cluster",
-    val.col = "CaTCH.Status",
-    colors = status.colors,
-    ylab = "Proportion, [%]",
-    title = "CaTCH status per cluster"
-) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-    guides(fill = guide_legend("CaTCH status"))
-
 p.status_distr_samples <- createValueDistrPlot(sce,
     grp.col = "Sample",
     val.col = "CaTCH.Status",
@@ -161,14 +137,26 @@ p.status_distr_samples <- createValueDistrPlot(sce,
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
     guides(fill = guide_legend("CaTCH status"))
 
+
+p.status_distr_cluster <- createValueDistrPlot(sce,
+                                               grp.col = "pca_cluster",
+                                               val.col = "CaTCH.Status",
+                                               colors = status.colors,
+                                               ylab = "Proportion, [%]",
+                                               title = "CaTCH status per sample"
+) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  guides(fill = guide_legend("CaTCH status"))
+
+
 p.cluster_size <- sce@meta.data %>%
-    select(integrated.cca_cluster) %>%
-    group_by(integrated.cca_cluster) %>%
+    select(pca_cluster) %>%
+    group_by(pca_cluster) %>%
     mutate(n = n()) %>%
     ungroup() %>%
-    distinct(integrated.cca_cluster, n) %>%
+    distinct(pca_cluster, n) %>%
     ggplot() +
-    geom_col(aes(x = integrated.cca_cluster, y = n)) +
+    geom_col(aes(x = pca_cluster, y = n)) +
     xlab("Cluster") +
     ylab("Cell count") +
     ggtitle("Cluster sizes") +
@@ -177,13 +165,15 @@ p.cluster_size <- sce@meta.data %>%
 cs.color <- list(
     "G0" = "gray75",
     "G1" = "#FDB916",
+    "G1S" = "#DDD621",
     "G2M" = "#11B09C",
     "M" = "#D22248",
     "MG1" = "#F17724",
-    "S" = "#BECE2D"
+    "S" = "#BECE2D",
+    "MG1S" = "#213924"
 )
 
-p.umap_cellstage <- DimPlot(sce, reduction = reduction.name, group.by = "Phase", label.size = 2, alpha = .2) +
+p.umap_cellstage <- DimPlot(sce, reduction = reduction.name, group.by = "CellStage", label.size = 2, alpha = .2) +
     ggtitle("Overview by cell stage") +
     scale_color_manual(values = cs.color, name = "Cell stage") +
     guides(color = guide_legend("Cell stage", override.aes = list(size = 4))) # +
@@ -199,7 +189,7 @@ p.umap_cellstatus <- DimPlot(sce, reduction = reduction.name, group.by = "CellSt
 
 p.cellstage_distr <- createValueDistrPlot(sce,
     grp.col = "pca_cluster",
-    val.col = "Phase",
+    val.col = "CellStage",
     colors = cs.color,
     ylab = "Proportion, [%]",
     title = "Cell stage per cluster"
@@ -209,7 +199,7 @@ p.cellstage_distr <- createValueDistrPlot(sce,
 
 p.cellstage_samples_distr <- createValueDistrPlot(sce,
     grp.col = "Sample",
-    val.col = "Phase",
+    val.col = "CellStage",
     colors = cs.color,
     ylab = "Proportion, [%]",
     title = "Cell stage per sample"
@@ -242,8 +232,8 @@ if (opt$format == "png") {
     pdf(file = out, width = opt$width, height = opt$height * 2)
 }
 print(grid.arrange(
-    p.umap_noint_clusters, # 1
-    p.umap_noint_samples, # 2
+    p.umap_clusters, # 1
+    p.umap_samples, # 2
     p.status_distr, # 3
     p.cluster_size, # 4
     p.umap_cellstage, # 5
@@ -253,8 +243,6 @@ print(grid.arrange(
     p.status_distr_cluster, # 9
     p.status_distr_samples, # 10
     p.unique_bc_distr, # 11
-    p.umap_clusters, # 12
-    p.umap_samples, # 13
     layout_matrix = rbind(
         c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
         c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2),
@@ -268,11 +256,11 @@ print(grid.arrange(
         c(5, 5, 5, 6, 6, 6, 9, 9, 9, 9),
         c(7, 7, 7, 8, 8, 8, 10, 10, 10, 10),
         c(7, 7, 7, 8, 8, 8, 10, 10, 10, 10),
-        c(7, 7, 7, 8, 8, 8, 10, 10, 10, 10),
-        c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
-        c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
-        c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
-        c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13)
+        c(7, 7, 7, 8, 8, 8, 10, 10, 10, 10)
+        # c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
+        # c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
+        # c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13),
+        # c(12, 12, 12, 12, 12, 13, 13, 13, 13, 13)
         # c(NA, NA, NA, NA, 11, 11, 11, 11, NA, NA),
         # c(NA, NA, NA, NA, 11, 11, 11, 11, NA, NA),
         # c(NA, NA, NA, NA, 11, 11, 11, 11, NA, NA)

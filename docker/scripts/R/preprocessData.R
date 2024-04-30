@@ -186,15 +186,17 @@ print("Phase annotation seurat ...")
 s.genes <- markerfile$S
 g2m.genes <- markerfile$G2M
 
-tryCatch(
+withCallingHandlers(
     {
         seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = str_to_upper(s.genes), g2m.features = str_to_upper(g2m.genes), set.ident = FALSE)
     },
     warning = function(w) {
-        if ("Could not find enough features in the object" %in% w$message) {
+      if (grepl("Could not find enough features in the object", w$message)) {
             print("WARNING COUGHT:  Could not find enough features in the object. Will try to match case")
             seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = str_to_title(s.genes), g2m.features = str_to_title(g2m.genes), set.ident = FALSE)
-        }
+      }else{
+        message(w$message) 
+      }
     },
     error = function(e) {
         print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF SEURAT CELL PHASE AND SET TO DEFAULT G0"))
