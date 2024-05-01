@@ -130,61 +130,56 @@ row.names(metadata) <- NULL
 ### Pseudo Gene DE #####
 comparison_objs <- list()
 
-for (refcond in levels(metadata$Condition)) {
-  for (t in setdiff(levels(metadata$Condition), refcond)) {
-    if (t == refcond) {
-      next
-    }
+for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
+  
+  contrast_name <- paste(t, ref.Condition, sep = "-vs-")
+  print(paste("ANALYSING ", contrast_name))
+  
+  detool <- "DESeq2"
+  if (length(unique(metadata$Sample)) >= length(unique(metadata$Condition)) * 2) {
+    print("Enough replicates found, running DESeq2")
+    ddslist <- run_deseq(contrast_name, metadata, countData, cooksCutoff = FALSE)
+  } else {
+    print("Not enough replicates found, running edgeR")
+    detool <- "EdgeR"
+    ddslist <- run_edger(contrast_name, metadata, countData)
+  }
+  comparison_objs[[contrast_name]] <- ddslist
+  
+  deres <- ddslist[["res"]]
+  
+  if (nrow(deres) > 1) {
+    write.table(deres, gzfile(paste("DE_", detool, contrast_name, "_GENES_all.tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
     
-    contrast_name <- paste(t, refcond, sep = "-vs-")
-    print(paste("ANALYSING ", contrast_name))
-    
-    detool <- "DESeq2"
-    if (length(unique(metadata$Sample)) >= length(unique(metadata$Condition)) * 2) {
-      print("Enough replicates found, running DESeq2")
-      ddslist <- run_deseq(contrast_name, metadata, countData, cooksCutoff = FALSE)
-    } else {
-      print("Not enough replicates found, running edgeR")
-      detool <- "EdgeR"
-      ddslist <- run_edger(contrast_name, metadata, countData)
-    }
-    comparison_objs[[contrast_name]] <- ddslist
-    
-    deres <- ddslist[["res"]]
-    
-    if (nrow(deres) > 1) {
-      write.table(deres, gzfile(paste("DE_", detool, contrast_name, "_GENES_all.tsv.gz", sep = "")), sep = "\t", row.names = FALSE, quote = F)
-      
-      pdf(
-        file = paste("DE_", detool, contrast_name, "_GENES_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
-        width = 15, height = 10
-      )
-      print(EnhancedVolcano(deres,
-                            lab = deres$Gene,
-                            x = "log2FoldChange",
-                            y = "p.adj",
-                            title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
-                            pCutoff = opt$pcut,
-                            FCcutoff = opt$fcut,
-                            pointSize = 2.0,
-                            labSize = 4.0,
-                            colAlpha = .2,
-                            xlab = bquote(~ Log[2] ~ "fold change"),
-                            ylab = bquote(~ Log[10] ~ "padj"),
-                            boxedLabels = TRUE,
-                            # parseLabels = TRUE,
-                            legendLabels = c(
-                              "Not sig.", "Log (base 2) FC", "p-value",
-                              "p-value & Log (base 2) FC"
-                            ),
-                            legendPosition = "bottom",
-                            legendLabSize = 10,
-                            legendIconSize = 8.0,
-                            drawConnectors = TRUE,
-                            widthConnectors = 0.25
-      ) + coord_flip())
-      dev.off()
-    }
+    pdf(
+      file = paste("DE_", detool, contrast_name, "_GENES_Volcano_p", opt$pcut, "_lfc", opt$fcut, ".pdf", sep = ""),
+      width = 15, height = 10
+    )
+    print(EnhancedVolcano(deres,
+                          lab = deres$Gene,
+                          x = "log2FoldChange",
+                          y = "p.adj",
+                          title = paste0(contrast_name, "_p", opt$pcut, "_lfc", opt$fcut, sep = ""),
+                          pCutoff = opt$pcut,
+                          FCcutoff = opt$fcut,
+                          pointSize = 2.0,
+                          labSize = 4.0,
+                          colAlpha = .2,
+                          xlab = bquote(~ Log[2] ~ "fold change"),
+                          ylab = bquote(~ Log[10] ~ "padj"),
+                          boxedLabels = TRUE,
+                          # parseLabels = TRUE,
+                          legendLabels = c(
+                            "Not sig.", "Log (base 2) FC", "p-value",
+                            "p-value & Log (base 2) FC"
+                          ),
+                          legendPosition = "bottom",
+                          legendLabSize = 10,
+                          legendIconSize = 8.0,
+                          drawConnectors = TRUE,
+                          widthConnectors = 0.25
+    ) + coord_flip())
+    dev.off()
   }
 }
 
