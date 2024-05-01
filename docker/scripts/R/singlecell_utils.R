@@ -832,7 +832,8 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
       select(starts_with(c(A,B)))
     sampleData <- sampleData_all %>%
       filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
-    samples <- rownames(sampleData)sampleData <- sampleData %>% add_column(type = "none")
+    samples <- rownames(sampleData)
+    sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
 
     ## Create design-table considering different types (paired, unpaired) and batches
