@@ -592,10 +592,12 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
     print(paste("A: ", A, "B: ", B))
 
     # subset Datasets for pairwise comparison
-    countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
-    rownames(countData) <- rownames(countData_all)
-    sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
-
+    countData <- countData_all %>%
+      select(starts_with(c(A,B)))
+    sampleData <- sampleData_all %>%
+      filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+    samples <- rownames(sampleData)
+    
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
 
@@ -729,10 +731,10 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
 
     # subset Datasets for pairwise comparison
-    countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
-    rownames(countData) <- rownames(countData_all)
-    sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
-
+    countData <- countData_all %>%
+      select(starts_with(c(A,B)))
+    sampleData <- sampleData_all %>%
+      filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
@@ -826,10 +828,11 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
     B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
 
     # subset Datasets for pairwise comparison
-    countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
-    sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
-    rownames(countData) <- rownames(countData_all)
-    sampleData <- sampleData %>% add_column(type = "none")
+    countData <- countData_all %>%
+      select(starts_with(c(A,B)))
+    sampleData <- sampleData_all %>%
+      filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+    samples <- rownames(sampleData)sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
 
     ## Create design-table considering different types (paired, unpaired) and batches
@@ -970,10 +973,11 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     B <- unlist(strsplit(contrast_groups[[1]][2], "\\+"), use.names = FALSE)
 
     # subset Datasets for pairwise comparison
-    countData <- cbind(countData_all[, grepl(paste("^", B, "_", sep = ""), colnames(countData_all))], countData_all[, grepl(paste("^", A, "_", sep = ""), colnames(countData_all))])
-    rownames(countData) <- rownames(countData_all)
-    sampleData <- droplevels(rbind(subset(sampleData_all, B == Condition), subset(sampleData_all, A == Condition)))
-
+    countData <- countData_all %>%
+      select(starts_with(c(A,B)))
+    sampleData <- sampleData_all %>%
+      filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition)) %>%
+      droplevels()
     samples <- rownames(sampleData)
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])

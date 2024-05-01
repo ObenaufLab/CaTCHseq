@@ -87,65 +87,41 @@ if (DefaultAssay(sce) != "RNA") {
 }
 #### Use DeSeq2 to identify over- and underrepresented barcodes ####
 
-### We want days as "Condition" ### need to add that
+### We want to compare "Condition" across replicates### 
 
-sce$Condition <- as.factor(unlist(lapply(sce$Sample, function(x) str_split_1(x, "_")[1])))
-sce$Replicate <- as.factor(unlist(lapply(sce$Sample, function(x) paste(unlist(str_split_1(x, "_"))[-1], collapse = "_"))))
+# sce$Condition <- sce[[]] %>%
+#   select(Condition, Replicate) %>%
+#   mutate(Condition = paste(Condition, Replicate, sep  ="_")) %>%
+#   pull(Condition)
 
 ### collect metadata ###
 metadata <- sce@meta.data %>%
-    select(Sample, Condition) %>%
+    select(Condition, Replicate) %>%
     distinct()
 
 ### set reference condition ###
 ref.Condition <- opt$baseCond
 
-### Add Barcode IDS ###
-if (!("CaTCH.BC_ID" %in% colnames(sce@meta.data))) {
-    tmp <- sce@meta.data %>%
-        select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
-        filter(CaTCH.Status == "Singlet", Condition == ref.Condition) %>%
-        select(CaTCH.BCs, Sample) %>%
-        group_by(CaTCH.BCs, Sample) %>%
-        mutate(n = n()) %>%
-        ungroup() %>%
-        distinct() %>%
-        pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
-        filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
-        mutate(.Means = rowMeans(across(starts_with(ref.Condition)))) %>%
-        arrange(by = desc(.Means)) %>%
-        rowid_to_column(".ID") %>%
-        mutate(CaTCH.BC_ID = paste0("BC_", .ID)) %>%
-        select(-.Means, -.ID) %>%
-        relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
-        select(CaTCH.BCs, CaTCH.BC_ID)
-
-    sce@meta.data$CaTCH.BC_ID <- sce@meta.data %>%
-        left_join(y = tmp, by = "CaTCH.BCs") %>%
-        mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
-        pull(CaTCH.BC_ID)
-}
-
-
 ### Count Barcodes ###
 # TODO: add a check for the number of cells that express a barcode in the reference condition and remove barcodes that are not expressed in a minimum number of cells, also check whether we want to average those counts over all cells per condition or not
 bc.counts <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet") %>%
-    select(CaTCH.BCs, Sample, CaTCH.BC_ID) %>%
-    group_by(CaTCH.BCs, Sample) %>%
+    select(CaTCH.BCs, Replicate, CaTCH.BC_ID) %>%
+    group_by(CaTCH.BCs, Replicate) %>%
     mutate(n = n()) %>%
     ungroup() %>%
     distinct() %>%
-    pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
+    pivot_wider(names_from = Replicate, values_from = n, values_fill = 0) %>%
     filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
     drop_na()
 
 
 ### Select metadata ###
-idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "CaTCH.BC_ID")))
-metadata <- metadata[idx, ]
-metadata <- metadata %>% mutate(Condition = as.factor(gsub("-", ".", Condition)))
-row.names(metadata) <- NULL
+metadata <- metadata %>% 
+  mutate(Condition = as.factor(gsub("-", ".", Condition))) %>%
+  mutate(Replicate = as.factor(gsub("-", ".", Replicate))) %>%
+  select(Condition, Replicate)
+row.names(metadata) <- metadata$Sample
 
 ### Run pairwise DE Analysis for BCs ###
 countData <- bc.counts %>%
@@ -154,12 +130,12 @@ countData <- bc.counts %>%
 
 ids <- bc.counts <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet") %>%
-    select(CaTCH.BCs, Sample, CaTCH.BC_ID, CellID) %>%
-    group_by(CaTCH.BCs, Sample) %>%
+    select(CaTCH.BCs, Condition, CaTCH.BC_ID, CellID) %>%
+    group_by(CaTCH.BCs, Condition) %>%
     mutate(n = n()) %>%
     ungroup() %>%
     distinct() %>%
-    pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
+    pivot_wider(names_from = Condition, values_from = n, values_fill = 0) %>%
     filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
     drop_na()
 
@@ -170,7 +146,7 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
 
     contrast_name <- paste(t, ref.Condition, sep = "-vs-")
     detool <- "DESEQ2"
-    if (length(metadata$Replicate) >= length(metadata$Sample) * 2) {
+    if (length(metadata$Replicate) >= length(metadata$Condition) * 2) {
         print("Enough replicates found, running DESeq2")
 
         ddslist <- run_deseq_bcs(contrast_name, metadata, countData, ids)
