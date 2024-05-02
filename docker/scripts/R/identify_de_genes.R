@@ -241,7 +241,6 @@ top_acts_mat <- df %>%
 
 # Plot
 print("Plotting")
-dev.off()
 pdf(
     file = paste("DE_", "Seurat_Pathway_Heatmap.pdf", sep = ""),
     width = 15, height = 10
