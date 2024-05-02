@@ -541,7 +541,7 @@ cluster_Seurat <- function(sce, assay = "RNA_integrated.cca", reduction = "integ
     print("   Clustering ...")
 
     sce <- FindNeighbors(sce, assay = assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")))
-    sce <- FindClusters(sce, resolution = .2, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"))
+    sce <- FindClusters(sce, resolution = resolution, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"))
 
     return(sce)
 }
