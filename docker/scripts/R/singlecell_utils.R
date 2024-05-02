@@ -121,49 +121,48 @@ progeny.CaTCH <- function(expr, scale = TRUE, organism = "Human", top = 100, ver
     return(result)
 }
 
-# create Plots 
+# create Plots
 createValueDistrPlot <- function(sce, grp.col = "Cluster", val.col = "CMO", colors = NULL, grp.order = NULL, xlab = NULL, ylab = NULL, title = NULL) {
-  
-  if (is.null(sce)) {
-    stop("'sce' must be specified and cannot be NULL")
-  }
-  if (class(sce)[1] == "SingleCellExperiment") {
-    plot.data <- colData(sce) %>%
-      tibble::as_tibble() %>%
-      dplyr::count(.data[[grp.col]], .data[[val.col]]) %>%
-      dplyr::group_by(.data[[grp.col]]) %>%
-      dplyr::mutate(Proportion = n / sum(n) * 100)
-  } else {
-    plot.data <- sce@meta.data %>%
-      tibble::as_tibble() %>%
-      dplyr::count(.data[[grp.col]], .data[[val.col]]) %>%
-      dplyr::group_by(.data[[grp.col]]) %>%
-      dplyr::mutate(Proportion = n / sum(n) * 100)
-  }
-  
-  if (!is.null(grp.order)) {
-    tmp <- tibble()
-    for (x in grp.order) {
-      tmp <- rbind(tmp, plot.data[which(plot.data[[grp.col]] == x),])
+    if (is.null(sce)) {
+        stop("'sce' must be specified and cannot be NULL")
     }
-    tmp[[grp.col]] <- factor(tmp[[grp.col]], levels = grp.order)
-    plot.data <- tmp
-  }
-  plot <- ggplot2::ggplot(data = plot.data, ggplot2::aes(fill = .data[[val.col]], x = .data[[grp.col]], y = Proportion)) +
-    ggplot2::geom_bar(position = "stack", stat="identity")
-  if(!is.null(colors)) {
-    plot <- plot + ggplot2::scale_fill_manual(values = colors)
-  }
-  if(!is.null(xlab)) {
-    plot <- plot + ggplot2::xlab(xlab)
-  }
-  if(!is.null(ylab)) {
-    plot <- plot + ggplot2::ylab(ylab)
-  }
-  if(!is.null(title)) {
-    plot <- plot + ggplot2::ggtitle(title)
-  }
-  return (plot)
+    if (class(sce)[1] == "SingleCellExperiment") {
+        plot.data <- colData(sce) %>%
+            tibble::as_tibble() %>%
+            dplyr::count(.data[[grp.col]], .data[[val.col]]) %>%
+            dplyr::group_by(.data[[grp.col]]) %>%
+            dplyr::mutate(Proportion = n / sum(n) * 100)
+    } else {
+        plot.data <- sce@meta.data %>%
+            tibble::as_tibble() %>%
+            dplyr::count(.data[[grp.col]], .data[[val.col]]) %>%
+            dplyr::group_by(.data[[grp.col]]) %>%
+            dplyr::mutate(Proportion = n / sum(n) * 100)
+    }
+
+    if (!is.null(grp.order)) {
+        tmp <- tibble()
+        for (x in grp.order) {
+            tmp <- rbind(tmp, plot.data[which(plot.data[[grp.col]] == x), ])
+        }
+        tmp[[grp.col]] <- factor(tmp[[grp.col]], levels = grp.order)
+        plot.data <- tmp
+    }
+    plot <- ggplot2::ggplot(data = plot.data, ggplot2::aes(fill = .data[[val.col]], x = .data[[grp.col]], y = Proportion)) +
+        ggplot2::geom_bar(position = "stack", stat = "identity")
+    if (!is.null(colors)) {
+        plot <- plot + ggplot2::scale_fill_manual(values = colors)
+    }
+    if (!is.null(xlab)) {
+        plot <- plot + ggplot2::xlab(xlab)
+    }
+    if (!is.null(ylab)) {
+        plot <- plot + ggplot2::ylab(ylab)
+    }
+    if (!is.null(title)) {
+        plot <- plot + ggplot2::ggtitle(title)
+    }
+    return(plot)
 }
 
 # Generates the heatmap based on the provided output of findMarkers
@@ -515,12 +514,12 @@ read_gtf <- function(anno) {
 }
 
 
-normalize_Seurat <- function(sce) {
+normalize_Seurat <- function(sce, normalization.method = "LogNormalize", scale.factor = 10000, selection.method = "vst", nfeatures = 2000, ...) {
     print("   Normalizing and scaling SCE ...")
 
-    sce <- NormalizeData(sce, normalization.method = "LogNormalize", scale.factor = 10000)
-    sce <- FindVariableFeatures(sce)
-    sce <- ScaleData(sce)
+    sce <- NormalizeData(sce, normalization.method = normalization.method, scale.factor = scale.factor)
+    sce <- FindVariableFeatures(sce, selection.method = selection.method, nfeatures = nfeatures)
+    sce <- ScaleData(sce, ...)
 
     return(sce)
 }
@@ -593,11 +592,11 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-      select(starts_with(c(A,B)))
+        select(starts_with(c(A, B)))
     sampleData <- sampleData_all %>%
-      filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
-    
+
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
 
@@ -732,9 +731,9 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-      select(starts_with(c(A,B)))
+        select(starts_with(c(A, B)))
     sampleData <- sampleData_all %>%
-      filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
@@ -829,9 +828,9 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-      select(starts_with(c(A,B)))
+        select(starts_with(c(A, B)))
     sampleData <- sampleData_all %>%
-      filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
@@ -975,10 +974,10 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-      select(starts_with(c(A,B)))
+        select(starts_with(c(A, B)))
     sampleData <- sampleData_all %>%
-      filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition)) %>%
-      droplevels()
+        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition)) %>%
+        droplevels()
     samples <- rownames(sampleData)
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
