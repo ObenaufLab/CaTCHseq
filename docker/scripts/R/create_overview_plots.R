@@ -139,24 +139,24 @@ p.status_distr_samples <- createValueDistrPlot(sce,
 
 
 p.status_distr_cluster <- createValueDistrPlot(sce,
-                                               grp.col = "pca_cluster",
-                                               val.col = "CaTCH.Status",
-                                               colors = status.colors,
-                                               ylab = "Proportion, [%]",
-                                               title = "CaTCH status per sample"
+    grp.col = "pca_cluster",
+    val.col = "CaTCH.Status",
+    colors = status.colors,
+    ylab = "Proportion, [%]",
+    title = "CaTCH status per sample"
 ) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  guides(fill = guide_legend("CaTCH status"))
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    guides(fill = guide_legend("CaTCH status"))
 
 
 p.cluster_size <- sce@meta.data %>%
-    select(pca_cluster) %>%
-    group_by(pca_cluster) %>%
+    select(pca_cluster, Condition) %>%
+    group_by(pca_cluster, Condition) %>%
     mutate(n = n()) %>%
     ungroup() %>%
-    distinct(pca_cluster, n) %>%
+    distinct(pca_cluster, Condition, n) %>%
     ggplot() +
-    geom_col(aes(x = pca_cluster, y = n)) +
+    geom_col(aes(x = pca_cluster, y = n, fill = Condition)) +
     xlab("Cluster") +
     ylab("Cell count") +
     ggtitle("Cluster sizes") +
