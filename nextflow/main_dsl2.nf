@@ -594,6 +594,13 @@ process star_mapping{
         read2 = r1
     }
 
+    //Get specific Feature counts, we use the first feature in --soloFeatures as default
+    if ( starparams.contains('--soloFeatures') ){
+        sfeature = starparams.split('--soloFeatures')[1].split(' ')[1]
+    }else{
+        sfeature = 'Gene'
+    }
+
     of = sampleName+'.Aligned.sortedByCoord.out.bam'
     gf = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.sam.gz")
     gb = of.replaceAll(/\Q.Aligned.sortedByCoord.out.bam\E/,"_mapped.bam")
@@ -604,10 +611,10 @@ process star_mapping{
     mv ${of} ${gb}
     samtools index ${gb}
     mv ${sampleName}.Solo.out ${sampleName}
-    gzip ${sampleName}/Gene/filtered/*
-    gzip ${sampleName}/Gene/raw/*
-    ln -s ${sampleName}/Gene/filtered ${sampleName}_filtered_feature_bc_matrix
-    ln -s ${sampleName}/Gene/raw ${sampleName}_raw_feature_bc_matrix
+    gzip ${sampleName}/${sfeature}/filtered/*
+    gzip ${sampleName}/${sfeature}/raw/*
+    ln -s ${sampleName}/${sfeature}/filtered ${sampleName}_filtered_feature_bc_matrix
+    ln -s ${sampleName}/${sfeature}/raw ${sampleName}_raw_feature_bc_matrix
     """
 
 }
