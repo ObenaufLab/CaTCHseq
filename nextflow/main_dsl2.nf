@@ -936,9 +936,9 @@ process preprocessSingleCellData{
        --baseCond ${refName} \
        --annotation ${gtf} \
        --minBc ${minBCs} \
-       --bc1Cut ${bc1_cutoff} \
-       --bc2Cut ${bc2_cutoff} \
-       --sumCut ${sum_cutoff} \
+       --bc1Cut ${bc1Cutoff} \
+       --bc2Cut ${bc2Cutoff} \
+       --singletCut ${singletCutoff} \
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \
