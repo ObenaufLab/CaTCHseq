@@ -935,7 +935,7 @@ process preprocessSingleCellData{
        --catchBC \$BCS \
        --baseCond ${refName} \
        --annotation ${gtf} \
-       --minBc ${min_detected_barcodes} \
+       --minBc ${minBCs} \
        --bc1Cut ${bc1_cutoff} \
        --bc2Cut ${bc2_cutoff} \
        --sumCut ${sum_cutoff} \
