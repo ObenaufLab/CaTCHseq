@@ -243,7 +243,7 @@ generateHeatmaps <- function(markers,
 
 
 ### Create sce objects with corresponding CaTCH barcodes ###
-create_SCEs <- function(smpl, data10X, bc, annotation) {
+create_SCEs <- function(smpl, data10X, bc, annotation,  minBc, singletCut, bc1Cut, bc2Cut) {
     samplelist <- str_split(smpl, ",")[[1]]
     data10Xs <- str_split(data10X, ",")[[1]]
     bcs <- str_split(bc, ",")[[1]]
@@ -302,12 +302,12 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < 10),  # At least 10 reads for all barcodes in the cell is a low cutoff but gets rid of noise, see ggplot(sce[[]], aes(x=CaTCH.Sum)) +   stat_ecdf(geom = "step") + scale_x_log10()
-                    "No barcode",
-                    if_else((is.na(CaTCH.BC2) | CaTCH.BC1 / CaTCH.Sum >= 0.8),
+                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < minBc),  # At least minBC reads for all barcodes in the cell
+                    "No_barcode",
+                    if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
                         "Singlet",                        
-                        if_else((CaTCH.BC1 + CaTCH.BC2) / CaTCH.Sum >= 0.95,
-                            "Dual Integration",
+                        if_else((CaTCH.BC1 / CaTCH.Sum >= bc1Cut & CaTCH.BC2 / CaTCH.Sum >= bc2Cut),
+                            "Dual_Integration",
                             "Multiplet"
                             )
                         )
@@ -315,9 +315,9 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
                 ),
                 CaTCH.Status = factor(CaTCH.Status, levels = c(
                     "Singlet",
-                    "Multiple Integration"
+                    "Dual_Integration"
                     "Multiplet",
-                    "No barcode"
+                    "No_barcode"
                 ))
             ) %>%
             select(CaTCH.Status)

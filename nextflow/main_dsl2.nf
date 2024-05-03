@@ -59,6 +59,10 @@ mapref = get_always('reference') ?: params.mapRef
 mapanno = get_always('annotation') ?: params.mapAnno
 filtering = get_always('filter') ?: params.filter
 organism = get_always('organism') ?: params.organism
+minBCs = get_always('min_detected_barcodes') ?: params.minDetectedBarcodes
+singletCutoff = get_always('singlet_cutoff') ?: params.singletCutoff
+bc1Cutoff = get_always('bc1_cutoff') ?: params.bc1Cutoff
+bc2Cutoff = get_always('bc2_cutoff') ?: params.bc2Cutoff
 max_mt_percent = get_always('max_mt_percent') ?: params.maxMtPercent
 min_detected_features = get_always('min_detected_features') ?: params.minDetectedFeatures
 hvg_cutoff = get_always('hvg_cutoff') ?: params.hvgCutoff
@@ -113,6 +117,10 @@ def helpMessage() {
         "Mouse"], default: "Human")
         --baseline              Name of reference day/condition (default: ${refName})
         --marker                RDS file of cellcycle markers (default: ${marker}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
+        --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBCs})
+        --singlet_cutoff        Min ratio for sum of CaTCH barcodes 1 to classify cell as 'Singlet' (default: ${singletCutoff})
+        --bc1_cutoff            Min ratio for CaTCH barcode 1 to classify cell as 'Dual_Integration' (default: ${bc1Cutoff})
+        --bc2_cutoff            Min ratio for CaTCH barcode 2 to classify cell as 'Dual_Integration' (default: ${bc2Cutoff})
         --vote                  Number of votes needed for majority voting (default: ${majorityVote})
         --outputDir             specifies the output directory (default: ${outputDir})
         --reportsDir            specifies the reports directory.(default: ${reportsDir})
@@ -927,6 +935,10 @@ process preprocessSingleCellData{
        --catchBC \$BCS \
        --baseCond ${refName} \
        --annotation ${gtf} \
+       --minBc ${min_detected_barcodes} \
+       --bc1Cut ${bc1_cutoff} \
+       --bc2Cut ${bc2_cutoff} \
+       --sumCut ${sum_cutoff} \
        --max_mt ${max_mt_percent} \
        --min_features ${min_detected_features} \
        --hvg_cutoff ${hvg_cutoff} \

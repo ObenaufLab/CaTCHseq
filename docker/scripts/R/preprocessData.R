@@ -23,6 +23,22 @@ option_list <- list(
         type = "character", default = NULL,
         help = "path to the matching annotation file in GTF format"
     ),
+    make_option(c("--minBc"),
+        type = "numeric", default = 10,
+        help = "minimum number of barcode reads per cell"
+    ),
+    make_option(c("--singletCut"),
+        type = "numeric", default = 0.9,
+        help = "minimum ratio of barcode 1 per cell for category 'Singlet'"
+    ),
+    make_option(c("--bc1Cut"),
+        type = "numeric", default = 0.4,
+        help = "minimum ratio of barcode 1 reads per cell for category 'Double_Integration'"
+    ),
+    make_option(c("--bc2Cut"),
+        type = "numeric", default = 0.3,
+        help = "maximum ratio of barcode 2 reads per cell for category 'Double_Integration'"
+    ),
     make_option(c("--max_mt"),
         type = "numeric", default = 10,
         help = "maximum percent of mitochondrial reads in a valid cell"
@@ -76,7 +92,7 @@ library(sctransform)
 library(R.filesets)
 
 ### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
-sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation)
+sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation, opt$minBc, opt$singletCut, opt$bc1Cut, opt$bc2Cut)
 
 sce <- sl$sce
 seurat_sce <- sl$seurat_sce
@@ -191,12 +207,12 @@ withCallingHandlers(
         seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = str_to_upper(s.genes), g2m.features = str_to_upper(g2m.genes), set.ident = FALSE)
     },
     warning = function(w) {
-      if (grepl("Could not find enough features in the object", w$message)) {
+        if (grepl("Could not find enough features in the object", w$message)) {
             print("WARNING COUGHT:  Could not find enough features in the object. Will try to match case")
             seurat_sce <- CellCycleScoring(seurat_sce, assay = "RNA", slot = "data", s.features = str_to_title(s.genes), g2m.features = str_to_title(g2m.genes), set.ident = FALSE)
-      }else{
-        message(w$message) 
-      }
+        } else {
+            message(w$message)
+        }
     },
     error = function(e) {
         print(paste("ERROR COUGHT:  ", e, " WILL SKIP ASSIGNMENT OF SEURAT CELL PHASE AND SET TO DEFAULT G0"))
@@ -228,6 +244,32 @@ print("Filter sce ...")
 sce <- sce[, sce$is.low_yield == FALSE & sce$is.damaged == FALSE]
 print(paste0("Keeping ", ncol(sce), " Cells from SCE object and ", ncol(seurat_sce), " Cells from Seurat object."))
 
+
+# Plot distribution of CaTCH barcode ratios
+toplot <- seurat_sce[[]] %>%
+    group_by(CaTCH.BCs) %>%
+    filter(n() > 1)
+
+a <- ggplot(toplot, aes(x = Condition, y = CaTCH.BC1 / CaTCH.Sum)) +
+    geom_violin() +
+    scale_y_log10(guide = "axis_logticks") +
+    theme_bw()
+
+b <- ggplot(toplot, aes(x = Condition, y = CaTCH.BC2 / CaTCH.Sum)) +
+    geom_violin() +
+    scale_y_log10(guide = "axis_logticks") +
+    theme_bw()
+
+c <- ggplot(toplot, aes(x = Condition, y = (CaTCH.BC1 + CaTCH.BC2) / CaTCH.Sum)) +
+    geom_violin() +
+    scale_y_log10(guide = "axis_logticks") +
+    theme_bw()
+
+pdf(file = paste0(opt$out, "_QC_Barcode_Ratio_Distribution.pdf"), width = 10, height = 30)
+print(a | b | c)
+dev.off()
+
+rm(a, b, c, toplot)
 
 #### Run PCA and UMAP ####
 print("Identify the top variable genes...")
