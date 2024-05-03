@@ -243,7 +243,7 @@ generateHeatmaps <- function(markers,
 
 
 ### Create sce objects with corresponding CaTCH barcodes ###
-create_SCEs <- function(smpl, data10X, bc, annotation, minBc, singletCut, bc1Cut, bc2Cut) {
+create_SCEs <- function(smpl, data10X, bc, annotation, minBC, singletCut, bc1Cut, bc2Cut) {
     samplelist <- str_split(smpl, ",")[[1]]
     data10Xs <- str_split(data10X, ",")[[1]]
     bcs <- str_split(bc, ",")[[1]]
@@ -302,7 +302,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBc, singletCut, bc1Cut
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < minBc), # At least minBC reads for all barcodes in the cell
+                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < minBC), # At least minBC reads for all barcodes in the cell
                     "No_barcode",
                     if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
                         "Singlet",

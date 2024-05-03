@@ -23,7 +23,7 @@ option_list <- list(
         type = "character", default = NULL,
         help = "path to the matching annotation file in GTF format"
     ),
-    make_option(c("--minBc"),
+    make_option(c("--minBC"),
         type = "numeric", default = 10,
         help = "minimum number of barcode reads per cell"
     ),
@@ -37,7 +37,7 @@ option_list <- list(
     ),
     make_option(c("--bc2Cut"),
         type = "numeric", default = 0.3,
-        help = "maximum ratio of barcode 2 reads per cell for category 'Double_Integration'"
+        help = "minimum ratio of barcode 2 reads per cell for category 'Double_Integration'"
     ),
     make_option(c("--max_mt"),
         type = "numeric", default = 10,
@@ -92,7 +92,7 @@ library(sctransform)
 library(R.filesets)
 
 ### Load all experiments, add CaTCH barcodes as layer and converting to Seuratv5 Object
-sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation, opt$minBc, opt$singletCut, opt$bc1Cut, opt$bc2Cut)
+sl <- create_SCEs(opt$sample, opt$data10X, opt$catchBC, opt$annotation, opt$minBC, opt$singletCut, opt$bc1Cut, opt$bc2Cut)
 
 sce <- sl$sce
 seurat_sce <- sl$seurat_sce

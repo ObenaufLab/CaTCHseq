@@ -59,7 +59,7 @@ mapref = get_always('reference') ?: params.mapRef
 mapanno = get_always('annotation') ?: params.mapAnno
 filtering = get_always('filter') ?: params.filter
 organism = get_always('organism') ?: params.organism
-minBCs = get_always('min_detected_barcodes') ?: params.minDetectedBarcodes
+minBC = get_always('min_detected_barcodes') ?: params.minDetectedBarcodes
 singletCutoff = get_always('singlet_cutoff') ?: params.singletCutoff
 bc1Cutoff = get_always('bc1_cutoff') ?: params.bc1Cutoff
 bc2Cutoff = get_always('bc2_cutoff') ?: params.bc2Cutoff
@@ -117,7 +117,7 @@ def helpMessage() {
         "Mouse"], default: "Human")
         --baseline              Name of reference day/condition (default: ${refName})
         --marker                RDS file of cellcycle markers (default: ${marker}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
-        --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBCs})
+        --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBC})
         --singlet_cutoff        Min ratio for sum of CaTCH barcodes 1 to classify cell as 'Singlet' (default: ${singletCutoff})
         --bc1_cutoff            Min ratio for CaTCH barcode 1 to classify cell as 'Dual_Integration' (default: ${bc1Cutoff})
         --bc2_cutoff            Min ratio for CaTCH barcode 2 to classify cell as 'Dual_Integration' (default: ${bc2Cutoff})
@@ -935,7 +935,7 @@ process preprocessSingleCellData{
        --catchBC \$BCS \
        --baseCond ${refName} \
        --annotation ${gtf} \
-       --minBc ${minBCs} \
+       --minBC ${minBC} \
        --bc1Cut ${bc1Cutoff} \
        --bc2Cut ${bc2Cutoff} \
        --singletCut ${singletCutoff} \
