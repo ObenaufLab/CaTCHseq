@@ -309,15 +309,14 @@ create_SCEs <- function(smpl, data10X, bc, annotation,  minBc, singletCut, bc1Cu
                         if_else((CaTCH.BC1 / CaTCH.Sum >= bc1Cut & CaTCH.BC2 / CaTCH.Sum >= bc2Cut),
                             "Dual_Integration",
                             "Multiplet"
-                            )
-                        )
                     )
-                ),
-                CaTCH.Status = factor(CaTCH.Status, levels = c(
-                    "Singlet",
-                    "Dual_Integration"
-                    "Multiplet",
-                    "No_barcode"
+                )
+            ),
+            CaTCH.Status = factor(CaTCH.Status, levels = c(
+                "Singlet",
+                "Dual_Integration"
+                "Multiplet",
+                "No_barcode"
                 ))
             ) %>%
             select(CaTCH.Status)
