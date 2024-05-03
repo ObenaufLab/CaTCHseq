@@ -243,11 +243,15 @@ generateHeatmaps <- function(markers,
 
 
 ### Create sce objects with corresponding CaTCH barcodes ###
-create_SCEs <- function(smpl, data10X, bc, annotation, minBC, singletCut, bc1Cut, bc2Cut) {
+create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 0.9, bc1Cut = 0.4, bc2Cut = 0.3) {
     samplelist <- str_split(smpl, ",")[[1]]
     data10Xs <- str_split(data10X, ",")[[1]]
     bcs <- str_split(bc, ",")[[1]]
     anno <- annotation
+    minBC <- minBC
+    singletCut <- singletCut
+    bc1Cut <- bc1Cut
+    bc2Cut <- bc2Cut
 
     if (length(samplelist) == 1) {
         print(paste("Processing the sample ", smpl, sep = ""))
