@@ -118,7 +118,7 @@ p.umap_samples <- DimPlot(sce, reduction = reduction.name, group.by = "Sample", 
 
 status.colors <- list(
     "Singlet" = "forestgreen",
-    "Putative singlet" = "orange",
+    "Double_Integration" = "orange",
     "Multiplet" = "red",
     "No barcode" = "grey50"
 )
@@ -209,7 +209,7 @@ p.cellstage_samples_distr <- createValueDistrPlot(sce,
 
 
 p.unique_bc_distr <- sce@meta.data %>%
-    filter(CaTCH.Status == "Singlet") %>%
+    filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") %>%
     select(Sample, CaTCH.BCs) %>%
     group_by(Sample) %>%
     summarise(Unique = n_distinct(CaTCH.BCs)) %>%

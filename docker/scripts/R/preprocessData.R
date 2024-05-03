@@ -313,7 +313,7 @@ print("Assign CaTCH barcodes ...")
 tmp <- colData(sce) %>%
     as_tibble() %>%
     select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
-    filter(CaTCH.Status == "Singlet", Condition == opt$baseCond) %>%
+    filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration", Condition == opt$baseCond) %>%
     select(CaTCH.BCs, Sample) %>%
     group_by(CaTCH.BCs, Sample) %>%
     mutate(n = n()) %>%

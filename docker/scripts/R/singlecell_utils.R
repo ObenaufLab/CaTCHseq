@@ -302,19 +302,19 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC, singletCut, bc1Cut
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < minBC),
+                CaTCH.Status = if_else(is.na(CaTCH.Sum) | CaTCH.Sum < minBC,
                     "No_barcode",
                     if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
                         "Singlet",
-                        if_else((CaTCH.BC1 / CaTCH.Sum >= bc1Cut & CaTCH.BC2 / CaTCH.Sum >= bc2Cut),
-                            "Dual_Integration",
+                        if_else(CaTCH.BC1 / CaTCH.Sum >= bc1Cut & CaTCH.BC2 / CaTCH.Sum >= bc2Cut,
+                            "Double_Integration",
                             "Multiplet"
                         )
                     )
                 ),
                 CaTCH.Status = factor(CaTCH.Status, levels = c(
                     "Singlet",
-                    "Dual_Integration",
+                    "Double_Integration",
                     "Multiplet",
                     "No_barcode"
                 ))
