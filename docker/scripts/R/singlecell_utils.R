@@ -283,11 +283,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
         #### Now load the CaTCH barcodes ####
         data.catch <- load_BCs(bc)
         print(paste0(" Loading Barcodes from ", bc))
-        # print(head(data.catch))
-        # print(head(colData(sce) %>%
-        #    as_tibble() %>%
-        #    left_join(y = data.catch, by = "CellID")))
-
+        
         colData(sce)[, c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
             as_tibble() %>%
             left_join(y = data.catch, by = "CellID") %>%
@@ -306,19 +302,20 @@ create_SCEs <- function(smpl, data10X, bc, annotation) {
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                CaTCH.Status = if_else(is.na(CaTCH.Sum),
+                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < 10),  # At least 10 reads for all barcodes in the cell is a low cutoff but gets rid of noise, see ggplot(sce[[]], aes(x=CaTCH.Sum)) +   stat_ecdf(geom = "step") + scale_x_log10()
                     "No barcode",
-                    if_else(is.na(CaTCH.BC2),
-                        "Singlet",
-                        if_else(CaTCH.BC1 / CaTCH.Sum >= 0.8,
-                            "Putative singlet",
+                    if_else((is.na(CaTCH.BC2) | CaTCH.BC1 / CaTCH.Sum >= 0.8),
+                        "Singlet",                        
+                        if_else((CaTCH.BC1 + CaTCH.BC2) / CaTCH.Sum >= 0.95,
+                            "Dual Integration",
                             "Multiplet"
+                            )
                         )
                     )
                 ),
                 CaTCH.Status = factor(CaTCH.Status, levels = c(
                     "Singlet",
-                    "Putative singlet",
+                    "Multiple Integration"
                     "Multiplet",
                     "No barcode"
                 ))

@@ -336,8 +336,8 @@ process runCellrangerCount{
     publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("feature_bc_matrix") > 0)       "OUTPUT/CellRanger/${file(filename).getName()}"
-        else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
-        else                                                     "OUTPUT/CellRanger/${file(filename).getName()}"
+        else if (filename.indexOf("projection.csv") >0)      "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
+        else                                                 "OUTPUT/CellRanger/${file(filename).getName()}"
     }
 
     //publishDir "outputs/cellranger/", mode: "copy"
@@ -420,8 +420,8 @@ process useCellrangerData{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("feature_bc_matrix") >0)       "OUTPUT/CellRanger/${file(filename).getName()}"
-        else if (filename.indexOf("projection.csv") >0)          "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
-        else                                                     "OUTPUT/CellRanger/${file(filename).getName()}"
+        else if (filename.indexOf("projection.csv") >0)     "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
+        else                                                "OUTPUT/CellRanger/${file(filename).getName()}"
     }
 
     input:
@@ -458,8 +458,8 @@ process star_idx{
     publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/STAR/LOGS/${file(filename).getName()}"
-        else if (filename.indexOf(".idx") > 0)      "${mapindex}.idx"
-        else                                                     "${mapindex}"
+        else if (filename.indexOf(".idx") > 0)     "${mapindex}.idx"
+        else                                       "${mapindex}"
     }
 
     input:
@@ -504,13 +504,13 @@ process star_mapping{
 
     publishDir "${workflow.workDir}/../" , mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf("_unmapped") > 0)       "OUTPUT/STAR/UNMAPPED/"+"${file(filename).getName()}"
-        else if (filename.indexOf(".sam.gz") >0)     "OUTPUT/STAR/MAPPED/"+"${file(filename).getName()}"
-        else if (filename.indexOf(".bam") >0)     "OUTPUT/STAR/MAPPED/"+"${filename}"
-        else if (filename.indexOf(".tab") >0)        "OUTPUT/STAR/MAPPED/"+"${filename}"
-        else if (filename.indexOf("Log*.out") >0)        "OUTPUT/STAR/LOGS/${file(filename).getName()}"
-        else if (filename.indexOf("*.log") >0)        "OUTPUT/STAR/LOGS/${file(filename).getName()}"
-        else if (filename.indexOf("Summary.csv") >0)        "OUTPUT/STAR/SUMMARY/${sampleName}_${file(filename).getName()}"
+        if (filename.indexOf("_unmapped") > 0)          "OUTPUT/STAR/UNMAPPED/"+"${file(filename).getName()}"
+        else if (filename.indexOf(".sam.gz") >0)        "OUTPUT/STAR/MAPPED/"+"${file(filename).getName()}"
+        else if (filename.indexOf(".bam") >0)           "OUTPUT/STAR/MAPPED/"+"${filename}"
+        else if (filename.indexOf(".tab") >0)           "OUTPUT/STAR/MAPPED/"+"${filename}"
+        else if (filename.indexOf("Log*.out") >0)       "OUTPUT/STAR/LOGS/${file(filename).getName()}"
+        else if (filename.indexOf("*.log") >0)          "OUTPUT/STAR/LOGS/${file(filename).getName()}"
+        else if (filename.indexOf("Summary.csv") >0)    "OUTPUT/STAR/SUMMARY/${sampleName}_${file(filename).getName()}"
         else                                            "OUTPUT/STAR/${filename}"
     }
 
@@ -522,8 +522,8 @@ process star_mapping{
     tuple val(sampleName), path("${sampleName}"), emit: out
     tuple val(sampleName), path("${sampleName}_filtered_feature_bc_matrix"), emit: cell_data_filtered
     tuple val(sampleName), path("${sampleName}_raw_feature_bc_matrix"), emit: cell_data_raw
-    tuple val(sampleName), path("${sampleName}/Gene/filtered/barcodes.tsv.gz"), emit: cell_ids_filtered
-    tuple val(sampleName), path("${sampleName}/Gene/raw/barcodes.tsv.gz"), emit: cell_ids_raw
+    tuple val(sampleName), path("${sampleName}_filtered_barcodes.tsv.gz"), emit: cell_ids_filtered
+    tuple val(sampleName), path("${sampleName}_raw_barcodes.tsv.gz"), emit: cell_ids_raw
     tuple val(sampleName), path("*_mapped.sam.gz"), emit: sam
     tuple val(sampleName), path("*.bam"), emit: bam
     tuple val(sampleName), path("*.bai"), emit: bai
@@ -615,6 +615,8 @@ process star_mapping{
     gzip ${sampleName}/${sfeature}/raw/*
     ln -s ${sampleName}/${sfeature}/filtered ${sampleName}_filtered_feature_bc_matrix
     ln -s ${sampleName}/${sfeature}/raw ${sampleName}_raw_feature_bc_matrix
+    ln -s ${sampleName}/${sfeature}/filtered/barcodes.tsv.gz ${sampleName}_filtered_barcodes.tsv.gz
+    ln -s ${sampleName}/${sfeature}/raw/barcodes.tsv.gz ${sampleName}_raw_barcodes.tsv.gz
     """
 
 }
@@ -633,8 +635,8 @@ process countBarcodesInChunks{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename == "Counts")       "OUTPUT/Counts/Chunks/${sampleName}/counts"
-        else if (filename == "Reads")          "OUTPUT/Counts/Chunks/${sampleName}/reads"
-        else                                                     "OUTPUT/Counts/Chunks/${sampleName}/${file(filename).getName()}"
+        else if (filename == "Reads")   "OUTPUT/Counts/Chunks/${sampleName}/reads"
+        else                            "OUTPUT/Counts/Chunks/${sampleName}/${file(filename).getName()}"
     }
 
     input:
@@ -692,9 +694,9 @@ process mergeBarcodesInChunks{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".sclib") > 0)       "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
-        else if (filename.indexOf(".stats") > 0)             "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
-        else                                                     "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
+        if (filename.indexOf(".sclib") > 0)         "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
+        else if (filename.indexOf(".stats") > 0)    "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
+        else                                        "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
     }
 
     input:
@@ -730,9 +732,9 @@ process collapseAndFilterBarcodes{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".collapsed.sclib") > 0)       "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
-        else if (filename.indexOf(".collapsed.stats") > 0)             "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
-        else                                                     "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
+        if (filename.indexOf(".collapsed.sclib") > 0)         "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
+        else if (filename.indexOf(".collapsed.stats") > 0)    "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
+        else                                                  "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
     }
     
     input:
@@ -766,9 +768,9 @@ process resolveMultiplets{
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".resolved_multiplets.sclib") > 0)       "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
-        else if (filename.indexOf(".resolved_multiplets.stats") > 0)             "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
-        else                                                     "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
+        if (filename.indexOf(".resolved_multiplets.sclib") > 0)         "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
+        else if (filename.indexOf(".resolved_multiplets.stats") > 0)    "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
+        else                                                            "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
     }
     
     input:
@@ -803,8 +805,8 @@ process generateReports{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".CaTCHbarcodes") > 0)       "OUTPUT/Reports/${file(filename).getName()}"
-        else if (filename.indexOf(".cells") > 0)             "OUTPUT/Reports/${file(filename).getName()}"
-        else                                                     "OUTPUT/Reports/${file(filename).getName()}"
+        else if (filename.indexOf(".cells") > 0)          "OUTPUT/Reports/${file(filename).getName()}"
+        else                                              "OUTPUT/Reports/${file(filename).getName()}"
     }
 
     input:
@@ -838,7 +840,7 @@ process generateAnalyticsPlots{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".png") > 0)       "OUTPUT/Reports/plots/${file(filename).getName()}"
-        else                                     "OUTPUT/Reports/plots/${file(filename).getName()}"
+        else                                    "OUTPUT/Reports/plots/${file(filename).getName()}"
     }
 
     input:
@@ -868,13 +870,13 @@ process preprocessSingleCellData{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if(filtering){
-            if (filename.indexOf(".rds.gz") > 0)       "OUTPUT/SCE/filtered/${file(filename).getName()}"
-            else if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/Overview/${file(filename).getName()}"
-            else                                     "OUTPUT/SCE/filtered/${file(filename).getName()}"
+            if (filename.indexOf(".rds.gz") > 0)        "OUTPUT/SCE/filtered/${file(filename).getName()}"
+            else if (filename.indexOf(".pdf") > 0)      "OUTPUT/Plots/Overview/${file(filename).getName()}"
+            else                                        "OUTPUT/SCE/filtered/${file(filename).getName()}"
         } else{
-            if (filename.indexOf(".rds.gz") > 0)       "OUTPUT/SCE/raw/${file(filename).getName()}"
-            else if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/Overview/${file(filename).getName()}"
-            else                                     "OUTPUT/SCE/raw/${file(filename).getName()}"
+            if (filename.indexOf(".rds.gz") > 0)        "OUTPUT/SCE/raw/${file(filename).getName()}"
+            else if (filename.indexOf(".pdf") > 0)      "OUTPUT/Plots/Overview/${file(filename).getName()}"
+            else                                        "OUTPUT/SCE/raw/${file(filename).getName()}"
         }
     }
 
@@ -948,7 +950,7 @@ process createOverviewPlots{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/Overview/${file(filename).getName()}"
-        else                                     "OUTPUT/Plots/Overview/${file(filename).getName()}"
+        else                                    "OUTPUT/Plots/Overview/${file(filename).getName()}"
     }
 
     input:
@@ -986,7 +988,7 @@ process calculateBarcodeEnrichment{
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
-        else                                     "OUTPUT/DE/BarCodes/${file(filename).getName()}"
+        else                                    "OUTPUT/DE/BarCodes/${file(filename).getName()}"
     }
 
     input:
