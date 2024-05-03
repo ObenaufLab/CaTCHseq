@@ -63,11 +63,11 @@ minBC = get_always('min_detected_barcodes') ?: params.minDetectedBarcodes
 singletCutoff = get_always('singlet_cutoff') ?: params.singletCutoff
 bc1Cutoff = get_always('bc1_cutoff') ?: params.bc1Cutoff
 bc2Cutoff = get_always('bc2_cutoff') ?: params.bc2Cutoff
-max_mt_percent = get_always('max_mt_percent') ?: params.maxMtPercent
-min_detected_features = get_always('min_detected_features') ?: params.minDetectedFeatures
-hvg_cutoff = get_always('hvg_cutoff') ?: params.hvgCutoff
-pval_cutoff = get_always('pcal_cutoff') ?: params.pvalCutoff
-lfc_cutoff = get_always('lfc_cutoff') ?: params.lfcCutoff
+maxMtPercent = get_always('max_mt_percent') ?: params.maxMtPercent
+minDetectedFeatures = get_always('min_detected_features') ?: params.minDetectedFeatures
+hvgCutoff = get_always('hvg_cutoff') ?: params.hvgCutoff
+pvalCutoff = get_always('pval_cutoff') ?: params.pvalCutoff
+lfcCutoff = get_always('lfc_cutoff') ?: params.lfcCutoff
 markerfile = get_always('markers') ?: params.markerFile
 reportsDir = get_always('reportsDir') ?: params.reportsDir
 outputDir = get_always('outputDir') ?: params.outputDir
@@ -172,8 +172,8 @@ log.info """
  |   withQC                  : ${runqc}
  |   whitelist               : ${whitelist}
  |   mapper                  : ${mapperbin}
- |   max_mt_percent          : ${max_mt_percent}
- |   min_detected_features   : ${min_detected_features}
+ |   max_mt_percent          : ${maxMtPercent}
+ |   min_detected_features   : ${minDetectedFeatures}
  |   markerfile              : ${markerfile}
  |   chunk size              : ${chunkSize}
  |   organism                : ${organism}
@@ -939,9 +939,9 @@ process preprocessSingleCellData{
        --bc1Cut ${bc1Cutoff} \
        --bc2Cut ${bc2Cutoff} \
        --singletCut ${singletCutoff} \
-       --max_mt ${max_mt_percent} \
-       --min_features ${min_detected_features} \
-       --hvg_cutoff ${hvg_cutoff} \
+       --max_mt ${maxMtPercent} \
+       --min_features ${minDetectedFeatures} \
+       --hvg_cutoff ${hvgCutoff} \
        --out ${outname} \
        --marker ${markerfile} \
        --libpath ${scriptDirR}
@@ -1025,8 +1025,8 @@ process calculateBarcodeEnrichment{
         --format pdf \
         --width 400 \
         --height 300 \
-        --pcut ${pval_cutoff}\
-        --fcut ${lfc_cutoff} \
+        --pcut ${pvalCutoff}\
+        --fcut ${lfcCutoff} \
         --out ${outname} \
         --libpath ${scriptDirR}
     """

@@ -302,7 +302,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC, singletCut, bc1Cut
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < minBC), # At least minBC reads for all barcodes in the cell
+                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < minBC),
                     "No_barcode",
                     if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
                         "Singlet",
