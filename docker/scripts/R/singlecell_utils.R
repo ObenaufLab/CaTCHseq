@@ -524,24 +524,24 @@ normalize_Seurat <- function(sce, normalization.method = "LogNormalize", scale.f
     return(sce)
 }
 
-sctransform_Seurat <- function(sce) {
-    sce <- SCTransform(sce, vst.flavor = "v2", vars.to.regress = "percent.mt", verbose = FALSE)
+sctransform_Seurat <- function(sce, vst.flavor = "v2", vars.to.regress = "percent.mt", ...) {
+    sce <- SCTransform(sce, vst.flavor = vst.flavor, vars.to.regress = vars.to.regress, verbose = FALSE, ...)
     # sce[["SCT"]] <- as(object = sce[["SCT"]], Class = "Assay5")  # this actually breaks downstream code as SCTAssay is still v3 (https://github.com/satijalab/seurat/issues/7542)
     return(sce)
 }
 
-reduceDims_Seurat <- function(sce, assay = "RNA", reduction.name = "pca") {
+reduceDims_Seurat <- function(sce, assay = "RNA", reduction.name = "pca", ...) {
     print("   Reducing dimensions ...")
 
-    sce <- RunPCA(sce, assay = assay, reduction.name = reduction.name)
+    sce <- RunPCA(sce, assay = assay, reduction.name = reduction.name, ...)
     return(sce)
 }
 
-cluster_Seurat <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster", resolution = .2) {
+cluster_Seurat <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster", resolution = .2, nn.method = "annoy", annoy.metric = "euclidean", n.trees = 50, random.seed = 42, algorithm = 1, method = "matrix", n.start = 10, n.iter = 10, group.singletons = TRUE, initial.membership = NULL, ...) {
     print("   Clustering ...")
 
-    sce <- FindNeighbors(sce, assay = assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")))
-    sce <- FindClusters(sce, resolution = resolution, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"))
+    sce <- FindNeighbors(sce, assay = assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")), nn.method = nn.method, annoy.metric = annoy.method, n.trees = n.trees)
+    sce <- FindClusters(sce, resolution = resolution, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"), random.seed = random.seed, algorithm = algorithm, method = method, n.start = n.start, n.iter = n.iter, group.singletons = group.singletons, initial.membership = initial.membership, ...)
 
     return(sce)
 }
@@ -556,10 +556,10 @@ integrate_Seurat <- function(sce, assay = "RNA", method = CCAIntegration, orig.r
     return(sce)
 }
 
-umap_Seurat <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.1, spread = 5) {
+umap_Seurat <- function(sce, assay = "RNA", reduction = "integrated.cca", dims = 1:30, reduction.name = "umap.cca", n.neighbors = 25L, min.dist = 0.1, spread = 5, ...) {
     print("   Preparing UMAP ...")
 
-    sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors, min.dist = min.dist, spread = spread)
+    sce <- RunUMAP(sce, assay = assay, reduction = reduction, dims = dims, reduction.name = reduction.name, n.neighbors = n.neighbors, min.dist = min.dist, spread = spread, ...)
     return(sce)
 }
 
