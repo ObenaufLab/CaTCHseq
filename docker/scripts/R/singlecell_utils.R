@@ -243,7 +243,7 @@ generateHeatmaps <- function(markers,
 
 
 ### Create sce objects with corresponding CaTCH barcodes ###
-create_SCEs <- function(smpl, data10X, bc, annotation,  minBc, singletCut, bc1Cut, bc2Cut) {
+create_SCEs <- function(smpl, data10X, bc, annotation, minBc, singletCut, bc1Cut, bc2Cut) {
     samplelist <- str_split(smpl, ",")[[1]]
     data10Xs <- str_split(data10X, ",")[[1]]
     bcs <- str_split(bc, ",")[[1]]
@@ -283,7 +283,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation,  minBc, singletCut, bc1Cu
         #### Now load the CaTCH barcodes ####
         data.catch <- load_BCs(bc)
         print(paste0(" Loading Barcodes from ", bc))
-        
+
         colData(sce)[, c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
             as_tibble() %>%
             left_join(y = data.catch, by = "CellID") %>%
@@ -302,21 +302,21 @@ create_SCEs <- function(smpl, data10X, bc, annotation,  minBc, singletCut, bc1Cu
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < minBc),  # At least minBC reads for all barcodes in the cell
+                CaTCH.Status = if_else((is.na(CaTCH.Sum) | CaTCH.Sum < minBc), # At least minBC reads for all barcodes in the cell
                     "No_barcode",
                     if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
-                        "Singlet",                        
+                        "Singlet",
                         if_else((CaTCH.BC1 / CaTCH.Sum >= bc1Cut & CaTCH.BC2 / CaTCH.Sum >= bc2Cut),
                             "Dual_Integration",
                             "Multiplet"
+                        )
                     )
-                )
-            ),
-            CaTCH.Status = factor(CaTCH.Status, levels = c(
-                "Singlet",
-                "Dual_Integration"
-                "Multiplet",
-                "No_barcode"
+                ),
+                CaTCH.Status = factor(CaTCH.Status, levels = c(
+                    "Singlet",
+                    "Dual_Integration",
+                    "Multiplet",
+                    "No_barcode"
                 ))
             ) %>%
             select(CaTCH.Status)
