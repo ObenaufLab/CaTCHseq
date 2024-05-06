@@ -540,7 +540,7 @@ reduceDims_Seurat <- function(sce, assay = "RNA", reduction.name = "pca", ...) {
 cluster_Seurat <- function(sce, assay = "RNA_integrated.cca", reduction = "integrated.cca", cluster.name = "integrated.cca_cluster", resolution = .2, nn.method = "annoy", annoy.metric = "euclidean", n.trees = 50, random.seed = 42, algorithm = 1, method = "matrix", n.start = 10, n.iter = 10, group.singletons = TRUE, initial.membership = NULL, ...) {
     print("   Clustering ...")
 
-    sce <- FindNeighbors(sce, assay = assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")), nn.method = nn.method, annoy.metric = annoy.method, n.trees = n.trees)
+    sce <- FindNeighbors(sce, assay = assay, reduction = reduction, compute.SNN = TRUE, graph.name = c(paste0(assay, "_nn"), paste0(assay, "_snn")), nn.method = nn.method, annoy.metric = annoy.metric, n.trees = n.trees)
     sce <- FindClusters(sce, resolution = resolution, cluster.name = cluster.name, graph.name = paste0(assay, "_snn"), random.seed = random.seed, algorithm = algorithm, method = method, n.start = n.start, n.iter = n.iter, group.singletons = group.singletons, initial.membership = initial.membership, ...)
 
     return(sce)
