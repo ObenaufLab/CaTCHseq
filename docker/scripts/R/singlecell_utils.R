@@ -306,7 +306,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                CaTCH.Status = if_else(is.na(CaTCH.Sum) | CaTCH.Sum < minBC,
+                tmp = if_else(is.na(CaTCH.Sum) | CaTCH.Sum < minBC,
                     "No_barcode",
                     if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
                         "Singlet",
@@ -317,15 +317,17 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
                     )
                 )
             ) %>%
+            select(tmp) %>%
+            as_tibble() %>%
             mutate(
-                CaTCH.Status = factor(CaTCH.Status, levels = c(
+                CaTCH.Status = factor(tmp, levels = c(
                     "Singlet",
                     "Putative singlet",
                     "Multiplet",
                     "No barcode"
                 ))
             ) %>%
-            pull(CaTCH.Status)
+            select(CaTCH.Status)
 
         seurat_sce <- as.Seurat(sce, data = NULL, assay = NULL)
         seurat_sce <- RenameAssays(seurat_sce, assay.name = "originalexp", new.assay.name = "RNA")
