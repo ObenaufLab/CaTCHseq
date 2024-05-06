@@ -1067,8 +1067,8 @@ process identifyDEGenes{
         --width 400 \
         --height 300 \
         --organism ${organism}\
-        --pcut ${pval_cutoff}\
-        --fcut ${lfc_cutoff} \
+        --pcut ${pvalCutoff}\
+        --fcut ${lfcCutoff} \
         --out ${outname} \
         --libpath ${scriptDirR}
     """
