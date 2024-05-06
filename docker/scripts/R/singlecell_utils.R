@@ -306,7 +306,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                tmp = if_else(is.na(CaTCH.Sum) | CaTCH.Sum < minBC,
+                tmp = if_else(is.na(CaTCH.Sum) | (is.na(CaTCH.BC1) & is.na(CaTCH.BC2)) | CaTCH.Sum < minBC,
                     "No_barcode",
                     if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
                         "Singlet",
@@ -322,9 +322,10 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
             mutate(
                 CaTCH.Status = factor(tmp, levels = c(
                     "Singlet",
-                    "Putative singlet",
+                    "Double_Integration",
                     "Multiplet",
-                    "No barcode"
+                    "No_barcode",
+                    "NA"
                 ))
             ) %>%
             select(CaTCH.Status)
@@ -438,24 +439,29 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
             as_tibble() %>%
             mutate(
-                CaTCH.Status = if_else(is.na(CaTCH.Sum),
-                    "No barcode",
-                    if_else(is.na(CaTCH.BC2),
+                tmp = if_else(is.na(CaTCH.Sum) | (is.na(CaTCH.BC1) & is.na(CaTCH.BC2)) | CaTCH.Sum < minBC,
+                    "No_barcode",
+                    if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
                         "Singlet",
-                        if_else(CaTCH.BC1 / CaTCH.Sum >= 0.8,
-                            "Putative singlet",
+                        if_else(CaTCH.BC1 / CaTCH.Sum >= bc1Cut & CaTCH.BC2 / CaTCH.Sum >= bc2Cut,
+                            "Double_Integration",
                             "Multiplet"
                         )
                     )
-                ),
-                CaTCH.Status = factor(CaTCH.Status, levels = c(
+                )
+            ) %>%
+            select(tmp) %>%
+            as_tibble() %>%
+            mutate(
+                CaTCH.Status = factor(tmp, levels = c(
                     "Singlet",
-                    "Putative singlet",
+                    "Double_Integration",
                     "Multiplet",
-                    "No barcode"
+                    "No_barcode",
+                    "NA"
                 ))
             ) %>%
-            pull(CaTCH.Status)
+            select(CaTCH.Status)
 
         return(sce)
     } else {
