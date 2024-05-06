@@ -444,7 +444,7 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
                         )
                     )
                 ),
-                CaTCH.Status = factor(CaTCH.Status, levels = c(
+                CaTCH.Status = as.factor(CaTCH.Status, levels = c(
                     "Singlet",
                     "Putative singlet",
                     "Multiplet",
