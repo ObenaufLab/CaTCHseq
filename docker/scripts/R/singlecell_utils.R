@@ -315,15 +315,17 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
                             "Multiplet"
                         )
                     )
-                ),
+                )
+            ) %>%
+            mutate(
                 CaTCH.Status = factor(CaTCH.Status, levels = c(
                     "Singlet",
-                    "Double_Integration",
+                    "Putative singlet",
                     "Multiplet",
-                    "No_barcode"
+                    "No barcode"
                 ))
             ) %>%
-            select(CaTCH.Status)
+            pull(CaTCH.Status)
 
         seurat_sce <- as.Seurat(sce, data = NULL, assay = NULL)
         seurat_sce <- RenameAssays(seurat_sce, assay.name = "originalexp", new.assay.name = "RNA")
@@ -444,7 +446,7 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
                         )
                     )
                 ),
-                CaTCH.Status = as.factor(CaTCH.Status, levels = c(
+                CaTCH.Status = factor(CaTCH.Status, levels = c(
                     "Singlet",
                     "Putative singlet",
                     "Multiplet",
