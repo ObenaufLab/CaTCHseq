@@ -451,7 +451,7 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
                     "No barcode"
                 ))
             ) %>%
-            select(CaTCH.Status)
+            pull(CaTCH.Status)
 
         return(sce)
     } else {
