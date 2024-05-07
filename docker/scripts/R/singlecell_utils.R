@@ -276,7 +276,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
 
         rowData(sce)[c("Biotype", "Locus")] <- rowData(sce) %>%
             tibble::as_tibble() %>%
-            left_join(y = gtf, by = c("GeneID" = "gene_id")) %>%
+            dplyr::left_join(y = gtf, by = c("GeneID" = "gene_id")) %>%
             dplyr::select(biotype, locus)
 
 
