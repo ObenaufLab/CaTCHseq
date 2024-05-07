@@ -275,9 +275,9 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
         gtf <- read_gtf(annotation)
 
         rowData(sce)[c("Biotype", "Locus")] <- rowData(sce) %>%
-            as_tibble() %>%
+            tibble::as_tibble() %>%
             left_join(y = gtf, by = c("GeneID" = "gene_id")) %>%
-            select(biotype, locus)
+            dplyr::select(biotype, locus)
 
 
         sce$Sample <- smpl
@@ -289,9 +289,9 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
         print(paste0(" Loading Barcodes from ", bc))
 
         colData(sce)[, c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
-            as_tibble() %>%
-            left_join(y = data.catch, by = "CellID") %>%
-            select(CaTCH.BCs, CaTCH.BC.counts)
+            tibble::as_tibble() %>%
+            dplyr::left_join(y = data.catch, by = "CellID") %>%
+            dplyr::select(CaTCH.BCs, CaTCH.BC.counts)
 
         #### Count the CaTCH barcode reads and find the abundance of the two most abundant CaTCH barcodes ####
         bc.data <- lapply(X = sce$CaTCH.BC.counts, FUN = function(x) {
@@ -304,8 +304,8 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
         colnames(bc.data) <- c("CaTCH.Sum", "CaTCH.BC1", "CaTCH.BC2")
         colData(sce) <- cbind(colData(sce), bc.data)
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
-            as_tibble() %>%
-            mutate(
+            tibble::as_tibble() %>%
+            dplyr::mutate(
                 tmp = if_else(is.na(CaTCH.Sum) | (is.na(CaTCH.BC1) & is.na(CaTCH.BC2)) | CaTCH.Sum < minBC,
                     "No_barcode",
                     if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
@@ -317,9 +317,9 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
                     )
                 )
             ) %>%
-            select(tmp) %>%
-            as_tibble() %>%
-            mutate(
+            dplyr::select(tmp) %>%
+            tibble::as_tibble() %>%
+            dplyr::mutate(
                 CaTCH.Status = factor(tmp, levels = c(
                     "Singlet",
                     "Double_Integration",
@@ -328,7 +328,7 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
                     "NA"
                 ))
             ) %>%
-            select(CaTCH.Status)
+            dplyr::select(CaTCH.Status)
 
         seurat_sce <- as.Seurat(sce, data = NULL, assay = NULL)
         seurat_sce <- RenameAssays(seurat_sce, assay.name = "originalexp", new.assay.name = "RNA")
@@ -404,9 +404,9 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
         gtf <- read_gtf(annotation)
 
         rowData(sce)[c("Biotype", "Locus")] <- rowData(sce) %>%
-            as_tibble() %>%
-            left_join(y = gtf, by = c("GeneID" = "gene_id")) %>%
-            select(biotype, locus)
+            tibble::as_tibble() %>%
+            dplyr::left_join(y = gtf, by = c("GeneID" = "gene_id")) %>%
+            dplyr::select(biotype, locus)
 
 
         sce$Sample <- smpl
@@ -422,9 +422,9 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
         #    left_join(y = data.catch, by = "CellID")))
 
         colData(sce)[, c("CaTCH.BCs", "CaTCH.BC.counts")] <- colData(sce) %>%
-            as_tibble() %>%
-            left_join(y = data.catch, by = "CellID") %>%
-            select(CaTCH.BCs, CaTCH.BC.counts)
+            tibble::as_tibble() %>%
+            dplyr::left_join(y = data.catch, by = "CellID") %>%
+            dplyr::select(CaTCH.BCs, CaTCH.BC.counts)
 
         #### Count the CaTCH barcode reads and find the abundance of the two most abundant CaTCH barcodes ####
         bc.data <- lapply(X = sce$CaTCH.BC.counts, FUN = function(x) {
@@ -437,8 +437,8 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
         colnames(bc.data) <- c("CaTCH.Sum", "CaTCH.BC1", "CaTCH.BC2")
         colData(sce) <- cbind(colData(sce), bc.data)
         colData(sce)["CaTCH.Status"] <- colData(sce) %>%
-            as_tibble() %>%
-            mutate(
+            tibble::as_tibble() %>%
+            dplyr::mutate(
                 tmp = if_else(is.na(CaTCH.Sum) | (is.na(CaTCH.BC1) & is.na(CaTCH.BC2)) | CaTCH.Sum < minBC,
                     "No_barcode",
                     if_else(CaTCH.BC1 / CaTCH.Sum >= singletCut,
@@ -450,9 +450,9 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
                     )
                 )
             ) %>%
-            select(tmp) %>%
-            as_tibble() %>%
-            mutate(
+            dplyr::select(tmp) %>%
+            tibble::as_tibble() %>%
+            dplyr::mutate(
                 CaTCH.Status = factor(tmp, levels = c(
                     "Singlet",
                     "Double_Integration",
@@ -461,7 +461,7 @@ create_SCE_only <- function(smpl, data10X, bc, annotation) {
                     "NA"
                 ))
             ) %>%
-            select(CaTCH.Status)
+            dplyr::select(CaTCH.Status)
 
         return(sce)
     } else {
