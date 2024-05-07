@@ -318,9 +318,8 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
                 )
             ) %>%
             dplyr::select(tmp) %>%
-            tibble::as_tibble() %>%
             dplyr::mutate(
-                CaTCH.Status = factor(tmp, levels = c(
+                CaTCH.Status = factor(as.character(tmp), levels = c(
                     "Singlet",
                     "Double_Integration",
                     "Multiplet",
