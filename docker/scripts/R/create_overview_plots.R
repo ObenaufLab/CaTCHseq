@@ -120,7 +120,7 @@ status.colors <- list(
     "Singlet" = "forestgreen",
     "Double_Integration" = "orange",
     "Multiplet" = "red",
-    "No barcode" = "grey50"
+    "No_barcode" = "grey50"
 )
 p.status_distr <- DimPlot(sce, reduction = reduction.name, group.by = "CaTCH.Status", label.size = 1, alpha = .2) + # , ylab = "Proportion, [%]") +
     ggtitle("CaTCH status per sample") +
