@@ -365,6 +365,8 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
 
         print("Merging Seurat")
         seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH", merge.data = TRUE, merge.dr = FALSE) # merge all the seurat datasets
+        # Cleanup missing factor levels for seurat object
+        seurat_sce[[]]$CaTCH.Status <- factor(seurat_sce[[]]$CaTCH.Status, levels = c("Singlet", "Double_Integration", "Multiplet", "No_barcode", "NA"))
 
         # print("Cleaning SCE")
         # metadata = seurat_sce@meta.data
