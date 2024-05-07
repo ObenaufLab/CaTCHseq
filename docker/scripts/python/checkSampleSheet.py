@@ -91,6 +91,7 @@ class RowChecker:
                 row[self._cond_col],
                 row[self._rep_col],
                 row[self._lib_col],
+                row[self._R1_col],
             )
         )
         self.modified.append(row)
