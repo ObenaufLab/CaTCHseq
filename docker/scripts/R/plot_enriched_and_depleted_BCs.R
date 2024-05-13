@@ -104,7 +104,7 @@ ref.Condition <- opt$baseCond
 
 ### Count Barcodes ###
 bc.counts <- sce@meta.data %>%
-    filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") %>%
+    filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
     select(CaTCH.BCs, Replicate, CaTCH.BC_ID) %>%
     group_by(CaTCH.BCs, Replicate) %>%
     mutate(n = n()) %>%
@@ -128,7 +128,7 @@ countData <- bc.counts %>%
     column_to_rownames(var = "CaTCH.BC_ID")
 
 ids <- bc.counts <- sce@meta.data %>%
-    filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") %>%
+    filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
     select(CaTCH.BCs, Condition, CaTCH.BC_ID, CellID) %>%
     group_by(CaTCH.BCs, Condition) %>%
     mutate(n = n()) %>%
