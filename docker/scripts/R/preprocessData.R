@@ -334,7 +334,7 @@ colData(sce)["CaTCH.BC_ID"] <- colData(sce) %>%
     left_join(y = tmp, by = "CaTCH.BCs") %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(CaTCH.BC_ID), "BC_0", CaTCH.BC_ID)) %>%
     mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
-    pull(CaTCH.BC_ID)
+    select(CaTCH.BC_ID)
 
 seurat_sce@meta.data$CaTCH.BC_ID <- seurat_sce@meta.data %>%
     left_join(y = tmp, by = "CaTCH.BCs") %>%
@@ -347,15 +347,3 @@ print("Final Save ...")
 
 saveRDS(sce, file = paste0(opt$out, "_filtered_sce.rds.gz"), compress = "gzip")
 saveRDS(seurat_sce, file = paste0(opt$out, "_filtered_seurat_sce.rds.gz"), compress = "gzip")
-
-## Prepare the data for the report plots
-# tmp <- reducedDim(sce, "TSNE", withDimnames = FALSE)
-# data.tsne <- tibble(
-#  tSNE1 = tmp[, 1],
-#  tSNE2 = tmp[, 2],
-#  Sample = sce$Sample
-# ) %>%
-#  write.table(x = ., file = paste0(opt$out, ".tsne"), quote = FALSE, row.names = FALSE)
-#
-# colData(sce) %>%
-#  write.table(x = ., file = paste0(opt$out, ".metadata"), quote = FALSE, row.names = FALSE)
