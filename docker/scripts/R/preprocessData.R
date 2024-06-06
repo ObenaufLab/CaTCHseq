@@ -314,7 +314,7 @@ tmp <- colData(sce) %>%
     as_tibble() %>%
     select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
     filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration", Condition == opt$baseCond) %>%
-    select(CaTCH.BCs, Sample) %>%
+    select(CaTCH.BCs, Sample, CaTCH.Status) %>%
     group_by(CaTCH.BCs, Sample) %>%
     mutate(n = n()) %>%
     ungroup() %>%
@@ -324,7 +324,7 @@ tmp <- colData(sce) %>%
     mutate(.Means = rowMeans(across(starts_with(opt$baseCond)))) %>%
     arrange(by = desc(.Means)) %>%
     rowid_to_column(".ID") %>%
-    mutate(CaTCH.BC_ID = ifelse(is.na(.ID), "BC_0", paste0("BC_", .ID))) %>%
+    mutate(CaTCH.BC_ID = ifelse(is.na(.ID), "BC_0", ifelse(CaTCH.Status == "Singlet", paste0("BC_", .ID), paste0("BC*_", .ID)))) %>%
     select(-.Means, -.ID) %>%
     relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
     select(CaTCH.BCs, CaTCH.BC_ID)

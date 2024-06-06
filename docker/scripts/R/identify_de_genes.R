@@ -98,7 +98,7 @@ Idents(sce) <- sce[[]]$pca_cluster
 ### Generate Pseudobulk ####
 pseudo <- AggregateExpression(sce, assays = "RNA", return.seurat = T, group.by = c("Condition", "ident"))
  
-pseudo$de.ident <- pseudo[[]] %>% 
+pseudo$de.ident <- pseudo@meta.data %>% 
    select(Condition) %>%
    mutate(Condition = as.factor(gsub("-", ".", Condition)))
 Idents(pseudo) <- "de.ident"
