@@ -1005,6 +1005,7 @@ process calculateBarcodeEnrichment{
 
     input:
         path(sce)
+        val(check)
 
     output:
         path "*.pdf", emit: pdf
@@ -1047,6 +1048,7 @@ process identifyDEGenes{
 
     input:
         path(sce)
+        val(check)
 
     output:
         path "*.pdf", emit: pdf
@@ -1115,6 +1117,13 @@ workflow{
             }
         //Ch_csv_GEX_split.raw.subscribe {  println "GEX: $it"  }
         
+        //Create a list of unique conditions
+        Ch_Conditions = Ch_csv.map { row -> row.Condition }.distinct().branch{                 
+                multi:  it != refName
+                single: it == refName
+        }
+        //Ch_Conditions.single.subscribe {  println "Single Conditions: $it"  }
+        //Ch_Conditions.multi.subscribe {  println "Multi Conditions: $it"  }
         //println(" IDX "+mapindex+" WL "+whitelist)
 
         if (mapindex){
@@ -1281,13 +1290,10 @@ workflow{
         /**************************************************************
                 STEP 10: Run DE Analysis for Barcodes and Genes
         ***************************************************************/
-        Conditions = Ch_csv_GEX_split.raw.map { row -> row.Condition.replaceAll("_","-") }.distinct()
-        if (Conditions.size > 1){
-            calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce)        
-            identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce)
-        }else{
-            println("Only one condition detected, skipping DE analysis")
-        }
+        
+        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_Conditions.multi.collect())        
+        identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce, Ch_Conditions.multi.collect())        
+        
     //emit:
     //createOverviewPlots.out.pdf
     //createBarcodeEnrichmentPlots.out.pdf   
