@@ -1281,9 +1281,13 @@ workflow{
         /**************************************************************
                 STEP 10: Run DE Analysis for Barcodes and Genes
         ***************************************************************/
-        
-        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce)        
-        identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce)
+        Conditions = Ch_csv_GEX_split.raw.map { row -> row.Condition.replaceAll("_","-") }.distinct()
+        if (size(Conditions) > 1){
+            calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce)        
+            identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce)
+        }else{
+            println("Only one condition detected, skipping DE analysis")
+        }
     //emit:
     //createOverviewPlots.out.pdf
     //createBarcodeEnrichmentPlots.out.pdf   

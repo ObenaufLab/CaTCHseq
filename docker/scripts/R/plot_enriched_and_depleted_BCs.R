@@ -90,13 +90,13 @@ if (DefaultAssay(sce) != "RNA") {
 ### We want to compare "Condition" across replicates###
 
 # sce$Condition <- sce[[]] %>%
-#   select(Condition, Replicate) %>%
+#   dplyr::select(Condition, Replicate) %>%
 #   mutate(Condition = paste(Condition, Replicate, sep  ="_")) %>%
 #   pull(Condition)
 
 ### collect metadata ###
 metadata <- sce@meta.data %>%
-    select(Condition, Replicate) %>%
+    dplyr::select(Condition, Replicate) %>%
     distinct()
 
 ### set reference condition ###
@@ -105,7 +105,7 @@ ref.Condition <- opt$baseCond
 ### Count Barcodes ###
 bc.counts <- sce@meta.data %>%
     filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
-    select(CaTCH.BCs, Replicate, CaTCH.BC_ID) %>%
+    dplyr::select(CaTCH.BCs, Replicate, CaTCH.BC_ID) %>%
     group_by(CaTCH.BCs, Replicate) %>%
     mutate(n = n()) %>%
     ungroup() %>%
@@ -115,21 +115,21 @@ bc.counts <- sce@meta.data %>%
     drop_na()
 
 
-### Select metadata ###
+### dplyr::select metadata ###
 metadata <- metadata %>%
     mutate(Condition = as.factor(gsub("-", ".", Condition))) %>%
     mutate(Replicate = as.factor(gsub("-", ".", Replicate))) %>%
-    select(Condition, Replicate)
+    dplyr::select(Condition, Replicate)
 row.names(metadata) <- metadata$Sample
 
 ### Run pairwise DE Analysis for BCs ###
 countData <- bc.counts %>%
-    select(-CaTCH.BCs) %>%
+    dplyr::select(-CaTCH.BCs) %>%
     column_to_rownames(var = "CaTCH.BC_ID")
 
 ids <- bc.counts <- sce@meta.data %>%
     filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
-    select(CaTCH.BCs, Condition, CaTCH.BC_ID, CellID) %>%
+    dplyr::select(CaTCH.BCs, Condition, CaTCH.BC_ID, CellID) %>%
     group_by(CaTCH.BCs, Condition) %>%
     mutate(n = n()) %>%
     ungroup() %>%

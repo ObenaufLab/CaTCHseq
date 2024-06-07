@@ -99,7 +99,7 @@ Idents(sce) <- sce[[]]$pca_cluster
 pseudo <- AggregateExpression(sce, assays = "RNA", return.seurat = T, group.by = c("Condition", "ident"))
  
 pseudo$de.ident <- pseudo@meta.data %>% 
-   select(Condition) %>%
+   dplyr::select(Condition) %>%
    mutate(Condition = as.factor(gsub("-", ".", Condition)))
 Idents(pseudo) <- "de.ident"
  
@@ -119,7 +119,7 @@ pseudo$Sample <- pseudo@meta.data %>%
 # Extract Metadata
 metadata <- pseudo@meta.data %>%
    as_tibble(rownames = NA) %>%
-   select(Sample, Condition) %>%
+   dplyr::select(Sample, Condition) %>%
    distinct() %>%
    as.data.frame()
 metadata <- metadata %>%

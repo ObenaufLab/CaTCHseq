@@ -150,7 +150,7 @@ p.status_distr_cluster <- createValueDistrPlot(sce,
 
 
 p.cluster_size <- sce@meta.data %>%
-    select(pca_cluster, Condition) %>%
+    dplyr::select(pca_cluster, Condition) %>%
     group_by(pca_cluster, Condition) %>%
     mutate(n = n()) %>%
     ungroup() %>%
@@ -210,7 +210,7 @@ p.cellstage_samples_distr <- createValueDistrPlot(sce,
 
 p.unique_bc_distr <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") %>%
-    select(Sample, CaTCH.BCs) %>%
+    dplyr::select(Sample, CaTCH.BCs) %>%
     group_by(Sample) %>%
     summarise(Unique = n_distinct(CaTCH.BCs)) %>%
     ggplot() +

@@ -199,12 +199,12 @@ generateHeatmaps <- function(markers,
         filter(symbol %in% tf_candidates)
 
     mat_effect <- stats_tfa %>%
-        select(cluster, symbol, summary.logFC) %>%
+        dplyr::select(cluster, symbol, summary.logFC) %>%
         pivot_wider(names_from = cluster, values_from = summary.logFC) %>%
         data.frame(row.names = "symbol", check.names = FALSE) %>%
         as.matrix()
     mat_stats <- stats_tfa %>%
-        select(cluster, symbol, FDR) %>%
+        dplyr::select(cluster, symbol, FDR) %>%
         pivot_wider(names_from = cluster, values_from = FDR) %>%
         data.frame(row.names = "symbol", check.names = FALSE) %>%
         as.matrix()
@@ -513,7 +513,7 @@ read_gtf <- function(anno) {
             gene_id = str_extract(attr, 'gene_id "[^"]+"'),
             biotype = str_extract(attr, 'gene_biotype "[^"]+"')
         ) %>%
-        select(-attr, -type) %>%
+        dplyr::select(-attr, -type) %>%
         mutate(
             gene_id = str_extract(gene_id, '"[^"]+"'),
             gene_id = str_remove_all(gene_id, "\""),
@@ -525,11 +525,11 @@ read_gtf <- function(anno) {
 }
 
 
-normalize_Seurat <- function(sce, normalization.method = "LogNormalize", scale.factor = 10000, selection.method = "vst", nfeatures = 2000, ...) {
+normalize_Seurat <- function(sce, normalization.method = "LogNormalize", scale.factor = 10000, dplyr::selection.method = "vst", nfeatures = 2000, ...) {
     print("   Normalizing and scaling SCE ...")
 
     sce <- NormalizeData(sce, normalization.method = normalization.method, scale.factor = scale.factor)
-    sce <- FindVariableFeatures(sce, selection.method = selection.method, nfeatures = nfeatures)
+    sce <- FindVariableFeatures(sce, dplyr::selection.method = dplyr::selection.method, nfeatures = nfeatures)
     sce <- ScaleData(sce, ...)
 
     return(sce)
@@ -603,7 +603,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(A, B)))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
@@ -692,7 +692,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
     res_shrink <- res_shrink %>%
         as_tibble(rownames = NA) %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        select(-padj)
+        dplyr::select(-padj)
 
     # sort and output
     resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
@@ -717,7 +717,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 
     r <- r %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        select(-padj)
+        dplyr::select(-padj)
 
     r$Gene <- r %>%
         as_tibble(rownames = NA) %>%
@@ -742,7 +742,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(A, B)))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
@@ -812,9 +812,9 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
 
     tops <- tops %>%
         mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
-        select(-logFC) %>%
+        dplyr::select(-logFC) %>%
         mutate(p.adj = as.numeric(as.character(FDR))) %>%
-        select(-FDR)
+        dplyr::select(-FDR)
 
     tops <- tops %>%
         filter(!is.na(p.adj), p.adj <= 0.1) %>%
@@ -839,7 +839,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(A, B)))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
@@ -922,7 +922,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         as_tibble(rownames = NA) %>%
         rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        select(-padj) %>%
+        dplyr::select(-padj) %>%
         group_by(CaTCH.BC_ID, Sample) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
@@ -943,7 +943,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        select(-padj) %>%
+        dplyr::select(-padj) %>%
         unique()
 
 
@@ -964,7 +964,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        select(-padj) %>%
+        dplyr::select(-padj) %>%
         unique()
 
     rm(res, resn, resOrdered)
@@ -985,7 +985,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(A, B)))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition)) %>%
         droplevels()
@@ -1056,9 +1056,9 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
-        select(-logFC) %>%
+        dplyr::select(-logFC) %>%
         mutate(p.adj = as.numeric(as.character(FDR))) %>%
-        select(-FDR) %>%
+        dplyr::select(-FDR) %>%
         unique()
 
     write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)

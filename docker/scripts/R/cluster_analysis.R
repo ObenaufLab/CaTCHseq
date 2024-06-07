@@ -31,13 +31,13 @@ ref.treatment <- levels(sce$Treatment)[1]
 #### Use DeSeq2 to identify over- and underrepresented barcodes ####
 metadata <- colData(sce) %>% 
             as_tibble() %>% 
-            select(Sample, Treatment) %>% 
+            dplyr::select(Sample, Treatment) %>% 
             distinct()
 
 bc.counts <- colData(sce) %>% 
              as_tibble() %>%
              filter(CaTCH.Status == "Singlet") %>%
-             select(CaTCH.BCs, Sample, BC_ID) %>%
+             dplyr::select(CaTCH.BCs, Sample, BC_ID) %>%
              group_by(CaTCH.BCs, Sample) %>%
              mutate(n = n()) %>%
              ungroup() %>%
@@ -49,7 +49,7 @@ idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "BC_ID
 metadata <- metadata[idx, ]
 
 dds <- DESeqDataSetFromMatrix(countData = bc.counts %>%
-                                          select(-CaTCH.BCs) %>%
+                                          dplyr::select(-CaTCH.BCs) %>%
                                           column_to_rownames(var = "BC_ID"),
                               colData = metadata,
                               design= ~ Treatment)
@@ -89,11 +89,11 @@ for (t in setdiff(levels(sce$Treatment), ref.treatment)) {
   # no reasonable statistics can be calculated.
   mask <- colData(sce.tmp) %>%
           as_tibble() %>%
-          select(Cluster) %>%
+          dplyr::select(Cluster) %>%
           group_by(Cluster) %>%
           mutate(mask = n() >= opt$min_size) %>%
           ungroup() %>%
-          select(mask) %>%
+          dplyr::select(mask) %>%
           pull()
   sce.tmp <- sce.tmp[, mask]
   sce.tmp$Cluster <- factor(sce.tmp$Cluster, levels = sort(unique(sce.tmp$Cluster)))
@@ -103,11 +103,11 @@ for (t in setdiff(levels(sce$Treatment), ref.treatment)) {
   colData(sce.tmp)["BarcodeType"] <- colData(sce.tmp) %>%
                                      as_tibble() %>%
                                      left_join(y = (r %>% 
-                                                    select(BC_ID, Type)), 
+                                                    dplyr::select(BC_ID, Type)), 
                                                by = "BC_ID") %>%
                                      mutate(Type = if_else(is.na(BC_ID), "Invalid barcode", Type),
                                             Type = if_else(is.na(Type), "Not significant", Type)) %>%
-                                     select(Type)
+                                     dplyr::select(Type)
   
   ##### Prepare the annotation blocks for both PROGENy and DoRothEA #####
   ###### Heatmaps with the clusters ######
@@ -116,7 +116,7 @@ for (t in setdiff(levels(sce$Treatment), ref.treatment)) {
   print("      ... preparing the heatmap annotations...")
   ha.data.frac <- colData(sce.tmp) %>%
                   as_tibble() %>%
-                  select(Treatment, Cluster) %>%
+                  dplyr::select(Treatment, Cluster) %>%
                   group_by(Cluster) %>%
                   mutate(ClusterSize = n()) %>%
                   group_by(Treatment, Cluster) %>%
@@ -124,7 +124,7 @@ for (t in setdiff(levels(sce$Treatment), ref.treatment)) {
                   ungroup() %>%
                   distinct() %>%
                   mutate(Frac = n / ClusterSize * 100) %>%
-                  select(-ClusterSize, -n) %>%
+                  dplyr::select(-ClusterSize, -n) %>%
                   pivot_wider(names_from = Treatment, values_from = Frac, values_fill = 0) %>%
                   arrange(Cluster) %>%
                   relocate(starts_with(ref.treatment)) %>%
@@ -134,7 +134,7 @@ for (t in setdiff(levels(sce$Treatment), ref.treatment)) {
   # Annotation line: cluster sizes irrespective of the treatment
   ha.data.size <- colData(sce.tmp) %>%
                   as_tibble() %>%
-                  select(Cluster) %>%
+                  dplyr::select(Cluster) %>%
                   group_by(Cluster) %>%
                   mutate(n = n()) %>%
                   ungroup() %>%
@@ -218,12 +218,12 @@ for (t in setdiff(levels(sce$Treatment), ref.treatment)) {
          left_join(y = colData(sce.tmp) %>%
                        as_tibble(rownames = NA) %>%
                        rownames_to_column(var = ".CellID") %>%
-                       select(.CellID, Cluster),
+                       dplyr::select(.CellID, Cluster),
                    by = c("CellID" = ".CellID")) %>%
          group_by(Pathway, Cluster) %>%
          mutate(MeanActivity = mean(Activity)) %>%
          ungroup() %>%
-         select(-CellID, -Activity) %>%
+         dplyr::select(-CellID, -Activity) %>%
          distinct() %>%
          arrange(Pathway, Cluster) %>%
          pivot_wider(names_from = Cluster, values_from = MeanActivity) %>%
@@ -313,12 +313,12 @@ for (t in setdiff(levels(sce$Treatment), ref.treatment)) {
          left_join(y = colData(sce) %>%
                        as_tibble(rownames = NA) %>%
                        rownames_to_column(var = ".CellID") %>%
-                       select(.CellID, Cluster),
+                       dplyr::select(.CellID, Cluster),
                    by = c("CellID" = ".CellID")) %>%
          group_by(TF, Cluster) %>%
          mutate(MeanActivity = mean(Activity)) %>%
          ungroup() %>%
-         select(-CellID, -Activity) %>%
+         dplyr::select(-CellID, -Activity) %>%
          distinct() %>%
          arrange(TF, Cluster) %>%
          pivot_wider(names_from = Cluster, values_from = MeanActivity) %>%

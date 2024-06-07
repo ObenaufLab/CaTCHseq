@@ -9,14 +9,14 @@ library(DESeq2)
 #### Identify over- and underrepresented CaTCH barcodes ####
 metadata <- colData(sce) %>% 
             as_tibble() %>% 
-            select(Sample, Treatment) %>% 
+            dplyr::select(Sample, Treatment) %>% 
             distinct()
 ref.treatment <- levels(metadata$Treatment)[1]
 
 bc.counts <- colData(sce) %>% 
              as_tibble() %>%
              filter(CaTCH.Status == "Singlet") %>%
-             select(CaTCH.BCs, Sample, BC_ID) %>%
+             dplyr::select(CaTCH.BCs, Sample, BC_ID) %>%
              group_by(CaTCH.BCs, Sample) %>%
              mutate(n = n()) %>%
              ungroup() %>%
@@ -28,7 +28,7 @@ idx <- match(metadata$Sample, setdiff(colnames(bc.counts), c("CaTCH.BCs", "BC_ID
 metadata <- metadata[idx, ]
 
 dds <- DESeqDataSetFromMatrix(countData = bc.counts %>%
-                                          select(-CaTCH.BCs) %>%
+                                          dplyr::select(-CaTCH.BCs) %>%
                                           column_to_rownames(var = "BC_ID"),
                               colData = metadata,
                               design= ~ Treatment)
@@ -60,9 +60,9 @@ for (t in setdiff(levels(metadata$Treatment), ref.treatment)) {
 
   types <- GoI.expr %>%
            left_join(y = (r %>% 
-                          select(BC_ID, Type)), 
+                          dplyr::select(BC_ID, Type)), 
                      by = "BC_ID") %>%
-           select(Type)
+           dplyr::select(Type)
 
   cbind(GoI.expr, types) %>%
   as_tibble() %>%

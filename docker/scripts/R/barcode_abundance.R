@@ -44,7 +44,7 @@ if (!("BC_ID" %in% names(colData(sce)))) {
   tmp <- colData(sce) %>% 
          as_tibble() %>%
          filter(CaTCH.Status == "Singlet", Condition == ref.condition) %>%
-         select(CaTCH.BCs, Sample) %>%
+         dplyr::select(CaTCH.BCs, Sample) %>%
          group_by(CaTCH.BCs, Sample) %>%
          mutate(n = n()) %>%
          ungroup() %>%
@@ -55,15 +55,15 @@ if (!("BC_ID" %in% names(colData(sce)))) {
          arrange(by = desc(.Means)) %>%
          rowid_to_column(".ID") %>%
          mutate(BC_ID = paste0("BC_", .ID)) %>%
-         select(-.Means, -.ID) %>%
+         dplyr::select(-.Means, -.ID) %>%
          relocate(BC_ID, .after = CaTCH.BCs) %>%
-         select(CaTCH.BCs, BC_ID)
+         dplyr::select(CaTCH.BCs, BC_ID)
   
   colData(sce)["BC_ID"] <- colData(sce) %>%
                            as_tibble() %>%
                            left_join(y = tmp, by = "CaTCH.BCs") %>%
                            mutate(BC_ID = factor(BC_ID, levels = str_sort(unique(BC_ID), numeric = TRUE))) %>%
-                           select(BC_ID)
+                           dplyr::select(BC_ID)
 }
 
 plots <- list()
@@ -71,7 +71,7 @@ for (t in levels(sce$Condition)) {
   plot.data <- colData(sce) %>%
                as_tibble() %>%
                filter(CaTCH.Status == "Singlet", Condition == t, !is.na(BC_ID)) %>% 
-               select(Sample, BC_ID) %>%
+               dplyr::select(Sample, BC_ID) %>%
                group_by(Sample, BC_ID) %>%
                mutate(n = n()) %>%
                ungroup() %>%
@@ -96,17 +96,17 @@ for (t in levels(sce$Condition)) {
   
   highlight.bcs <- plot.data %>%
                    filter(!is.na(Label)) %>%
-                   select(BC_ID) %>%
+                   dplyr::select(BC_ID) %>%
                    pull()
   p.proportions <- colData(sce) %>%
                    as_tibble() %>%
                    filter(Condition == t) %>%
-                   select(BC_ID, CaTCH.Status, Cluster) %>%
+                   dplyr::select(BC_ID, CaTCH.Status, Cluster) %>%
                    group_by(Cluster) %>%
                    mutate(ClusterSize = n()) %>%
                    ungroup() %>%
                    filter(CaTCH.Status == "Singlet") %>%
-                   select(-CaTCH.Status) %>%
+                   dplyr::select(-CaTCH.Status) %>%
                    filter(BC_ID %in% highlight.bcs) %>%
                    group_by(BC_ID, Cluster) %>%
                    mutate(BC_prop = n()) %>%

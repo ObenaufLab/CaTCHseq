@@ -72,12 +72,12 @@ generateHeatmaps <- function(markers,
         filter(symbol %in% tf_candidates)
     
     mat_effect <- stats_tfa %>%
-        select(cluster, symbol, summary.logFC) %>%
+        dplyr::select(cluster, symbol, summary.logFC) %>%
         pivot_wider(names_from = cluster, values_from = summary.logFC) %>%
         data.frame(row.names = "symbol", check.names = FALSE) %>%
         as.matrix()
     mat_stats <- stats_tfa %>%
-        select(cluster, symbol, FDR) %>%
+        dplyr::select(cluster, symbol, FDR) %>%
         pivot_wider(names_from = cluster, values_from = FDR) %>%
         data.frame(row.names = "symbol", check.names = FALSE) %>%
         as.matrix()
@@ -138,7 +138,7 @@ sce.good <- sce.good[gene.expr > 0, ]
 colData(sce.good)["Treatment"] <- colData(sce.good) %>%
                                   as_tibble() %>%
                                   separate(Sample, sep = "_", into = c("Treatment", "Replicate"), remove = FALSE) %>%
-                                  select(Treatment)
+                                  dplyr::select(Treatment)
 
 
 #### Load the cell counts data ####
@@ -159,7 +159,7 @@ if(length(ref.treatment) != 1) {
 }
 
 treatments <- metadata %>% 
-              select(Treatment) %>% 
+              dplyr::select(Treatment) %>% 
               filter(Treatment != ref.treatment) %>% 
               pull() %>% 
               unique() %>%
@@ -192,13 +192,13 @@ full.data <- full.data %>%
              mutate(N = rowMeans(select(., starts_with(ref.treatment)), na.rm = TRUE)) %>%
              arrange(desc(N)) %>%
              mutate(BC_ID = paste("BC", row_number(), sep = "-")) %>%
-             select(-N)
+             dplyr::select(-N)
 
 
 #### Run DESeq2 to identify over- and underrepresented barcodes ####
 cnt.data <- full.data %>%
             column_to_rownames("BC_ID") %>% 
-            select(-CaTCHBarcode) %>% 
+            dplyr::select(-CaTCHBarcode) %>% 
             as.matrix()
 cnt.data[is.na(cnt.data)] <- 0
 
@@ -219,11 +219,11 @@ for (t in setdiff(levels(metadata$Treatment), ref.treatment)) {
          mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
          arrange(desc(Type), desc(abs(log2FoldChange))) %>%
          inner_join(y = full.data %>% 
-                        select(BC_ID, starts_with(t), starts_with(ref.treatment)), by = "BC_ID") %>%
-         select(-baseMean, -lfcSE, -stat, -pvalue, -padj) %>%
+                        dplyr::select(BC_ID, starts_with(t), starts_with(ref.treatment)), by = "BC_ID") %>%
+         dplyr::select(-baseMean, -lfcSE, -stat, -pvalue, -padj) %>%
          pivot_longer(cols = c(everything(), -BC_ID, -Type, -log2FoldChange), names_to = "Sample", values_to = "CellCount") %>%
          separate(Sample, sep = "_", into = c("Treatment", "Replicate"), remove = FALSE) %>%
-         select(-Replicate) %>%
+         dplyr::select(-Replicate) %>%
          mutate(Treatment = factor(Treatment, levels = treatments),
                 CellCount = if_else(is.na(CellCount), 0, CellCount)) %>%
          group_by(BC_ID, Treatment) %>% 
@@ -256,7 +256,7 @@ colnames(m) <- names(results)
 
 plot.lfc  <- map_df(results, .f = function(x){
                     tmp <- x %>% 
-                      select(BC_ID, log2FoldChange) %>% 
+                      dplyr::select(BC_ID, log2FoldChange) %>% 
                       distinct()
                     idx <- match(barcodes, tmp$BC_ID)
                     vals <- tmp$log2FoldChange[idx]
@@ -284,16 +284,16 @@ do.call("grid.arrange", c(plots, "ncol" = 1))
 # Only keep the cells with the CaTCH barcodes that were identified in
 # the previous step
 tmp <- full.data %>%
-       select(CaTCHBarcode, BC_ID) %>%
+       dplyr::select(CaTCHBarcode, BC_ID) %>%
        filter(BC_ID %in% barcodes)
 mask <- sce.good$CaTCH.BCs %in% tmp$CaTCHBarcode
 sce.good.diff <- sce.good[, mask]
 colData(sce.good.diff)["BC_ID"] <- colData(sce.good.diff) %>%
                                    as_tibble() %>%
                                    left_join(y = full.data %>%
-                                                 select(CaTCHBarcode, BC_ID),
+                                                 dplyr::select(CaTCHBarcode, BC_ID),
                                              by = c("CaTCH.BCs" = "CaTCHBarcode")) %>%
-                                   select(BC_ID)
+                                   dplyr::select(BC_ID)
 
 ###### Run PROGENy ###### 
 tmp <- assay(sce.good.diff, "logcounts") %>%
@@ -327,14 +327,14 @@ hm.data <- t(pw_activities) %>%
              group_by(BC_ID, Treatment, Pathway) %>%
              mutate(MeanActivity = mean(Score)) %>%
              ungroup() %>%
-             select(-CellID) %>%
-             select(-Score) %>% 
+             dplyr::select(-CellID) %>%
+             dplyr::select(-Score) %>% 
              distinct(BC_ID, Treatment, Pathway, .keep_all = TRUE) %>%
              arrange(Pathway, Treatment) %>%
              pivot_wider(id_cols = c(BC_ID), names_from = c(Pathway, Treatment), values_from = MeanActivity)
 
 tmp <- hm.data %>%
-       select(-BC_ID) %>%
+       dplyr::select(-BC_ID) %>%
        as.matrix()
 rownames(tmp) <- hm.data$BC_ID
 tmp <- t(tmp)
@@ -364,7 +364,7 @@ idx <- match(rownames(plot.lfc), colnames(tmp))
 tmp <- tmp[, idx]
 bottom.annot.cellcounts <- full.data %>%
                            filter(BC_ID %in% barcodes) %>%
-                           select(-CaTCHBarcode) %>% 
+                           dplyr::select(-CaTCHBarcode) %>% 
                            column_to_rownames("BC_ID") %>%
                            as.matrix()
 hm.progeny <- Heatmap(tmp, 
