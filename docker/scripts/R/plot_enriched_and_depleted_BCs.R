@@ -85,14 +85,7 @@ sce <- loadRDS(opt$sce)
 if (DefaultAssay(sce) != "RNA") {
     DefaultAssay(sce) <- "RNA" # NOT "RNA_integrated.cca"
 }
-#### Use DeSeq2 to identify over- and underrepresented barcodes ####
-
-### We want to compare "Condition" across replicates###
-
-# sce$Condition <- sce[[]] %>%
-#   dplyr::select(Condition, Replicate) %>%
-#   mutate(Condition = paste(Condition, Replicate, sep  ="_")) %>%
-#   pull(Condition)
+#### Use DeSeq2/EdgeR to identify over- and underrepresented barcodes ####
 
 ### collect metadata ###
 metadata <- sce@meta.data %>%
@@ -114,7 +107,6 @@ bc.counts <- sce@meta.data %>%
     filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
     drop_na()
 
-
 ### dplyr::select metadata ###
 metadata <- metadata %>%
     mutate(Condition = as.factor(gsub("-", ".", Condition))) %>%
@@ -127,7 +119,7 @@ countData <- bc.counts %>%
     dplyr::select(-CaTCH.BCs) %>%
     column_to_rownames(var = "CaTCH.BC_ID")
 
-ids <- bc.counts <- sce@meta.data %>%
+ids <- sce@meta.data %>%
     filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
     dplyr::select(CaTCH.BCs, Condition, CaTCH.BC_ID, CellID) %>%
     group_by(CaTCH.BCs, Condition) %>%
@@ -137,7 +129,6 @@ ids <- bc.counts <- sce@meta.data %>%
     pivot_wider(names_from = Condition, values_from = n, values_fill = 0) %>%
     filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
     drop_na()
-
 
 comparison_objs <- list()
 for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
