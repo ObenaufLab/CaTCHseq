@@ -1282,7 +1282,7 @@ workflow{
                 STEP 10: Run DE Analysis for Barcodes and Genes
         ***************************************************************/
         Conditions = Ch_csv_GEX_split.raw.map { row -> row.Condition.replaceAll("_","-") }.distinct()
-        if (Conditions.size() > 1){
+        if (Conditions.size > 1){
             calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce)        
             identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce)
         }else{
