@@ -529,7 +529,7 @@ normalize_Seurat <- function(sce, normalization.method = "LogNormalize", scale.f
     print("   Normalizing and scaling SCE ...")
 
     sce <- NormalizeData(sce, normalization.method = normalization.method, scale.factor = scale.factor)
-    sce <- FindVariableFeatures(sce, dplyr::selection.method = dplyr::selection.method, nfeatures = nfeatures)
+    sce <- FindVariableFeatures(sce, selection.method = selection.method, nfeatures = nfeatures)
     sce <- ScaleData(sce, ...)
 
     return(sce)
