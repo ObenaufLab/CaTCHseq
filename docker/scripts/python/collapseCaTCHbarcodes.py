@@ -4,11 +4,12 @@
     Collapses similar CaTCH barcodes within the cells
 """
 
-import sys
 import argparse
 import os
+import sys
 from datetime import datetime
 from typing import List
+
 from CaTCH.libraries.SingleCellLibrary import SingleCellLibrary
 
 
@@ -19,7 +20,6 @@ def main():
     parser.add_argument("--maxdist", type = int, default = 2, help = "maximum Hamming distance (default: 2)")
     parser.add_argument("--minsupport", type = int, default = 10, help = "minimum reads supporting the CaTCH barcode (default: 10)")
     parser.add_argument("--outlib", type = str, required = True, help = "path to the output single cell library JSON file")
-
 
     try:
         opts = parser.parse_args()
@@ -47,19 +47,35 @@ def main():
     dt = datetime.now()
     print(f"[{dt}] {nMultiplets:,} ({nMultiplets / scl.size * 100:.2f}%) still have two or more CaTCH barcodes")
 
+    # Collapse UMIs of CaTCH barcodes
+    dt = datetime.now()
+    print(f"[{dt}] Quantifying UMIs ...")
+    nCaTCHBCsRaw = 0
+    for sc in scl.enumerateSingleCells():
+        nCaTCHBCsRaw += len(set(sc.umis))
+    scl.collapseSimilarCaTCHumis(maxDist=opts.maxdist)
+    nCaTCHBCs = 0
+    for sc in scl.enumerateSingleCells():
+        nCaTCHBCs += len(set(sc.umis))
+    dt = datetime.now()
+    print(
+        f"[{dt}] {scl.size} cells with CaTCH barcodes remaining. Collapsed {nCaTCHBCsRaw} UMIS to {nCaTCHBCs}"
+    )
+
     # Remove background
     dt = datetime.now()
     print(f"[{dt}] Removing the background barcodes (min support {opts.minsupport})...")
-    scl.removeBackground(minCoverage = opts.minsupport)
+    scl.removeBackground(minCoverage=opts.minsupport)
     nMultiplets = 0
     for sc in scl.enumerateSingleCells():
         if sc.CaTCH_barcodes.distinct > 1:
             nMultiplets += 1
     dt = datetime.now()
-    print(f"[{dt}] {scl.size} cells with CaTCH barcodes remaining. {nMultiplets:,} ({nMultiplets / scl.size * 100:.2f}%) still have two or more CaTCH barcodes")
+    print(
+        f"[{dt}] {scl.size} cells with CaTCH barcodes remaining. {nMultiplets:,} ({nMultiplets / scl.size * 100:.2f}%) still have two or more CaTCH barcodes"
+    )
 
     scl.saveToJSON(opts.outlib)
-
 
 
 if __name__ == "__main__":
