@@ -101,12 +101,14 @@ class SingleCellLibrary:
     ) -> "SingleCellLibrary":
         if inplace:
             for barcode in self._cells:
-                self._cells[barcode].collapseCaTCHumis(inplace=True)
+                self._cells[barcode].collapseCaTCHumis(maxDist=maxDist, inplace=True)
             return self
         else:
             result = SingleCellLibrary()
             for barcode in self._cells:
-                tmp = self._cells[barcode].collapseCaTCHumis(inplace=False)
+                tmp = self._cells[barcode].collapseCaTCHumis(
+                    maxDist=maxDist, inplace=False
+                )
                 result._cells[barcode] = tmp
             return result
 
