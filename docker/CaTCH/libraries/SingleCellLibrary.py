@@ -126,6 +126,19 @@ class SingleCellLibrary:
                 lib.addBarcode(bc)
         return lib
 
+    def generateUniqueCaTCHBarcodesLibrary(
+        self, useMultiplets: bool = False
+    ) -> "CaTCHBarcodeLibrary":
+        lib = CaTCHBarcodeLibrary()
+        for bc10x in self._cells:
+            cell = self._cells[bc10x]
+            bclib = cell.CaTCH_barcodes_unique
+            if bclib.distinct > 1 and not useMultiplets:
+                continue
+            for bc in bclib.listBarcodes():
+                lib.addBarcode(bc)
+        return lib
+
     def merge(self, other: SingleCellLibrary):
         self._nInvalid10XBarcodes += other._nInvalid10XBarcodes
         self._nAmbiguous10XBarcodes += other._nAmbiguous10XBarcodes

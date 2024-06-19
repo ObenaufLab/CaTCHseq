@@ -41,9 +41,19 @@ class SingleCell:
             bclib.addBarcode(bc, len(self._catch_umi_rel[bc]))
         return bclib
 
+    def _get_unique_catch_barcodes_(self) -> CaTCHBarcodeLibrary:
+        """
+        Returns the library of CaTCH barcodes of this cell.
+        """
+        bclib = CaTCHBarcodeLibrary()
+        for bc in self._catch_umi_rel:
+            bclib.addBarcode(bc, len(set(self._catch_umi_rel[bc])))
+        return bclib
+
     barcode_10X = property(_get_barcode_10X_)
     umis = property(_get_umis_)
     CaTCH_barcodes = property(_get_catch_barcodes_)
+    CaTCH_barcodes_unique = property(_get_unique_catch_barcodes_)
 
     def copy(self) -> SingleCell:
         _copy = SingleCell(self._barcode_10X)
