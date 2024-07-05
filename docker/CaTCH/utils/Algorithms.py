@@ -48,3 +48,12 @@ class Algorithms:
     def clusterUMIs(umilist: List[str], maxDist: int = 1) -> List[str]:
         clusterer = UMIClusterer(cluster_method="directional")
         return clusterer(umilist, threshold=maxDist)
+
+    def clusterCaTCH(umidict: dict[str], maxDist: int = 1) -> List[str]:
+
+        clusterer = UMIClusterer(cluster_method="directional")
+
+        bcdict = dict(
+            zip([k.seq.encode("utf-8") for k in umidict.keys()], umidict.values())
+        )
+        return clusterer(bcdict, threshold=maxDist)

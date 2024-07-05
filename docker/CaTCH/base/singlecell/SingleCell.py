@@ -130,7 +130,7 @@ class SingleCell:
         self, maxDist: int = 2, inplace: bool = True
     ) -> SingleCell:
         """
-        Collapses the CaTCH barcodes of the current cell. In brief, the method calculates the Hamming distance between all pairs of CaTCH barcodes and merges those with the distance smaller than the cut-off value maxDist into a single CaTCH barcode, while keeping all UMIs.
+        Collapses the CaTCH barcodes of the current cell. In brief, the method collapses all CaTCH barcodes with distance smaller than the cut-off value maxDist into a single CaTCH barcode, while keeping all UMIs via the umi_tools API.
         """
         result = list()
         bcdict = dict()
@@ -139,18 +139,24 @@ class SingleCell:
             n = len(self._catch_umi_rel[bc])
             bcdict[bc] = n
             nTotalReads += n
-        bcdict = dict(
-            zip([str(k).encode("utf-8") for k in bcdict.keys()], bcdict.values())
-        )
-        bcdict = Algorithms.clusterUMIs(bcdict, maxDist)
+
+        # print(f"BCDICT: {bcdict}")
+        bclist = Algorithms.clusterCaTCH(bcdict, maxDist)
 
         collapsedBCs = dict()
-        for cluster in bcdict:
-            mainNode = cluster.pop(0).decode("utf-8")
-            collapsedBCs[mainNode] = list()
-            collapsedBCs[mainNode].extend(self._catch_umi_rel[mainNode].copy())
+        for cluster in bclist:
+            mainNode = cluster.pop(0)
+            # print(mainNode.decode("utf-8"))
+            bc = [
+                x
+                for x in self._catch_umi_rel.keys()
+                if x.seq == mainNode.decode("utf-8")
+            ][0]
+            # print(f"BC: {bc}")
+            collapsedBCs[bc] = list()
+            collapsedBCs[bc].extend(self._catch_umi_rel[bc].copy())
             for clusteredNode in cluster:
-                collapsedBCs[mainNode].extend(self._catch_umi_rel[clusteredNode].copy())
+                collapsedBCs[bc].extend(self._catch_umi_rel[bc].copy())
 
         if inplace:
             self._catch_umi_rel = collapsedBCs

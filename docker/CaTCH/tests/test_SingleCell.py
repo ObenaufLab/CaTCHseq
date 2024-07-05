@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import itertools
 import json
+import os
 import pathlib
 import unittest
 from typing import Dict, List, Literal, Tuple
@@ -30,38 +32,66 @@ class TestSingleCell(unittest.TestCase):
             f"Loaded {self.lib.size} cells of which {nMultiplets:,} ({nMultiplets / self.lib.size * 100:.2f}%) have two or more CaTCH barcodes"
         )
 
-    def test_collapseCaTCHBarcodes(self, maxDist: int = 1, minSupport: int = 10):
+    def test_collapseCaTCHBarcodes(self, maxDist: int = 1):
         print("Testing collapseCaTCHBarcodes")
+        for f in [
+            "test_collapseCaTCHBarcodes_before.log",
+            "test_collapseCaTCHBarcodes_after.log",
+        ]:
+            os.remove(f)
+
         collapsed_cell = dict()
-        for barcode in self.lib._cells[:10]:  # Only the first 10 cells are tested
-            print(
-                f"CELL: {barcode} CaTCH: {self.lib._cells[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(self.lib._cells[barcode].umis))}"
-            )
+        # Initialize limit for testing
+        N = 100
+        # Using islice() + items()
+        # Get first N items in dictionary
+        test = dict(itertools.islice(self.lib._cells.items(), N))
+        for barcode in test:  # Only the first N cells are tested
+            with open("test_collapseCaTCHBarcodes_before.log", "a") as f:
+                print(
+                    f"CELL: {barcode} CaTCH: {self.lib._cells[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(self.lib._cells[barcode].umis))}",
+                    file=f,
+                )
             collapsed_cell[barcode] = self.lib._cells[barcode].collapseCaTCHBarcodes(
                 maxDist=maxDist, inplace=True
             )
-            print(
-                f"CELL: {barcode} CaTCH: {collapsed_cell[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(collapsed_cell[barcode].umis))}"
-            )
+            with open("test_collapseCaTCHBarcodes_after.log", "a") as f:
+                print(
+                    f"CELL: {barcode} CaTCH: {collapsed_cell[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(collapsed_cell[barcode].umis))}",
+                    file=f,
+                )
 
         # Assertions to check the number of unique barcodes and UMIs under each barcode
         # This part requires specific expected outcomes based on the test data
 
-    def test_collapseCaTCHBarcodes_umitools(
-        self, maxDist: int = 1, minSupport: int = 10
-    ):
+    def test_collapseCaTCHBarcodes_umitools(self, maxDist: int = 1):
         print("Testing collapseCaTCHBarcodes with umitools")
+        for f in [
+            "test_collapseCaTCHBarcodes_umitools_before.log",
+            "test_collapseCaTCHBarcodes_umitools_after.log",
+        ]:
+            os.remove(f)
+
         collapsed_cell = dict()
-        for barcode in self.lib._cells[:10]:
-            print(
-                f"CELL: {barcode} CaTCH: {self.lib._cells[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(self.lib._cells[barcode].umis))}"
-            )
+        # Initialize limit for testing
+        N = 100
+        # Using islice() + items()
+        # Get first N items in dictionary
+        test = dict(itertools.islice(self.lib._cells.items(), N))
+        for barcode in test:  # Only the first N cells are tested
+            with open("test_collapseCaTCHBarcodes_umitools_before.log", "a") as f:
+                print(
+                    f"CELL: {barcode} CaTCH: {self.lib._cells[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(self.lib._cells[barcode].umis))}",
+                    file=f,
+                )
             collapsed_cell[barcode] = self.lib._cells[
                 barcode
             ].collapseCaTCHBarcodes_umitools(maxDist=maxDist, inplace=True)
-            print(
-                f"CELL: {barcode} CaTCH: {collapsed_cell[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(collapsed_cell[barcode].umis))}"
-            )
+            with open("test_collapseCaTCHBarcodes_umitools_after.log", "a") as f:
+                print(
+                    f"CELL: {barcode} CaTCH: {collapsed_cell[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(collapsed_cell[barcode].umis))}",
+                    file=f,
+                )
         # Assertions similar to test_collapseCaTCHBarcodes
 
 
