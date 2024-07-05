@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-s -v"
+testpaths = [
+    "docker/CaTCH/tests",
+    "docker",
+    "CaTCH",
+    "base",
+    "tests",
+    "integration",
+]
+python_files = "test_*.py"
+python_paths = "${userHome}/anaconda3/envs/pytest/bin/python"

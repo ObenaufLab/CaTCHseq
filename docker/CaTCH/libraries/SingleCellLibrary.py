@@ -96,6 +96,24 @@ class SingleCellLibrary:
                 result._cells[barcode] = tmp
             return result
 
+    def collapseSimilarCaTCHBarcodes_umitools(
+        self, maxDist: int = 1, inplace: bool = True
+    ) -> "SingleCellLibrary":
+        if inplace:
+            for barcode in self._cells:
+                self._cells[barcode].collapseCaTCHBarcodes_umitools(
+                    maxDist=maxDist, inplace=True
+                )
+            return self
+        else:
+            result = SingleCellLibrary()
+            for barcode in self._cells:
+                tmp = self._cells[barcode].collapseCaTCHBarcodes_umitools(
+                    maxDist=maxDist, inplace=False
+                )
+                result._cells[barcode] = tmp
+            return result
+
     def collapseSimilarCaTCHumis(
         self, maxDist: int = 1, inplace: bool = True
     ) -> "SingleCellLibrary":

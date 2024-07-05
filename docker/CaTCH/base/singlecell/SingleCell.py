@@ -101,7 +101,7 @@ class SingleCell:
 
     def collapseCaTCHBarcodes(self, maxDist: int = 2, inplace: bool = True) -> SingleCell:
         """
-        Collapses the CaTCH barcodes of the current cell. In brief, the method calculates the Hamming distance between all pairs of CaTCH barcodes and merges those with the distance        smaller than the cut-off value maxDist into a single CaTCH barcode, while keeping all UMIs.
+        Collapses the CaTCH barcodes of the current cell. In brief, the method calculates the Hamming distance between all pairs of CaTCH barcodes and merges those with the distance smaller than the cut-off value maxDist into a single CaTCH barcode, while keeping all UMIs.
         """
         counts = dict()
         nTotalReads = 0
@@ -124,6 +124,40 @@ class SingleCell:
         else:
             result = SingleCell(self._barcode_10X)
             result._catch_umi_rel = collapsed
+            return result
+
+    def collapseCaTCHBarcodes_umitools(
+        self, maxDist: int = 2, inplace: bool = True
+    ) -> SingleCell:
+        """
+        Collapses the CaTCH barcodes of the current cell. In brief, the method calculates the Hamming distance between all pairs of CaTCH barcodes and merges those with the distance smaller than the cut-off value maxDist into a single CaTCH barcode, while keeping all UMIs.
+        """
+        result = list()
+        bcdict = dict()
+        nTotalReads = 0
+        for bc in self._catch_umi_rel:
+            n = len(self._catch_umi_rel[bc])
+            bcdict[bc] = n
+            nTotalReads += n
+        bcdict = dict(
+            zip([str(k).encode("utf-8") for k in bcdict.keys()], bcdict.values())
+        )
+        bcdict = Algorithms.clusterUMIs(bcdict, maxDist)
+
+        collapsedBCs = dict()
+        for cluster in bcdict:
+            mainNode = cluster.pop(0).decode("utf-8")
+            collapsedBCs[mainNode] = list()
+            collapsedBCs[mainNode].extend(self._catch_umi_rel[mainNode].copy())
+            for clusteredNode in cluster:
+                collapsedBCs[mainNode].extend(self._catch_umi_rel[clusteredNode].copy())
+
+        if inplace:
+            self._catch_umi_rel = collapsedBCs
+            return self
+        else:
+            result = SingleCell(self._barcode_10X)
+            result._catch_umi_rel = collapsedBCs
             return result
 
     def collapseCaTCHumis(self, maxDist: int = 1, inplace: bool = True) -> SingleCell:
