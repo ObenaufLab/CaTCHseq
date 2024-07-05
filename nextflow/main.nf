@@ -114,6 +114,7 @@ def helpMessage() {
         --star_params           Optional parameters for STAR mapping
         --idx_params            Optional parameters for STAR index generation
         --filter                Postprocess filtered counts (default: ${filter})
+        --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${uniqueCaTCH})
         --organism              Identifier for organism (choice: ["Human", 
         "Mouse"], default: "Human")
         --baseline              Name of reference day/condition (default: ${refName})
@@ -169,12 +170,14 @@ log.info """
  | Optional arguments
  |   outputDir               : ${outputDir}
  |   reportsDir              : ${reportsDir}
- |   filter                  : ${filtering}
  |   withQC                  : ${runqc}
  |   whitelist               : ${whitelist}
  |   mapper                  : ${mapperbin}
+ |   filter                  : ${filtering}
+ |   uniqueCaTCH             : ${uniqueCaTCH}
  |   max_mt_percent          : ${maxMtPercent}
  |   min_detected_features   : ${minDetectedFeatures}
+ |   min_detected_barcodes   : ${minBC}
  |   markerfile              : ${markerfile}
  |   chunk size              : ${chunkSize}
  |   organism                : ${organism}
