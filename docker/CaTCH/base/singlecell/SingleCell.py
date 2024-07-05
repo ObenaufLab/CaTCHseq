@@ -21,7 +21,7 @@ class SingleCell:
 
     def __init__(self, barcode_10X: str):
         self._barcode_10X = barcode_10X
-        self._catch_umi_rel = dict() # CaTCH => [UMI1, UMI2, UMI1, UMI3,...]
+        self._catch_umi_rel = dict()  # CaTCH => [UMI1, UMI2, UMI3, UMI4,...]
 
     def _get_barcode_10X_(self) -> str:
         return self._barcode_10X

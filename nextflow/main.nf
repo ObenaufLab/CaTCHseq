@@ -59,6 +59,7 @@ mapref = get_always('reference') ?: params.mapRef
 mapanno = get_always('annotation') ?: params.mapAnno
 filtering = get_always('filter') ?: params.filter
 organism = get_always('organism') ?: params.organism
+uniqueCaTCH = get_always('uniqueCaTCH') ?: params.uniqueCaTCH
 minBC = get_always('min_detected_barcodes') ?: params.minDetectedBarcodes
 singletCutoff = get_always('singlet_cutoff') ?: params.singletCutoff
 bc1Cutoff = get_always('bc1_cutoff') ?: params.bc1Cutoff
@@ -829,7 +830,8 @@ process generateReports{
     ${scriptDirPy}generateOutputTables.py \
         --library ${library} \
         --CaTCH ${sampleName}.CaTCHbarcodes \
-        --cells ${sampleName}.cells
+        --cells ${sampleName}.cells \
+        --unique ${params.uniqueCaTCH} \
     """
 }
 
