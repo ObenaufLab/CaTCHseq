@@ -77,7 +77,7 @@ def main():
     # Remove background
     dt = datetime.now()
     print(f"[{dt}] Removing the background barcodes (min support {opts.minsupport})...")
-    scl.removeBackground(minCoverage=opts.minsupport)
+    scl.removeCollapsedBackground(minCoverage=opts.minsupport)
     nMultiplets = 0
     for sc in scl.enumerateSingleCells():
         if sc.CaTCH_barcodes.distinct > 1:

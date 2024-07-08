@@ -99,6 +99,18 @@ class SingleCell:
             self._catch_umi_rel = _tmp
         return len(self._catch_umi_rel)
 
+    def removeCollapsedBackground(self, minCoverage: int = 10) -> int:
+        _tmp = dict()
+        for bc in self._catch_umi_rel:
+            if len(set(self._catch_umi_rel[bc])) >= minCoverage:
+                _tmp[bc] = self._catch_umi_rel[bc]
+
+        # Only apply the threshold if the cell has at least one CaTCH barcode
+        # with the abundance greater than or equal to the specified threshold.
+        if len(_tmp) > 0:
+            self._catch_umi_rel = _tmp
+        return len(set(self._catch_umi_rel))
+
     def collapseCaTCHBarcodes(self, maxDist: int = 2, inplace: bool = True) -> SingleCell:
         """
         Collapses the CaTCH barcodes of the current cell. In brief, the method calculates the Hamming distance between all pairs of CaTCH barcodes and merges those with the distance smaller than the cut-off value maxDist into a single CaTCH barcode, while keeping all UMIs.
@@ -236,9 +248,37 @@ class SingleCell:
 
         barcodes = sorted(self._catch_umi_rel.keys(), key = lambda x: len(self._catch_umi_rel[x]), reverse = True)
         nTotalReads = sum([len(self._catch_umi_rel[bc]) for bc in barcodes])
-        if len(self._catch_umi_rel[barcodes[0]]) / nTotalReads * 100 >= majorityVoteCutoff:
-            tmp = self._catch_umi_rel[barcodes[0]]
-            self._catch_umi_rel = {barcodes[0]: tmp}
+        if nTotalReads > 0:
+            if (
+                len(self._catch_umi_rel[barcodes[0]]) / nTotalReads * 100
+                >= majorityVoteCutoff
+            ):
+                tmp = self._catch_umi_rel[barcodes[0]]
+                self._catch_umi_rel = {barcodes[0]: tmp}
+
+        # c1 = Counter(self._catch_umi_rel[barcodes[0]])
+        # c2 = Counter(self._catch_umi_rel[barcodes[1]])
+        # import pdb
+        # pdb.set_trace()
+
+    def resolveCollapsedMultiplet(self, majorityVoteCutoff: int = 70):
+        # If the cell is not a multiplet, there is nothing to do
+        if not self.isMultiplet():
+            return
+
+        barcodes = sorted(
+            self._catch_umi_rel.keys(),
+            key=lambda x: len(set(self._catch_umi_rel[x])),
+            reverse=True,
+        )
+        nTotalReads = sum([len(set(self._catch_umi_rel[bc])) for bc in barcodes])
+        if nTotalReads > 0:
+            if (
+                len(set(self._catch_umi_rel[barcodes[0]])) / nTotalReads * 100
+                >= majorityVoteCutoff
+            ):
+                tmp = self._catch_umi_rel[barcodes[0]]
+                self._catch_umi_rel = {barcodes[0]: tmp}
 
         # c1 = Counter(self._catch_umi_rel[barcodes[0]])
         # c2 = Counter(self._catch_umi_rel[barcodes[1]])
