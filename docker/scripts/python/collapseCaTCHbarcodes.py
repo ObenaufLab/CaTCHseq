@@ -17,8 +17,16 @@ def main():
     parser = argparse.ArgumentParser(description = "Collapse CaTCH barcodes")
 
     parser.add_argument("--library", type = str, required = True, help = "path to the single cell library JSON file")
-    parser.add_argument("--maxdist", type = int, default = 2, help = "maximum Hamming distance (default: 2)")
+    parser.add_argument(
+        "--maxdist", type=int, default=1, help="maximum Hamming distance (default: 1)"
+    )
     parser.add_argument("--minsupport", type = int, default = 10, help = "minimum reads supporting the CaTCH barcode (default: 10)")
+    parser.add_argument(
+        "--unique",
+        type=bool,
+        default=False,
+        help="true if CaTCH barcodes and UMIs should be made unique with umi_tools, else Hamming distance (default: False)",
+    )
     parser.add_argument("--outlib", type = str, required = True, help = "path to the output single cell library JSON file")
 
     try:
@@ -39,7 +47,10 @@ def main():
     # Collapse similar CaTCH barcodes
     dt = datetime.now()
     print(f"[{dt}] Collapsing similar CaTCH barcodes (min Hamming distance {opts.maxdist})...")
-    scl.collapseSimilarCaTCHBarcodes_umitools(maxDist=opts.maxdist)
+    if opts.unique:
+        scl.collapseSimilarCaTCHBarcodes_umitools(maxDist=opts.maxdist)
+    else:
+        scl.collapseSimilarCaTCHBarcodes(maxDist=opts.maxdist)
     nMultiplets = 0
     for sc in scl.enumerateSingleCells():
         if sc.CaTCH_barcodes.distinct > 1:
@@ -53,7 +64,8 @@ def main():
     nCaTCHBCsRaw = 0
     for sc in scl.enumerateSingleCells():
         nCaTCHBCsRaw += len(set(sc.umis))
-    scl.collapseSimilarCaTCHumis(maxDist=opts.maxdist)
+    if opts.unique:
+        scl.collapseSimilarCaTCHumis(maxDist=opts.maxdist)
     nCaTCHBCs = 0
     for sc in scl.enumerateSingleCells():
         nCaTCHBCs += len(set(sc.umis))

@@ -762,6 +762,7 @@ process collapseAndFilterBarcodes{
         --library ${library} \
         --maxdist ${maxDist} \
         --minsupport ${minReads} \
+        --unique ${uniqueCaTCH} \
         --outlib ${sampleName}.collapsed.sclib \
     | tee ${sampleName}.collapsed.stats
     """
@@ -834,7 +835,6 @@ process generateReports{
         --library ${library} \
         --CaTCH ${sampleName}.CaTCHbarcodes \
         --cells ${sampleName}.cells \
-        --unique ${params.uniqueCaTCH} \
     """
 }
 
