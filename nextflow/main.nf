@@ -1282,11 +1282,11 @@ workflow{
         ***************************************************************/
 
         //Ch_script = Channel.fromPath("${scriptDirR}"+"preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
-        //Ch_preprocess_input = Ch_cell_data.map { sample, data -> data }.combine(generateReports.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
+        //Ch_preprocess_input = Ch_cell_data.map { sample, data -> data }.combine(generateTables.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
         //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
         //preprocessSingleCellData(Ch_preprocess_input)
 
-        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect(), Channel.fromPath(mapanno))
+        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateTables.out.report_cells.map { sample, data -> data }.collect(), Channel.fromPath(mapanno))
 
         /**************************************************************
                 STEP 9: Generate overview plots
