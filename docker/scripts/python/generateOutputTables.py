@@ -55,7 +55,8 @@ def main():
     parser.add_argument(
         "--unique",
         required=False,
-        action="store_true",
+        type=bool,
+        default=False,
         help="whether or not to use unique CaTCH UMI barcodes",
     )
 
