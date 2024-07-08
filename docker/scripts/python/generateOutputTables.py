@@ -54,9 +54,7 @@ def main():
     parser.add_argument("--cells", type = str, required = False, help = "path to the file containin the cells and their CaTCH barcodes")
     parser.add_argument(
         "--unique",
-        type=bool,
         required=False,
-        default=False,
         action="store_true",
         help="whether or not to use unique CaTCH UMI barcodes",
     )
