@@ -805,7 +805,7 @@ process resolveMultiplets{
 
 
 /************************************************************************
-                    STEP 6: Generate reports
+                    STEP 6: Generate tables
 ************************************************************************/
 
 process generateTables{
