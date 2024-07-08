@@ -808,7 +808,7 @@ process resolveMultiplets{
                     STEP 6: Generate reports
 ************************************************************************/
 
-process generateReports{
+process generateTables{
     
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -835,6 +835,7 @@ process generateReports{
         --library ${library} \
         --CaTCH ${sampleName}.CaTCHbarcodes \
         --cells ${sampleName}.cells \
+        --unique ${uniqueCaTCH} \
     """
 }
 
@@ -1239,10 +1240,10 @@ workflow{
 
 
         /**************************************************************
-                STEP 6: Generate reports
+                STEP 6: Generate tables
         ***************************************************************/
 
-        generateReports(resolveMultiplets.out.resolved_multiplets_libraries)
+        generateTables(resolveMultiplets.out.resolved_multiplets_libraries)
 
 
         /**************************************************************
