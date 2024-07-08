@@ -24,6 +24,7 @@ class TestSingleCell(unittest.TestCase):
         # Load a single cell records from a JSON file
         libfile = pathlib.Path("/home/fall/sccatch/docker/CaTCH/tests/data/Test.sclib")
         self.lib = SingleCellLibrary.loadFromJSON(libfile)
+        self.lib.removeBackground(minCoverage=10)
         nMultiplets = 0
         for sc in self.lib.enumerateSingleCells():
             if sc.CaTCH_barcodes.distinct > 1:
@@ -64,13 +65,13 @@ class TestSingleCell(unittest.TestCase):
         # Assertions to check the number of unique barcodes and UMIs under each barcode
         # This part requires specific expected outcomes based on the test data
 
-    def test_collapseCaTCHBarcodes_umitools(self, maxDist: int = 1):
+    def test_collapseCaTCHBarcodes_umitools(self, maxDist: int = 1, umiDist: int = 1):
         print("Testing collapseCaTCHBarcodes with umitools")
         for f in [
             "test_collapseCaTCHBarcodes_umitools_before.log",
             "test_collapseCaTCHBarcodes_umitools_after.log",
         ]:
-            os.remove(f)
+            os.remove(f) if (os.path.exists(f)) else None
 
         collapsed_cell = dict()
         # Initialize limit for testing
@@ -87,6 +88,8 @@ class TestSingleCell(unittest.TestCase):
             collapsed_cell[barcode] = self.lib._cells[
                 barcode
             ].collapseCaTCHBarcodes_umitools(maxDist=maxDist, inplace=True)
+
+            collapsed_cell[barcode].collapseCaTCHumis(maxDist=umiDist)
             with open("test_collapseCaTCHBarcodes_umitools_after.log", "a") as f:
                 print(
                     f"CELL: {barcode} CaTCH: {collapsed_cell[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(collapsed_cell[barcode].umis))}",

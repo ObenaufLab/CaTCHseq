@@ -39,7 +39,7 @@ def main():
     # Collapse similar CaTCH barcodes
     dt = datetime.now()
     print(f"[{dt}] Collapsing similar CaTCH barcodes (min Hamming distance {opts.maxdist})...")
-    scl.collapseSimilarCaTCHBarcodes(maxDist = opts.maxdist)
+    scl.collapseSimilarCaTCHBarcodes_umitools(maxDist=opts.maxdist)
     nMultiplets = 0
     for sc in scl.enumerateSingleCells():
         if sc.CaTCH_barcodes.distinct > 1:

@@ -127,7 +127,7 @@ class SingleCell:
             return result
 
     def collapseCaTCHBarcodes_umitools(
-        self, maxDist: int = 2, inplace: bool = True
+        self, maxDist: int = 1, inplace: bool = True
     ) -> SingleCell:
         """
         Collapses the CaTCH barcodes of the current cell. In brief, the method collapses all CaTCH barcodes with distance smaller than the cut-off value maxDist into a single CaTCH barcode, while keeping all UMIs via the umi_tools API.
@@ -156,7 +156,12 @@ class SingleCell:
             collapsedBCs[bc] = list()
             collapsedBCs[bc].extend(self._catch_umi_rel[bc].copy())
             for clusteredNode in cluster:
-                collapsedBCs[bc].extend(self._catch_umi_rel[bc].copy())
+                addbc = [
+                    x
+                    for x in self._catch_umi_rel.keys()
+                    if x.seq == clusteredNode.decode("utf-8")
+                ][0]
+                collapsedBCs[bc].extend(self._catch_umi_rel[addbc].copy())
 
         if inplace:
             self._catch_umi_rel = collapsedBCs
