@@ -313,21 +313,22 @@ print("Assign CaTCH barcodes ...")
 tmp <- colData(sce) %>%
     as_tibble() %>%
     dplyr::select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
-    filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration", Condition == opt$baseCond) %>%
+    dplyr::filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration", Condition == opt$baseCond) %>%
     dplyr::select(CaTCH.BCs, Sample, CaTCH.Status) %>%
     group_by(CaTCH.BCs, Sample) %>%
     mutate(n = n()) %>%
     ungroup() %>%
     distinct() %>%
     pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
-    filter(rowSums(across(starts_with(opt$baseCond))) > 0) %>%
+    dplyr::filter(rowSums(across(starts_with(opt$baseCond))) > 0) %>%
     mutate(.Means = rowMeans(across(starts_with(opt$baseCond)))) %>%
     arrange(by = desc(.Means)) %>%
     rowid_to_column(".ID") %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(.ID), "BC_0", ifelse(CaTCH.Status == "Singlet", paste0("BC_", .ID), paste0("BC*_", .ID)))) %>%
     dplyr::select(-.Means, -.ID) %>%
     relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
-    dplyr::select(CaTCH.BCs, CaTCH.BC_ID)
+    dplyr::select(CaTCH.BCs, CaTCH.BC_ID) %>%
+        dplyr::distinct()
 
 colData(sce)["CaTCH.BC_ID"] <- colData(sce) %>%
     as_tibble() %>%
