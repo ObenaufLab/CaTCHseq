@@ -310,35 +310,51 @@ seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", dims
 #### Assign CaTCH barcode indices based on their abundance in the reference samples ####
 print("Assign CaTCH barcodes ...")
 
-tmp <- colData(sce) %>%
+# Create unique BC for merge
+colData(sce)["CaTCH.BC_unique"] <- colData(sce) %>%
+  as_tibble() %>%
+  select(CaTCH.Status, CaTCH.BCs) %>%
+  rowwise() %>%
+  mutate(CaTCH.BC_unique = ifelse(CaTCH.Status == "Singlet", str_split_1(CaTCH.BCs, ";")[1], ifelse(CaTCH.Status == "Double_Integration", paste0(str_split_1(CaTCH.BCs, ";")[1], str_split_1(CaTCH.BCs, ";")[2], sep="+"), paste0(CaTCH.BCs)))) %>%
+  ungroup() %>%
+  select(CaTCH.BC_unique)
+
+seurat_sce@meta.data$CaTCH.BC_unique <- seurat_sce@meta.data %>%
+  select(CaTCH.Status, CaTCH.BCs) %>%
+  rowwise() %>%
+  mutate(CaTCH.BC_unique = ifelse(CaTCH.Status == "Singlet", str_split_1(CaTCH.BCs, ";")[1], ifelse(CaTCH.Status == "Double_Integration", paste0(str_split_1(CaTCH.BCs, ";")[1], str_split_1(CaTCH.BCs, ";")[2], sep="+"), paste0(CaTCH.BCs)))) %>%
+  ungroup() %>%
+  pull(CaTCH.BC_unique)
+
+tmp <- seurat_sce@meta.data %>%
     as_tibble() %>%
-    dplyr::select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
-    dplyr::filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration", Condition == opt$baseCond) %>%
-    dplyr::select(CaTCH.BCs, Sample, CaTCH.Status) %>%
-    group_by(CaTCH.BCs, Sample) %>%
+    dplyr::select(c(CaTCH.Status, Condition, CaTCH.BC_unique, Sample)) %>%
+    filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration", Condition == opt$baseCond) %>%
+    dplyr::select(CaTCH.BC_unique, Sample, CaTCH.Status) %>%
+    group_by(CaTCH.BC_unique, Sample) %>%
     mutate(n = n()) %>%
     ungroup() %>%
     distinct() %>%
     pivot_wider(names_from = Sample, values_from = n, values_fill = 0) %>%
-    dplyr::filter(rowSums(across(starts_with(opt$baseCond))) > 0) %>%
+    filter(rowSums(across(starts_with(opt$baseCond))) > 0) %>%
     mutate(.Means = rowMeans(across(starts_with(opt$baseCond)))) %>%
     arrange(by = desc(.Means)) %>%
     rowid_to_column(".ID") %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(.ID), "BC_0", ifelse(CaTCH.Status == "Singlet", paste0("BC_", .ID), paste0("BC*_", .ID)))) %>%
     dplyr::select(-.Means, -.ID) %>%
-    relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
-    dplyr::select(CaTCH.BCs, CaTCH.BC_ID) %>%
-        dplyr::distinct()
+    relocate(CaTCH.BC_ID, .after = CaTCH.BC_unique) %>%
+        dplyr::select(CaTCH.BC_unique, CaTCH.BC_ID)
+
 
 colData(sce)["CaTCH.BC_ID"] <- colData(sce) %>%
     as_tibble() %>%
-    left_join(y = tmp, by = "CaTCH.BCs") %>%
+    left_join(y = tmp, by = "CaTCH.BC_unique") %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(CaTCH.BC_ID), "BC_0", CaTCH.BC_ID)) %>%
     mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
     dplyr::select(CaTCH.BC_ID)
 
 seurat_sce@meta.data$CaTCH.BC_ID <- seurat_sce@meta.data %>%
-    left_join(y = tmp, by = "CaTCH.BCs") %>%
+    left_join(y = tmp, by = "CaTCH.BC_unique") %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(CaTCH.BC_ID), "BC_0", CaTCH.BC_ID)) %>%
     mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
     pull(CaTCH.BC_ID)
