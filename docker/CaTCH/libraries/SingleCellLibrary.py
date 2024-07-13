@@ -84,6 +84,19 @@ class SingleCellLibrary:
             result._cells = _tmp
             return result
 
+    def removeCollapsedBackground(self, minCoverage: int = 10, inplace: bool = True) -> "SingleCellLibrary":
+        _tmp = dict()
+        for bc10X in self._cells:
+            if self._cells[bc10X].removeCollapsedBackground(minCoverage = minCoverage) > 0:
+                _tmp[bc10X] = self._cells[bc10X]
+        if inplace:
+            self._cells = _tmp
+            return self
+        else:
+            result = SingleCellLibrary()
+            result._cells = _tmp
+            return result
+
     def collapseSimilarCaTCHBarcodes(self, maxDist: int = 1, inplace: bool = True) -> "SingleCellLibrary":
         if inplace:
             for barcode in self._cells:

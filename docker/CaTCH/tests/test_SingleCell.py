@@ -24,13 +24,15 @@ class TestSingleCell(unittest.TestCase):
         # Load a single cell records from a JSON file
         libfile = pathlib.Path("/home/fall/sccatch/docker/CaTCH/tests/data/Test.sclib")
         self.lib = SingleCellLibrary.loadFromJSON(libfile)
-        self.lib.removeBackground(minCoverage=10)
         nMultiplets = 0
+        nSinglets = 0
         for sc in self.lib.enumerateSingleCells():
             if sc.CaTCH_barcodes.distinct > 1:
                 nMultiplets += 1
+            elif sc.CaTCH_barcodes.distinct == 1:
+                nSinglets += 1
         print(
-            f"Loaded {self.lib.size} cells of which {nMultiplets:,} ({nMultiplets / self.lib.size * 100:.2f}%) have two or more CaTCH barcodes"
+            f"Loaded {self.lib.size} cells of which {nMultiplets:,} ({nMultiplets / self.lib.size * 100:.2f}%) have two or more CaTCH barcodes and {nSinglets:,} {nSinglets / self.lib.size * 100:.2f} have a single barcode"
         )
 
     def test_collapseCaTCHBarcodes(self, maxDist: int = 1):
@@ -61,7 +63,17 @@ class TestSingleCell(unittest.TestCase):
                     f"CELL: {barcode} CaTCH: {collapsed_cell[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(collapsed_cell[barcode].umis))}",
                     file=f,
                 )
-
+        nMultiplets = 0
+        nSinglets = 0
+        self.lib.removeBackground(minCoverage=10)
+        for sc in self.lib.enumerateSingleCells():
+            if sc.CaTCH_barcodes.distinct > 1:
+                nMultiplets += 1
+            elif sc.CaTCH_barcodes.distinct == 1:
+                nSinglets += 1
+        print(
+            f"Loaded {self.lib.size} cells of which {nMultiplets:,} ({nMultiplets / self.lib.size * 100:.2f}%) have two or more CaTCH barcodes and {nSinglets:,} {nSinglets / self.lib.size * 100:.2f} have a single barcode"
+        )
         # Assertions to check the number of unique barcodes and UMIs under each barcode
         # This part requires specific expected outcomes based on the test data
 
@@ -95,6 +107,17 @@ class TestSingleCell(unittest.TestCase):
                     f"CELL: {barcode} CaTCH: {collapsed_cell[barcode].CaTCH_barcodes.distinct} UMIs: {len(set(collapsed_cell[barcode].umis))}",
                     file=f,
                 )
+        nMultiplets = 0
+        nSinglets = 0
+        self.lib.removeCollapsedBackground(minCoverage=10)
+        for sc in self.lib.enumerateSingleCells():
+            if sc.CaTCH_barcodes.distinct > 1:
+                nMultiplets += 1
+            elif sc.CaTCH_barcodes.distinct == 1:
+                nSinglets += 1
+        print(
+            f"Loaded {self.lib.size} cells of which {nMultiplets:,} ({nMultiplets / self.lib.size * 100:.2f}%) have two or more CaTCH barcodes and {nSinglets:,} {nSinglets / self.lib.size * 100:.2f} have a single barcode"
+        )
         # Assertions similar to test_collapseCaTCHBarcodes
 
 

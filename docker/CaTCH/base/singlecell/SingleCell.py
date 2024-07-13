@@ -101,7 +101,9 @@ class SingleCell:
 
     def removeCollapsedBackground(self, minCoverage: int = 10) -> int:
         _tmp = dict()
+        maxreads = 0
         for bc in self._catch_umi_rel:
+            maxreads = len(set(self._catch_umi_rel[bc])) if len(set(self._catch_umi_rel[bc])) > maxreads else maxreads
             if len(set(self._catch_umi_rel[bc])) >= minCoverage:
                 _tmp[bc] = self._catch_umi_rel[bc]
 
@@ -109,6 +111,8 @@ class SingleCell:
         # with the abundance greater than or equal to the specified threshold.
         if len(_tmp) > 0:
             self._catch_umi_rel = _tmp
+        else:
+            self.removeCollapsedBackground(minCoverage = maxreads)
         return len(set(self._catch_umi_rel))
 
     def collapseCaTCHBarcodes(self, maxDist: int = 2, inplace: bool = True) -> SingleCell:
