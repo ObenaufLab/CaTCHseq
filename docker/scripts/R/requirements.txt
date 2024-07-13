@@ -16,7 +16,7 @@ R.filesets
 #remotes::satijalab/seurat-data
 remotes::satijalab/seurat-wrappers
 remotes::immunogenomics/presto
-remotes::bnprks/BPCells
+remotes::bnprks/BPCells/r
 remotes::satijalab/sctransform
 remotes::kevinblighe/EnhancedVolcano
 remotes::jokergoo/ComplexHeatmap
