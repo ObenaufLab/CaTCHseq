@@ -578,6 +578,7 @@ process star_mapping{
     if (cells_expected != "NA"){
         cellsexp = cells_expected.replaceAll('!', '')
         starparams = starparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexp).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexp)
+        extraparams = extraparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexp).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexp)
     }
     
     // Build params
