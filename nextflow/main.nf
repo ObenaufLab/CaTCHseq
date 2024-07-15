@@ -576,7 +576,8 @@ process star_mapping{
     }
     // Check expected cell count
     if (cells_expected != "NA"){
-        starparams = starparams + ' --nExpectedCells ' + cells_expected.replaceAll('!', '')
+        cellsexp = cells_expected.replaceAll('!', '')
+        starparams = starparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexp).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexp)
     }
     
     // Build params
