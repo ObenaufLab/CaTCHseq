@@ -760,12 +760,16 @@ process collapseAndFilterBarcodes{
         tuple val(sampleName), path('*.collapsed.stats'), emit: collapsed_stats
 
     script:
+    unique = "false"
+    if (uniqueCaTCH){
+        unique = "true"
+    }
     """
     ${scriptDirPy}collapseCaTCHbarcodes.py \
         --library ${library} \
         --maxdist ${maxDist} \
         --minsupport ${minReads} \
-        --unique ${uniqueCaTCH} \
+        --unique ${unique} \
         --outlib ${sampleName}.collapsed.sclib \
     | tee ${sampleName}.collapsed.stats
     """
