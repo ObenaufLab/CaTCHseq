@@ -210,9 +210,9 @@ p.cellstage_samples_distr <- createValueDistrPlot(sce,
 
 p.unique_bc_distr <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") %>%
-    dplyr::select(Sample, CaTCH.BCs) %>%
+    dplyr::select(Sample, CaTCH.BC_unique) %>%
     group_by(Sample) %>%
-    summarise(Unique = n_distinct(CaTCH.BCs)) %>%
+    summarise(Unique = n_distinct(CaTCH.BC_unique)) %>%
     ggplot() +
     geom_col(aes(x = Sample, y = Unique)) +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
