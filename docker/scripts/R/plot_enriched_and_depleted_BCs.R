@@ -98,8 +98,8 @@ ref.Condition <- opt$baseCond
 ### Count Barcodes ###
 bc.counts <- sce@meta.data %>%
     filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
-    dplyr::select(CaTCH.BCs, Replicate, CaTCH.BC_ID) %>%
-    group_by(CaTCH.BCs, Replicate) %>%
+    dplyr::select(CaTCH.BC_unique, Replicate, CaTCH.BC_ID) %>%
+    group_by(CaTCH.BC_unique, Replicate) %>%
     mutate(n = n()) %>%
     ungroup() %>%
     distinct() %>%
@@ -116,13 +116,13 @@ row.names(metadata) <- metadata$Sample
 
 ### Run pairwise DE Analysis for BCs ###
 countData <- bc.counts %>%
-    dplyr::select(-CaTCH.BCs) %>%
+    dplyr::select(-CaTCH.BC_unique) %>%
     column_to_rownames(var = "CaTCH.BC_ID")
 
 ids <- sce@meta.data %>%
     filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
-    dplyr::select(CaTCH.BCs, Condition, CaTCH.BC_ID, CellID) %>%
-    group_by(CaTCH.BCs, Condition) %>%
+    dplyr::select(CaTCH.BC_unique, Condition, CaTCH.BC_ID, CellID) %>%
+    group_by(CaTCH.BC_unique, Condition) %>%
     mutate(n = n()) %>%
     ungroup() %>%
     distinct() %>%
