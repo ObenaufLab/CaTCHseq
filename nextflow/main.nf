@@ -1003,6 +1003,10 @@ process createOverviewPlots{
     """
 }
 
+/***************************************************************************
+                STEP 10 (OPTIONAL): Calculate CaTCH barcode enrichment
+****************************************************************************/
+
 process calculateBarcodeEnrichment{
 
     //conda "cellranger.yaml"
@@ -1045,6 +1049,11 @@ process calculateBarcodeEnrichment{
         --libpath ${scriptDirR}
     """
 }
+
+
+/***************************************************************************
+                STEP 11 (OPTIONAL): Find DE genes
+****************************************************************************/
 
 process identifyDEGenes{
 
@@ -1301,7 +1310,7 @@ workflow{
         createOverviewPlots(preprocessSingleCellData.out.basic_seurat_sce)
         
         /**************************************************************
-                STEP 10: Run DE Analysis for Barcodes and Genes
+                STEP 10 & 11 (OPTIONAL): Run DE Analysis for Barcodes and Genes
         ***************************************************************/
         
         calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_Conditions.multi.collect())        
