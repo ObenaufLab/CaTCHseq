@@ -603,7 +603,8 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(A, B))) %>%
+        filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
@@ -742,9 +743,11 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(A, B))) %>%
+        filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+    sampleData$Condition <- relevel(sampleData$Condition, ref = B)
     samples <- rownames(sampleData)
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
@@ -781,9 +784,6 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     ## filter low counts
     # keep <- filterByExpr(dge)
     # dge <- dge[keep, , keep.lib.sizes = FALSE]
-
-    # relevel to base condition B
-    dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
 
     ## normalize with TMM
     dgen <- calcNormFactors(dge, method = "TMM")
@@ -839,7 +839,8 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(A, B))) %>%
+        filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
     samples <- rownames(sampleData)
@@ -984,10 +985,12 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(A, B))) %>%
+        filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition)) %>%
         droplevels()
+    sampleData$Condition <- relevel(sampleData$Condition, ref = B)
     samples <- rownames(sampleData)
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
@@ -1016,7 +1019,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         }
     }
     print(design)
-
+    
     ## create DGEList
     genes <- rownames(countData)
     dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
@@ -1025,16 +1028,12 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     # keep <- filterByExpr(dge, min.count = 1)
     # dge <- dge[keep, keep.lib.sizes = FALSE]
 
-    # relevel to base condition B
-    dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
-
     ## normalize with TMM
     dgen <- calcNormFactors(dge, method = "TMM")
 
     ## create file normalized table
     tmm <- as.data.frame(cpm(dge))
-    colnames(tmm) <- t(dgen$samples$samples)
-    tmm$ID <- dgen$genes$genes
+    tmm$CaTCH.BC_ID <- dgen$genes$genes
     tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
 
     write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
@@ -1043,14 +1042,14 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
     # dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
-    qlf <- exactTest(dge, dispersion = bcv^2)
+    qlf <- exactTest(dge, pair=levels(sampleData$Condition), dispersion = bcv^2)
 
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
     tops <- left_join(tops %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
+        rownames_to_column("CaTCH.BC_ID"), tmm, by = "CaTCH.BC_ID") %>%
         group_by(CaTCH.BC_ID, logFC) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
