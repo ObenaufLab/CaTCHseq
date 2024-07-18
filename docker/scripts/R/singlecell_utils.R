@@ -603,10 +603,10 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B))) %>%
+        dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A, "_"), Condition) | grepl(paste0("^", B, "_"), Condition))
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
     samples <- rownames(sampleData)
 
     sampleData <- sampleData %>% add_column(type = "none")
@@ -743,11 +743,11 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B))) %>%
+        dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A, "_"), Condition) | grepl(paste0("^", B, "_"), Condition))
-    sampleData$Condition <- relevel(sampleData$Condition, ref = B)
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
+    sampleData$Condition <- relevel(sampleData$Condition, ref = B[[1]])
     samples <- rownames(sampleData)
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
@@ -839,10 +839,10 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B))) %>%
+        dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A, "_"), Condition) | grepl(paste0("^", B, "_"), Condition))
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
     samples <- rownames(sampleData)
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
@@ -985,10 +985,10 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B))) %>%
+        dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A, "_"), Condition) | grepl(paste0("^", B, "_"), Condition)) %>%
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
         droplevels()
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
     samples <- rownames(sampleData)
