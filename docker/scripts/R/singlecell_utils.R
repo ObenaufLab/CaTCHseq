@@ -606,7 +606,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
         dplyr::select(starts_with(c(A, B))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+        filter(grepl(paste0("^", A, "_"), Condition) | grepl(paste0("^", B, "_"), Condition))
     samples <- rownames(sampleData)
 
     sampleData <- sampleData %>% add_column(type = "none")
@@ -746,7 +746,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
         dplyr::select(starts_with(c(A, B))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+        filter(grepl(paste0("^", A, "_"), Condition) | grepl(paste0("^", B, "_"), Condition))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
     samples <- rownames(sampleData)
     ## name types and levels for design
@@ -842,7 +842,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         dplyr::select(starts_with(c(A, B))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+        filter(grepl(paste0("^", A, "_"), Condition) | grepl(paste0("^", B, "_"), Condition))
     samples <- rownames(sampleData)
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
@@ -988,7 +988,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         dplyr::select(starts_with(c(A, B))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition)) %>%
+        filter(grepl(paste0("^", A, "_"), Condition) | grepl(paste0("^", B, "_"), Condition)) %>%
         droplevels()
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
     samples <- rownames(sampleData)
