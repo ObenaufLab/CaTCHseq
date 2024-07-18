@@ -926,13 +926,11 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         group_by(CaTCH.BC_ID, Sample) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
-        unique()
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
 
-    # sort and output
-    resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
-
-    # write the table to a tsv file
-    write.table(as.data.frame(resOrdered), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
+        # write the table to a tsv file
+    write.table(as.data.frame(res_shrink), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
 
     # Output no shrink
     res <- resn[order(resn$log2FoldChange), ]
@@ -944,7 +942,8 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         ungroup() %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
-        unique()
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
 
 
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
@@ -965,7 +964,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         ungroup() %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
-        unique()
+        distinct() 
 
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))
@@ -1059,7 +1058,8 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         dplyr::select(-logFC) %>%
         mutate(p.adj = as.numeric(as.character(FDR))) %>%
         dplyr::select(-FDR) %>%
-        unique()
+        distinct() %>%
+        arrange(desc(log2FoldChange), FDR)
 
     write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
 

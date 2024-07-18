@@ -1036,7 +1036,7 @@ process calculateBarcodeEnrichment{
         outname = 'scCaTCH'
     }
     """
-    Rscript --vanilla ${scriptDirR}plot_enriched_and_depleted_BCs.R \
+    Rscript --vanilla ${scriptDirR}identify_de_catch_barcodes.R \
         --sce ${sce} \
         --baseCond ${refName} \
         --plots_per_row 5 \
