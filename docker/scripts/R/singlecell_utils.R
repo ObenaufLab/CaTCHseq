@@ -1059,7 +1059,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         mutate(p.adj = as.numeric(as.character(FDR))) %>%
         dplyr::select(-FDR) %>%
         distinct() %>%
-        arrange(desc(log2FoldChange), FDR)
+        arrange(desc(log2FoldChange), p.adj)
 
     write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
 
