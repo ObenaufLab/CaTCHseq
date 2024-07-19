@@ -690,7 +690,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids, ...) {
         rownames_to_column("Gene"), ids, by = "Gene") %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
-        group_by(CaTCH.BC_ID, Sample) %>%
+        group_by(Gene, Sample) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         distinct() %>%
@@ -707,7 +707,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids, ...) {
     res <- left_join(res %>%
         as_tibble(rownames = NA) %>%
         rownames_to_column("Gene"), ids, by = "Gene") %>%
-        group_by(CaTCH.BC_ID, log2FoldChange) %>%
+        group_by(Gene, log2FoldChange) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
