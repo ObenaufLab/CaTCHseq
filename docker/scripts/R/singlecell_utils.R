@@ -934,7 +934,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all) {
     res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
     
     countData <- countData %>%
-      as_tibble(rownames = "Gene")
+      as_tibble(rownames = "CaTCH.BC_ID")
     
     res_shrink <- left_join(res_shrink %>%
         as_tibble(rownames = NA) %>%
@@ -1067,7 +1067,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     tops <- tops$table
 
     countData <- countData %>%
-      as_tibble(rownames = "Gene")
+      as_tibble(rownames = "CaTCH.BC_ID")
     
     tops <- left_join(tops %>%
         as_tibble(rownames = NA) %>%
