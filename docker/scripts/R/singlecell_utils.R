@@ -846,7 +846,9 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
     samples <- rownames(sampleData)
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
-
+    levels(sampleData$Condition) <- unique(sampleData$Condition)
+    sampleData$Condition <- relevel(sampleData$Condition, ref = B)
+    
     ## Create design-table considering different types (paired, unpaired) and batches
     if (length(unique(subset(sampleData, A == Condition)$type)) > 1 | length(unique(subset(sampleData, B == Condition)$type)) > 1) {
         if (length(unique(subset(sampleData, A == Condition)$batch)) > 1 | length(unique(subset(sampleData, B == Condition)$batch)) > 1) {
@@ -989,7 +991,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition)) 
-        
+    levels(sampleData$Condition) <- unique(sampleData$Condition)
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
     samples <- rownames(sampleData)
     ## name types and levels for design
