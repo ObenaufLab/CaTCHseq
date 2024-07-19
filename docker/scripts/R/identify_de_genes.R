@@ -141,11 +141,11 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
   detool <- "DESeq2"
   if (length(unique(metadata$Sample)) >= length(unique(metadata$Condition)) * 2) {
     print("Enough replicates found, running DESeq2")
-    ddslist <- run_deseq(contrast_name, metadata, countData, ids, cooksCutoff = FALSE)
+    ddslist <- run_deseq(contrast_name, metadata, countData, cooksCutoff = FALSE)
   } else {
     print("Not enough replicates found, running edgeR")
     detool <- "EdgeR"
-    ddslist <- run_edger(contrast_name, metadata, countData, ids)
+    ddslist <- run_edger(contrast_name, metadata, countData)
   }
   comparison_objs[[contrast_name]] <- ddslist
   

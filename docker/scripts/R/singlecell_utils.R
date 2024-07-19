@@ -590,7 +590,7 @@ join_Seurat <- function(sce, assay = "RNA", layers = "data", new = "joined_data"
     return(sce)
 }
 
-run_deseq <- function(contrast, sampleData_all, countData_all, ids, ...) {
+run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
@@ -737,7 +737,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids, ...) {
 }
 
 
-run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
+run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     # Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
     # https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
     contrast_name <- contrast
@@ -757,6 +757,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
     sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B[[1]])
     samples <- colnames(countData) 
+    degroups <- colnames(countData)[-1] %>% str_remove_all(., "_\\d")
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
@@ -787,7 +788,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
 
     ## create DGEList
     genes <- rownames(countData)
-    dge <- DGEList(counts = countData, group = samples, samples = samples, genes = genes)
+    dge <- DGEList(counts = countData, group = degroups, samples = samples, genes = genes)
 
     ## filter low counts
     # keep <- filterByExpr(dge)
@@ -811,9 +812,13 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
+
+    countData <- countData %>%
+      as_tibble(rownames = "Gene")
+    
     tops <- left_join(tops %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene"), ids, by = "Gene") %>%
+        rownames_to_column("Gene"), countData, by = "Gene") %>%
         group_by(Gene, logFC) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
@@ -835,7 +840,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
 }
 
 
-run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
+run_deseq_bcs <- function(contrast, sampleData_all, countData_all) {
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
@@ -927,10 +932,13 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
     res <- results(dds, contrast = c("Condition", A, B), parallel = TRUE)
     resn <- res
     res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
-
+    
+    countData <- countData %>%
+      as_tibble(rownames = "Gene")
+    
     res_shrink <- left_join(res_shrink %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
+        rownames_to_column("CaTCH.BC_ID"), countData, by = "CaTCH.BC_ID") %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
         group_by(CaTCH.BC_ID, Sample) %>%
@@ -946,7 +954,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
     res <- resn[order(resn$log2FoldChange), ]
     res <- left_join(res %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
+        rownames_to_column("CaTCH.BC_ID"), countData, by = "CaTCH.BC_ID") %>%
         group_by(CaTCH.BC_ID, log2FoldChange) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
@@ -981,7 +989,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
 }
 
 
-run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
+run_edger_bcs <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     # Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
     # https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
     contrast_name <- contrast
@@ -998,9 +1006,10 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition)) 
-    sampleData$Condition <- factor(unique(sampleData$Condition), levels = unique(sampleData$Condition))
+    sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
-    samples <- rownames(sampleData)
+    samples <- sampleData$Sample
+    degroups <- colnames(countData)[-1] %>% str_remove_all(., "_\\d")
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
@@ -1031,7 +1040,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     
     ## create DGEList
     genes <- rownames(countData)
-    dge <- DGEList(counts = countData, group = levels(sampleData$Condition), samples = samples, genes = genes)
+    dge <- DGEList(counts = countData, group = degroups, samples = samples, genes = genes)
 
     ## filter low counts
     # keep <- filterByExpr(dge, min.count = 1)
@@ -1056,9 +1065,13 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
+
+    countData <- countData %>%
+      as_tibble(rownames = "Gene")
+    
     tops <- left_join(tops %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
+        rownames_to_column("CaTCH.BC_ID"), countData, by = "CaTCH.BC_ID") %>%
         group_by(CaTCH.BC_ID, logFC) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
