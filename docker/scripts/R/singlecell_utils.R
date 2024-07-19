@@ -1093,7 +1093,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
 }
 
 
-celltype_anno <- function(counts, ref, refname, assay = 1, labels = "main") {
+celltype_anno_celldex <- function(counts, ref, refname, assay = 1, labels = "main") {
     if (labels == "main") {
         labs <- ref$label.main
     } else if (labels == "fine") {
@@ -1106,6 +1106,34 @@ celltype_anno <- function(counts, ref, refname, assay = 1, labels = "main") {
     predcells <- SingleR(
         test = counts, ref = ref, assay.type.test = assay,
         labels = labs
+    )
+
+    # Plot Heatmap
+    pdf(
+        file = paste("SingleR_SCE_Predcells_Heatmap_", refname, "_", labels, ".pdf", sep = ""),
+        width = 15, height = 10
+    )
+    print(plotScoreHeatmap(predcells))
+    dev.off()
+
+    # Plot Deltas
+    pdf(
+        file = paste("SingleR_SCE_Predcells_Deltas_", refname, "_", labels, ".pdf", sep = ""),
+        width = 15, height = 10
+    )
+    print(plotDeltaDistribution(predcells, ncol = 3))
+    dev.off()
+
+    return(predcells)
+}
+
+celltype_anno_generic <- function(counts, labels, refname, assay = 1) {
+    
+    print(paste("Running SingleR with ", refname, sep = " "))
+
+    predcells <- SingleR(
+        test = counts, ref = ref, assay.type.test = assay,
+        labels = str_to_title(labs)
     )
 
     # Plot Heatmap
