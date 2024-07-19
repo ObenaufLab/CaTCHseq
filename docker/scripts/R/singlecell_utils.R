@@ -988,8 +988,8 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
-        droplevels()
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition)) 
+        
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
     samples <- rownames(sampleData)
     ## name types and levels for design
