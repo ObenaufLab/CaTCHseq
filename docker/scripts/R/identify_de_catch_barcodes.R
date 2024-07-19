@@ -128,11 +128,11 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
     if (length(metadata$Replicate) >= length(metadata$Condition) * 2) {
         print("Enough replicates found, running DESeq2")
 
-        ddslist <- run_deseq_bcs(contrast_name, metadata, countData, bc.counts)
+        ddslist <- run_deseq_bcs(contrast_name, metadata, countData)
     } else {
         print("Not enough replicates found, running edgeR")
         detool <- "EDGER"
-        ddslist <- run_edger_bcs(contrast_name, metadata, countData, bc.counts)
+        ddslist <- run_edger_bcs(contrast_name, metadata, countData)
     }
     comparison_objs[[contrast_name]] <- ddslist
 
