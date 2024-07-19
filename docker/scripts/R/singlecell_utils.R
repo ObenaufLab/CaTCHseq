@@ -1127,12 +1127,12 @@ celltype_anno_celldex <- function(counts, ref, refname, assay = 1, labels = "mai
     return(predcells)
 }
 
-celltype_anno_generic <- function(counts, labels, refname, assay = 1) {
+celltype_anno_generic <- function(counts, ref, refname, assay = 1, labels = "main") {
     
     print(paste("Running SingleR with ", refname, sep = " "))
 
     predcells <- SingleR(
-        test = counts, ref = ref, assay.type.test = assay,
+        test = counts, ref = str_to_title(ref), assay.type.test = assay,
         labels = str_to_title(labs)
     )
 
