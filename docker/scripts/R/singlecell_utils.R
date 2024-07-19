@@ -757,7 +757,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B[[1]])
     samples <- colnames(countData) 
-    degroups <- colnames(countData)[-1] %>% str_remove_all(., "_\\d")
+    degroups <- colnames(countData) %>% str_remove_all(., "_\\d")
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
@@ -1009,7 +1009,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
     samples <- sampleData$Sample
-    degroups <- colnames(countData)[-1] %>% str_remove_all(., "_\\d")
+    degroups <- colnames(countData) %>% str_remove_all(., "_\\d")
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
