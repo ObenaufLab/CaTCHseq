@@ -807,7 +807,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
     # dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
-    qlf <- exactTest(dge, dispersion = bcv^2)
+    qlf <- exactTest(dge, pair = c(B, A),dispersion = bcv^2)
 
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
@@ -1060,7 +1060,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
     # dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
-    qlf <- exactTest(dge, pair=levels(sampleData$Condition), dispersion = bcv^2)
+    qlf <- exactTest(dge, pair=c(B, A), dispersion = bcv^2)
 
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")

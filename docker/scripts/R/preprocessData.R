@@ -322,7 +322,7 @@ colData(sce)["CaTCH.BC_unique"] <- colData(sce) %>%
 seurat_sce@meta.data$CaTCH.BC_unique <- seurat_sce@meta.data %>%
   select(CaTCH.Status, CaTCH.BCs) %>%
   rowwise() %>%
-  mutate(CaTCH.BC_unique = ifelse(CaTCH.Status == "Singlet", str_split_1(CaTCH.BCs, ";")[1], ifelse(CaTCH.Status == "Double_Integration", paste0(str_split_1(CaTCH.BCs, ";")[1], str_split_1(CaTCH.BCs, ";")[2], sep="+"), paste0(CaTCH.BCs)))) %>%
+  mutate(CaTCH.BC_unique = ifelse(CaTCH.Status == "Singlet", str_split_1(CaTCH.BCs, ";")[1], ifelse(CaTCH.Status == "Double_Integration", paste(str_split_1(CaTCH.BCs, ";")[1], str_split_1(CaTCH.BCs, ";")[2], sep="+"), CaTCH.BCs))) %>%
   ungroup() %>%
   pull(CaTCH.BC_unique)
 
@@ -343,7 +343,7 @@ tmp <- seurat_sce@meta.data %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(.ID), "BC_0", ifelse(CaTCH.Status == "Singlet", paste0("BC_", .ID), paste0("BC*_", .ID)))) %>%
     dplyr::select(-.Means, -.ID) %>%
     relocate(CaTCH.BC_ID, .after = CaTCH.BC_unique) %>%
-        dplyr::select(CaTCH.BC_unique, CaTCH.BC_ID)
+    dplyr::select(CaTCH.BC_unique, CaTCH.BC_ID)
 
 
 colData(sce)["CaTCH.BC_ID"] <- colData(sce) %>%
