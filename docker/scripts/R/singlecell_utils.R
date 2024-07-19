@@ -607,8 +607,8 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids, ...) {
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
-    sampleData$Condition <- factor(unique(sampleData$Condition), levels = unique(sampleData$Condition))
-    samples <- rownames(sampleData)
+    sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
+    samples <- sampleData$Sample
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
 
@@ -685,15 +685,20 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids, ...) {
     resn <- res
     res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
 
+    countData <- countData %>%
+      as_tibble(rownames = "Gene")
+    
     res_shrink <- left_join(res_shrink %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene"), ids, by = "Gene") %>%
+        rownames_to_column("Gene"), countData, by = "Gene") %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
-        group_by(Gene, Sample) %>%
+        group_by(Gene, p.adj) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         distinct() %>%
+        relocate(p.adj, .after = log2FoldChange) %>%
+        mutate(log2FoldChange = as.numeric(as.character(log2FoldChange))) %>%
         arrange(desc(log2FoldChange), p.adj)
 
     # sort and output
@@ -706,31 +711,26 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ids, ...) {
     res <- resn[order(resn$log2FoldChange), ]
     res <- left_join(res %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene"), ids, by = "Gene") %>%
+        rownames_to_column("Gene"), countData, by = "Gene") %>%
         group_by(Gene, log2FoldChange) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
         distinct() %>%
+        relocate(p.adj, .after = pvalue) %>%
         arrange(desc(log2FoldChange), p.adj)
 
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
 
     r <- resn %>%
-        as_tibble(rownames = NA) %>%
+        as_tibble(rownames = "Gene") %>%
         filter(!is.na(padj), padj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
-        arrange(desc(Type), desc(abs(log2FoldChange)))
-
-    r <- r %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        dplyr::select(-padj)
-
-    r$Gene <- r %>%
-        as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene") %>%
-        pull(Gene)
+        relocate(p.adj, .after = pvalue) %>%
+        dplyr::select(-padj) %>%
+        arrange(desc(Type), desc(abs(log2FoldChange)))
 
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))
@@ -754,9 +754,9 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
         filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
-    sampleData$Condition <- factor(unique(sampleData$Condition), levels = unique(sampleData$Condition))
+    sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B[[1]])
-    samples <- rownames(sampleData)
+    samples <- colnames(countData) 
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
@@ -787,7 +787,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
 
     ## create DGEList
     genes <- rownames(countData)
-    dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
+    dge <- DGEList(counts = countData, group = samples, samples = samples, genes = genes)
 
     ## filter low counts
     # keep <- filterByExpr(dge)
@@ -797,10 +797,8 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
     dgen <- calcNormFactors(dge, method = "TMM")
 
     ## create file normalized table
-    tmm <- as.data.frame(cpm(dge))
-    colnames(tmm) <- t(dgen$samples$samples)
-    tmm$Gene <- dgen$genes$genes
-    tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
+    tmm <- as.data.frame(cpm(dge)) %>%
+      as_tibble(rownames = "Gene")
 
     write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
     rm(dgen)
@@ -822,7 +820,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
         mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
         dplyr::select(-logFC) %>%
         mutate(p.adj = as.numeric(as.character(FDR))) %>%
-        dplyr::select(-FDR) %>%
+        dplyr::select(-FDR, -genes) %>%
         distinct() %>%
         arrange(desc(log2FoldChange), p.adj)
     
