@@ -590,7 +590,7 @@ join_Seurat <- function(sce, assay = "RNA", layers = "data", new = "joined_data"
     return(sce)
 }
 
-run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
+run_deseq <- function(contrast, sampleData_all, countData_all, ids, ...) {
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
@@ -685,15 +685,16 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
     resn <- res
     res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
 
-    res_shrink$Gene <- res_shrink %>%
+    res_shrink <- left_join(res_shrink %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene") %>%
-        pull(Gene)
-
-    res_shrink <- res_shrink %>%
-        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene"), ids, by = "Gene") %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        dplyr::select(-padj)
+        dplyr::select(-padj) %>%
+        group_by(CaTCH.BC_ID, Sample) %>%
+        summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+        ungroup() %>%
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
 
     # sort and output
     resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
@@ -703,10 +704,16 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 
     # Output no shrink
     res <- resn[order(resn$log2FoldChange), ]
-    res$Gene <- res %>%
+    res <- left_join(res %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene") %>%
-        pull(Gene)
+        rownames_to_column("Gene"), ids, by = "Gene") %>%
+        group_by(CaTCH.BC_ID, log2FoldChange) %>%
+        summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+        ungroup() %>%
+        mutate(p.adj = as.numeric(as.character(padj))) %>%
+        dplyr::select(-padj) %>%
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
 
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
 
@@ -730,7 +737,7 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 }
 
 
-run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
+run_edger <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
     # Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
     # https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
     contrast_name <- contrast
@@ -792,7 +799,7 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     ## create file normalized table
     tmm <- as.data.frame(cpm(dge))
     colnames(tmm) <- t(dgen$samples$samples)
-    tmm$ID <- dgen$genes$genes
+    tmm$Gene <- dgen$genes$genes
     tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
 
     write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
@@ -806,24 +813,25 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
-    tops$Gene <- tops %>%
+    tops <- left_join(tops %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene") %>%
-        pull(Gene)
-
-    tops <- tops %>%
+        rownames_to_column("Gene"), ids, by = "Gene") %>%
+        group_by(Gene, logFC) %>%
+        summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+        ungroup() %>%
         mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
         dplyr::select(-logFC) %>%
         mutate(p.adj = as.numeric(as.character(FDR))) %>%
-        dplyr::select(-FDR)
+        dplyr::select(-FDR) %>%
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
+    
+    write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
 
     tops <- tops %>%
         filter(!is.na(p.adj), p.adj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
         arrange(desc(Type), desc(abs(log2FoldChange)))
-
-    write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
-
 
     return(list(dds = qlf, res = tops))
 }
@@ -1025,7 +1033,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     
     ## create DGEList
     genes <- rownames(countData)
-    dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
+    dge <- DGEList(counts = countData, group = levels(sampleData$Condition), samples = samples, genes = genes)
 
     ## filter low counts
     # keep <- filterByExpr(dge, min.count = 1)
@@ -1052,7 +1060,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     tops <- tops$table
     tops <- left_join(tops %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("CaTCH.BC_ID"), tmm, by = "CaTCH.BC_ID") %>%
+        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
         group_by(CaTCH.BC_ID, logFC) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%

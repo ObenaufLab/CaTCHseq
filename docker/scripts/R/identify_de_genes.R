@@ -115,7 +115,9 @@ pseudo$Sample <- pseudo@meta.data %>%
    mutate(Sample = gsub("\\.([0-9]+)", "_\\1", Sample, perl = T)) %>%
    pull(Sample)
 
- 
+ids <- countData %>%
+    as_tibble(rownames = "Gene")
+
 # Extract Metadata
 metadata <- pseudo@meta.data %>%
    as_tibble(rownames = NA) %>%
@@ -138,11 +140,11 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
   detool <- "DESeq2"
   if (length(unique(metadata$Sample)) >= length(unique(metadata$Condition)) * 2) {
     print("Enough replicates found, running DESeq2")
-    ddslist <- run_deseq(contrast_name, metadata, countData, cooksCutoff = FALSE)
+    ddslist <- run_deseq(contrast_name, metadata, countData, ids, cooksCutoff = FALSE)
   } else {
     print("Not enough replicates found, running edgeR")
     detool <- "EdgeR"
-    ddslist <- run_edger(contrast_name, metadata, countData)
+    ddslist <- run_edger(contrast_name, metadata, countData, ids)
   }
   comparison_objs[[contrast_name]] <- ddslist
   
