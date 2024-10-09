@@ -113,8 +113,8 @@ seurat_sce$Replicate <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) p
 seurat_sce$Sample <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
 
 #### calculate percentage of MT reads SEURAT ####
-seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^MT-|^mt-", col.name = "percent.mt")
-seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^RP[SL]|^rp[sl]", col.name = "percent.ribo")
+seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^MT-|^mt-|^Mt-", col.name = "percent.mt")
+seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^RP[SL]|^rp[sl]|^Rp[sl]", col.name = "percent.ribo")
 
 pdf(file = paste0(opt$out, "_QC_Violin_MT_content.pdf"), width = 30, height = 10)
 VlnPlot(seurat_sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
@@ -132,14 +132,14 @@ dev.off()
 print("Normalize sce ...")
 
 is.mitochondrial <- grepl(
-    pattern = "^MT-|^mt-", # Needed e.g. for mouse 10x data with cellranger prebuilt index
+    pattern = "^MT-|^mt-|^Mt-", # Needed e.g. for mouse 10x data with cellranger prebuilt index
     x = rownames(sce),
     ignore.case = FALSE,
     perl = TRUE
 )
 
 is.ribosomal <- grepl(
-    pattern = "^RP[SL]|^rp[sl]", # Needed e.g. for mouse 10x data with cellranger prebuilt index
+    pattern = "^RP[SL]|^rp[sl]|^Rp[sl]", # Needed e.g. for mouse 10x data with cellranger prebuilt index
     x = rownames(sce),
     ignore.case = FALSE,
     perl = TRUE
@@ -147,8 +147,7 @@ is.ribosomal <- grepl(
 
 sce <- sce %>%
     scater::logNormCounts() %>%
-    scater::addPerCellQC(subsets = list(MT = is.mitochondrial)) %>%
-    scater::addPerCellQC(subsets = list(RB = is.ribosomal)) %>%
+    scater::addPerCellQC(subsets = list(MT = is.mitochondrial, RB = is.ribosomal)) %>%
     scater::addPerFeatureQC()
 
 ### Normalize and scale counts Seurat ####
