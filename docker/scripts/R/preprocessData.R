@@ -114,6 +114,8 @@ seurat_sce$Sample <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unli
 
 #### calculate percentage of MT reads SEURAT ####
 seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^MT-|^mt-", col.name = "percent.mt")
+seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^RP[SL]|^rp[sl]", col.name = "percent.ribo")
+
 pdf(file = paste0(opt$out, "_QC_Violin_MT_content.pdf"), width = 30, height = 10)
 VlnPlot(seurat_sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
 dev.off()
@@ -136,9 +138,17 @@ is.mitochondrial <- grepl(
     perl = TRUE
 )
 
+is.ribosomal <- grepl(
+    pattern = "^RP[SL]|^rp[sl]", # Needed e.g. for mouse 10x data with cellranger prebuilt index
+    x = rownames(sce),
+    ignore.case = FALSE,
+    perl = TRUE
+)
+
 sce <- sce %>%
     scater::logNormCounts() %>%
     scater::addPerCellQC(subsets = list(MT = is.mitochondrial)) %>%
+    scater::addPerCellQC(subsets = list(RB = is.ribosomal)) %>%
     scater::addPerFeatureQC()
 
 ### Normalize and scale counts Seurat ####
@@ -149,6 +159,7 @@ seurat_sce <- normalize_Seurat(seurat_sce)
 #### annotate low yield and damaged cells ####
 print("Annotate sce ...")
 rowData(sce)["is.mitochondrial"] <- is.mitochondrial
+rowData(sce)["is.ribosomal"] <- is.ribosomal
 colData(sce)["is.damaged"] <- colData(sce)[, "subsets_MT_percent"] > opt$max_mt
 colData(sce)["is.low_yield"] <- colData(sce)[, "detected"] < opt$min_features
 
