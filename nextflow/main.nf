@@ -626,8 +626,8 @@ process star_mapping{
     mv ${of} ${gb}
     samtools index ${gb}
     mv ${sampleName}.Solo.out ${sampleName}
-    gzip ${sampleName}/*/filtered/*
-    gzip ${sampleName}/*/raw/*
+    gzip -f ${sampleName}/*/filtered/*
+    gzip -f ${sampleName}/*/raw/*
     ln -s ${sampleName}/${sfeature}/filtered ${sampleName}_filtered_feature_bc_matrix
     ln -s ${sampleName}/${sfeature}/raw ${sampleName}_raw_feature_bc_matrix
     ln -s ${sampleName}/${sfeature}/filtered/barcodes.tsv.gz ${sampleName}_filtered_barcodes.tsv.gz
