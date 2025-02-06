@@ -369,7 +369,7 @@ process runCellrangerCount{
     // Check chemistry specific settings
     chemistry = chemistry[0]
     cells_expected = cells_expected[0]
-    if (chemistry != "10X"){
+    if (!chemistry.contains("10X")){
         log.error("Running CellRanger on chemistry different than 10X is not supported, please check your settings and sample sheet.")
 
     }
