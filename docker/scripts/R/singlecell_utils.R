@@ -351,12 +351,6 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
             }
         }
 
-        # tmplist <- list(first=firstsce, rest = scetomerge)
-        # saveRDS(tmplist, "SCE_for_merging.rds", compress = "gzip")
-        # tmplist <- list(first=firstseurat, rest = seurattomerge)
-        # saveRDS(tmplist, "SEURAT_for_merging.rds", compress = "gzip")
-        # rm(tmplist)
-        # sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets
         print("Merging SCE")
         sce <- firstsce
         for (x in scetomerge) {
@@ -367,10 +361,6 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
         seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH", merge.data = TRUE, merge.dr = FALSE) # merge all the seurat datasets
         # Cleanup missing factor levels for seurat object
         seurat_sce[[]]$CaTCH.Status <- factor(seurat_sce[[]]$CaTCH.Status, levels = c("Singlet", "Double_Integration", "Multiplet", "No_barcode", "NA"))
-
-        # print("Cleaning SCE")
-        # metadata = seurat_sce@meta.data
-        # seurat_sce <- CreateSeuratObject(LayerData(seurat_sce, assay = "RNA", layer = "counts"), assay = "RNA", project = "scCaTCH", meta.data = metadata, names.field = 4)
 
         return(list(sce = sce, seurat_sce = seurat_sce))
     }
