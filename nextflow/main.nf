@@ -173,6 +173,12 @@ log.info """
  |   withQC                  : ${runqc}
  |   whitelist               : ${whitelist}
  |   mapper                  : ${mapperbin}
+     index                   : ${mapindex}
+     reference               : ${mapref}
+     annotation              : ${mapanno}
+|    fastqc_params           : ${qcparams}
+|    star_params             : ${starparams}
+|    idx_params              : ${idxparams}         
  |   filter                  : ${filtering}
  |   uniqueCaTCH             : ${uniqueCaTCH}
  |   max_mt_percent          : ${maxMtPercent}
@@ -332,7 +338,7 @@ process Cellranger_idx{
     an  = file(anno).getName()
     IDX = file(mapindex).getName()
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkref $idxparams --genome=${IDX} --fasta tmp.fa --genes tmp_anno && rm -f tmp.fa tmp_anno
+    zcat ${gen} > tmp.fa && zcat ${an} > tmp_anno && cellranger mkref ${idxparams} --genome=${IDX} --fasta tmp.fa --genes tmp_anno && rm -f tmp.fa tmp_anno
     """
     //cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding &&
 }
@@ -489,7 +495,7 @@ process star_idx{
     IDX = file(gen).getSimpleName()+'_idx'
 
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $IDX && STAR $idxparams --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $IDX --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
+    zcat ${gen} > tmp.fa && zcat ${an} > tmp_anno && mkdir -p ${IDX} && STAR ${idxparams} --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir ${IDX} --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
     """
 }
 
