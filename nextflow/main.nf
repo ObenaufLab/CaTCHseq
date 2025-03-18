@@ -332,7 +332,7 @@ process Cellranger_idx{
     an  = file(anno).getName()
     IDX = file(mapindex).getName()
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkref --genome=${IDX} --fasta tmp.fa --genes tmp_anno && rm -f tmp.fa tmp_anno
+    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkref $idxparams --genome=${IDX} --fasta tmp.fa --genes tmp_anno && rm -f tmp.fa tmp_anno
     """
     //cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding &&
 }
