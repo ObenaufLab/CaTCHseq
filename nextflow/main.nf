@@ -241,7 +241,7 @@ process concat_lanes {
     tag "${sampleName}"
 
     input:
-    tuple val(sampleName), path(R1, stageAs: "inputs/R1_*"), path(R2, stageAs: "inputs/R2_*"), val(cells_expected), val(chemistry)
+    tuple val(sampleName), path(R1, stageAs: "inputs/R1_*"), path(R2, stageAs: "inputs/R2_*"), val(lane), val(cells_expected), val(chemistry)
 
     output:
     tuple val(sampleName), path("${sampleName}_R1.fastq.gz"), path("${sampleName}_R2.fastq.gz"), val(cells_expected), val(chemistry), emit: fastq
@@ -1225,7 +1225,7 @@ workflow{
         }
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
-        Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0)
+        Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Lane, row.CellNumber, row.Chemistry ) }.groupTuple(by: 0)
         
         if (mapperbin == 'CellRanger'){
             Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }.groupTuple(by: 0)            
