@@ -248,7 +248,7 @@ process concat_reads {
 
     script:
     """
-    cat -f ${reads} > "${sampleName}.fastq.gz"
+    cat ${reads} > "${sampleName}.fastq.gz"
     """
 }
 
@@ -420,7 +420,7 @@ process runCellrangerCount{
         }
     }
     taskmem = task.memory.toGiga()
-    
+
     """
     # Find all reads, sort them by name to ensure that the paired files are on the consecutive lines,
     # and then create symlinks with proper names (SampleName_S1_R1_xxx.fastq.gz)
