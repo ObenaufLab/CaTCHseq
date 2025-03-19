@@ -345,8 +345,7 @@ process Cellranger_idx{
         --nthreads ${task.cpus} \
         --fasta tmp.fa \
         --genes tmp_anno \
-        && rm -f tmp.fa tmp_anno \
-        && mv -f ${IDX}/*.out ${IDX}.Log.out \
+        && rm -f tmp.fa tmp_anno \        
         && ln -s ${IDX} ${IDX}.idx
     """
     //cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding &&
