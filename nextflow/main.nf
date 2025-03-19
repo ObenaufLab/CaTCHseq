@@ -241,15 +241,15 @@ process concat_lanes {
     tag "${sampleName}"
 
     input:
-    tuple val(sampleName), path(R1, stageAs: "inputs/R1_*"), path(R2, stageAs: "inputs/R2_*"), val(lane), val(cells_expected), val(chemistry)
+    tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), val(lane), val(cells_expected), val(chemistry)
 
     output:
     tuple val(sampleName), path("${sampleName}_R1.fastq.gz"), path("${sampleName}_R2.fastq.gz"), val(cells_expected), val(chemistry), emit: fastq
 
     script:
     """
-    cat ${R1} > "${sampleName}_R1.fastq.gz"
-    cat ${R2} > "${sampleName}_R2.fastq.gz"
+    cat inputs/R1_* > "${sampleName}_R1.fastq.gz"
+    cat inputs/R1_* > "${sampleName}_R2.fastq.gz"
     """
 }
 
