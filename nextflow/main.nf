@@ -340,7 +340,7 @@ process Cellranger_idx{
     label 'big_mem'
     //validExitStatus 0,1
 
-    publishDir "${absDir}/" , mode: 'link',
+    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
         else if (filename.indexOf(".idx") > 0)     "${mapindex}.idx"
