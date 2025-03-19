@@ -236,7 +236,7 @@ process check_samplesheet {
                 CONCATENATE LANES
 ************************************************************************/
 
-process concat_reads {
+process concat_lanes {
 
     tag "${sampleName}"
 
@@ -1244,19 +1244,11 @@ workflow{
 
 
         /**********************************************************
-                STEP 0.1: Concatenate Lanes
-        ***********************************************************/
-        
-        Ch_map_input = concat_reads(Ch_map_input).fastq.collect()
-        //Ch_map_input.subscribe {  println "Concatenated: $it"  }
-
-
-        /**********************************************************
                 STEP 1: Count Reads
         ***********************************************************/
 
         if (mapperbin == 'CellRanger'){
-            runCellrangerCount(Ch_map_input)
+            runCellrangerCount(concat_reads(Ch_map_input).out.fastq)
             useCellrangerData(Ch_map_precomputed)
 
             if (filtering){
@@ -1265,7 +1257,7 @@ workflow{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
-            star_mapping(Ch_map_input)
+            star_mapping(concat_reads(Ch_map_input).out.fastq)
             if (filtering){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
