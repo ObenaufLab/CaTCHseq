@@ -241,10 +241,10 @@ process concat_lanes {
     tag "${sampleName}"
 
     input:
-    tuple val(sampleName), path(R1, stageAs: "inputs/R1_*"), path(R2, stageAs: "inputs/R2_*"), val(cells_expected), val(chemistry), path(index)
+    tuple val(sampleName), path(R1, stageAs: "inputs/R1_*"), path(R2, stageAs: "inputs/R2_*"), val(cells_expected), val(chemistry)
 
     output:
-    tuple val(sampleName), path("${sampleName}_R1.fastq.gz"), path("${sampleName}_R2.fastq.gz"), val(cells_expected), val(chemistry), path(index), emit: fastq
+    tuple val(sampleName), path("${sampleName}_R1.fastq.gz"), path("${sampleName}_R2.fastq.gz"), val(cells_expected), val(chemistry), emit: fastq
 
     script:
     """
@@ -1225,13 +1225,10 @@ workflow{
         }
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
+        Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0)
+        
         if (mapperbin == 'CellRanger'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0).combine( Ch_mapping_idx )
-            
-            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }.groupTuple(by: 0)
-            
-        }else if (mapperbin == 'STAR'){
-           Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0).combine( Ch_mapping_idx ).combine( Ch_whitelist )
+            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }.groupTuple(by: 0)            
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
@@ -1248,7 +1245,7 @@ workflow{
         ***********************************************************/
 
         if (mapperbin == 'CellRanger'){
-            runCellrangerCount(concat_reads(Ch_map_input).out.fastq)
+            runCellrangerCount(concat_lanes(Ch_map_input).out.fastq.groupTuple(by: 0).combine( Ch_mapping_idx ))
             useCellrangerData(Ch_map_precomputed)
 
             if (filtering){
@@ -1257,7 +1254,7 @@ workflow{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
-            star_mapping(concat_reads(Ch_map_input).out.fastq)
+            star_mapping(concat_lanes(Ch_map_input).out.fastq.groupTuple(by: 0).combine( Ch_mapping_idx ).combine( Ch_whitelist ))
             if (filtering){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
