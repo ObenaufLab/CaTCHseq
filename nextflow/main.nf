@@ -231,6 +231,28 @@ process check_samplesheet {
     """
 }
 
+
+/************************************************************************
+                CONCATENATE LANES
+************************************************************************/
+
+process concat_reads {
+
+    tag "${sampleName}"
+
+    input:
+    tuple val(sampleName), path(reads, stageAs: 'reads/*')
+
+    output:
+    tuple val(sampleName), path("${sampleName}.fastq.gz"), emit: fastq
+
+    script:
+    """
+    cat -f ${reads} > "${sampleName}.fastq.gz"
+    """
+}
+
+
 /************************************************************************
                 STEP 0: Run read QC
 ************************************************************************/
@@ -1216,6 +1238,15 @@ workflow{
             qc_raw(Ch_QC_input)
             mqc(qc_raw.out.zip.collect())//.flatten().filter( ~/.zip/ ))
         }
+
+
+        /**********************************************************
+                STEP 0.1: Concatenate Lanes
+        ***********************************************************/
+        
+        Ch_map_input = concat_reads(Ch_map_input).fastq.collect()
+        //Ch_map_input.subscribe {  println "Concatenated: $it"  }
+
 
         /**********************************************************
                 STEP 1: Count Reads
