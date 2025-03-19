@@ -337,16 +337,18 @@ process Cellranger_idx{
     gen =  file(genome).getName()
     an  = file(anno).getName()
     IDX = file(mapindex).getName()
+    taskmem = task.memory.toGiga()
+
     """
     zcat ${gen} > tmp.fa \
         && zcat ${an} > tmp_anno \
         && cellranger mkref ${idxparams}\
         --genome=${IDX} \
         --nthreads ${task.cpus} \
-        --memgb ${task.memory.toGiga()} \
+        --memgb ${taskmem} \
         --fasta tmp.fa \
         --genes tmp_anno \
-        && rm -f tmp.fa tmp_anno \        
+        && rm -f tmp.fa tmp_anno \
         && ln -s ${IDX} ${IDX}.idx
     """
     //cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding &&
