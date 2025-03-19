@@ -11,7 +11,7 @@ Authors
 ************************************************************************/
 
 //Version Check
-nextflowVersion = '>=20.01.0.5264'  // '>=23.04.2'
+nextflowVersion = '>=23.04.2'
 nextflow.enable.dsl=2
 
 //define unset Params
@@ -320,8 +320,8 @@ process Cellranger_idx{
     publishDir "${absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
-        else if (filename == ${mapindex})          "${mapindex}"
-        else                                       "${mapindex}/${file(filename).getName()}"
+        else if (filename.indexOf(".idx") > 0)     "${mapindex}.idx"
+        else                                       "${mapindex}"
     }
 
     input:
@@ -338,7 +338,16 @@ process Cellranger_idx{
     an  = file(anno).getName()
     IDX = file(mapindex).getName()
     """
-    zcat ${gen} > tmp.fa && zcat ${an} > tmp_anno && cellranger mkref ${idxparams} --genome=${IDX} --fasta tmp.fa --genes tmp_anno && rm -f tmp.fa tmp_anno
+    zcat ${gen} > tmp.fa \
+        && zcat ${an} > tmp_anno \
+        && cellranger mkref ${idxparams}\
+        --genome=${IDX} \
+        --nthreads ${task.cpus} \
+        --fasta tmp.fa \
+        --genes tmp_anno \
+        && rm -f tmp.fa tmp_anno \
+        && mv -f ${IDX}/*.out ${IDX}.Log.out \
+        && ln -s ${IDX} ${IDX}.idx
     """
     //cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding &&
 }
@@ -414,7 +423,7 @@ process runCellrangerCount{
         ${crparams} \
         --jobmode local \
         --localcores ${task.cpus} \
-        --localmem 96 \
+        --localmem ${task.memory} \
         --transcriptome ${index} \
         --id ${sampleName} \
         --fastqs inputs
