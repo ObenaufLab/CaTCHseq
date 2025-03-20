@@ -241,15 +241,15 @@ process concat_lanes {
     tag "${sampleName}"
 
     input:
-    tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), val(cells_expected), val(chemistry)
+    tuple val(sampleName), path("inputs/R1_?"), path("inputs/R2_?"), val(cells_expected), val(chemistry)
 
     output:
-    tuple val(sampleName), path("${sampleName}_R1.fastq.gz"), path("${sampleName}_R2.fastq.gz"), val(cells_expected), val(chemistry), emit: fastq
+    tuple val(sampleName), path("${sampleName}_R1.fastq.gz",includeInputs:false), path("${sampleName}_R2.fastq.gz",includeInputs:false), val(cells_expected), val(chemistry)
 
     script:
     """
     cat inputs/R1_* > "${sampleName}_R1.fastq.gz"
-    cat inputs/R1_* > "${sampleName}_R2.fastq.gz"
+    cat inputs/R2_* > "${sampleName}_R2.fastq.gz"
     """
 }
 
@@ -395,8 +395,8 @@ process runCellrangerCount{
     //publishDir "outputs/cellranger/", mode: "copy"
 
     input:
-        tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), val(cells_expected), val(chemistry), path(index)
-    
+        tuple val(sampleName), path('inputs/'), path('inputs/'), val(cells_expected), val(chemistry), path(index)
+
     
     output:
         path "${sampleName}", emit: name
@@ -407,8 +407,8 @@ process runCellrangerCount{
     
     script:
     // Check chemistry specific settings
-    chemistry = chemistry[0]
-    cells_expected = cells_expected[0]
+    chemistry = chemistry.unique()[0]
+    cells_expected = cells_expected.unique()[0]
     if (!chemistry.contains("10X")){
         log.error("Running CellRanger on chemistry different than 10X is not supported, please check your settings and sample sheet.")
 
@@ -428,17 +428,18 @@ process runCellrangerCount{
     IDX=1
     BKP=\${IFS}
     IFS=\$'\\n'
-    for LINE in \$(find inputs/ -name "R[12]_*" -exec readlink -f {} \\; | sort | paste - -);
+    for LINE in \$(find inputs/ -regextype posix-extended -regex ".*R[12][\\._].*fastq.gz" -exec readlink -f {} \\; | sort | paste - -);
     do
         SUFFIX=\$(printf "%03d" \${IDX})
 
-        R1=\$(echo \${LINE} | cut -f1)
+        mkdir -p tomap
+        R1=\$(echo \${LINE} | cut -f1|sed 's|*/||g')
         NEW_NAME=${sampleName}_S1_R1_\${SUFFIX}.fastq.gz
-        ln -sf \${R1} inputs/\${NEW_NAME}
+        ln -sf \${R1} tomap/\${NEW_NAME}
 
-        R2=\$(echo \${LINE} | cut -f2)
+        R2=\$(echo \${LINE} | cut -f2|sed 's|*/||g')
         NEW_NAME=${sampleName}_S1_R2_\${SUFFIX}.fastq.gz
-        ln -sf \${R2} inputs/\${NEW_NAME}
+        ln -sf \${R2} tomap/\${NEW_NAME}
 
         IDX=\$((IDX + 1))
     done
@@ -453,7 +454,7 @@ process runCellrangerCount{
         --localmem ${taskmem} \
         --transcriptome ${index} \
         --id ${sampleName} \
-        --fastqs inputs
+        --fastqs tomap
 
     mv ${sampleName} rundir
     mv rundir/outs ${sampleName}
@@ -591,8 +592,8 @@ process star_mapping{
     idxdir = idx.toRealPath()
     extraparams = ''
     
-    chemistry = chemistry[0]
-    cells_expected = cells_expected[0]
+    chemistry = chemistry[0].unique()[0]
+    cells_expected = cells_expected[0].unique()[0]
     
     // Check whitelist
     if( (whitelist.size() > 0 ) && (chemistry != 'ScaleBio')){
@@ -1250,7 +1251,7 @@ workflow{
         ***********************************************************/
 
         if (mapperbin == 'CellRanger'){
-            runCellrangerCount(concat_lanes.out.fastq.combine( Ch_mapping_idx ))
+            runCellrangerCount(concat_lanes.out.combine( Ch_mapping_idx ))
             useCellrangerData(Ch_map_precomputed)
 
             if (filtering){
@@ -1259,7 +1260,7 @@ workflow{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
-            star_mapping(concat_lanes.out.fastq.groupTuple(by: 0).combine( Ch_mapping_idx ).combine( Ch_whitelist ))
+            star_mapping(concat_lanes.out.combine( Ch_mapping_idx ).combine( Ch_whitelist ))
             if (filtering){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
