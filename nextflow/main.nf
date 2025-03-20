@@ -354,6 +354,7 @@ process Cellranger_idx{
     output:
     path "${file(mapindex).getName()}", emit: idx
     path "${file(mapindex).getName()}*", emit: idx_extra
+    path "star.idx", emit: idxlink
     path "*.out", emit: idxlog
 
     script:
@@ -372,7 +373,7 @@ process Cellranger_idx{
         --fasta tmp.fa \
         --genes tmp_anno \
         && rm -f tmp.fa tmp_anno \
-        && ln -s ${IDX} ${IDX}.idx
+        && ln -s ${IDX}/star star.idx
     """
     //cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding &&
 }
