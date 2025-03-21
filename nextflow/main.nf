@@ -531,9 +531,9 @@ process star_idx{
     gen =  genome.getName()
     an  = anno.getName()
     IDX = file(gen).getSimpleName()+'_idx'
-
+    taskmem      = task.memory ? "--limitGenomeGenerateRAM ${task.memory.toBytes() - 100000000}" : ''   
     """
-    zcat ${gen} > tmp.fa && zcat ${an} > tmp_anno && mkdir -p ${IDX} && STAR ${idxparams} --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir ${IDX} --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
+    zcat ${gen} > tmp.fa && zcat ${an} > tmp_anno && mkdir -p ${IDX} && STAR ${idxparams} --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir ${IDX} --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno ${taskmem} && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
     """
 }
 
