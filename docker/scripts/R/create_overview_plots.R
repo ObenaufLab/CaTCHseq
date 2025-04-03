@@ -16,11 +16,11 @@ option_list <- list(
         help = "format of the plots: pdf (default), jpeg, png, tiff"
     ),
     make_option(c("--width"),
-        type = "numeric", default = 30,
+        type = "numeric", default = 7,
         help = "width of the plot. The units depend on the format: inches for PDF, pixels otherwise"
     ),
     make_option(c("--height"),
-        type = "numeric", default = 15,
+        type = "numeric", default = 7,
         help = "height of the plot. The units depend on the format: inches for PDF, pixels otherwise"
     ),
     make_option(c("--out"),
