@@ -1,12 +1,13 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Literal
-import json
-from CaTCH.base.singlecell.SingleCell import SingleCell, SingleCellRecord
-from CaTCH.base.Exceptions import InvalidCellRecordException
-from CaTCH.utils.Algorithms import Algorithms
-from CaTCH.libraries.CaTCHBarcodeLibrary import CaTCHBarcodeLibrary
-from CaTCH.base.Filters import SingleCellRecordFilter
 
+import json
+from typing import Dict, List, Literal, Tuple
+
+from CaTCH.base.Exceptions import InvalidCellRecordException
+from CaTCH.base.Filters import SingleCellRecordFilter
+from CaTCH.base.singlecell.SingleCell import SingleCell, SingleCellRecord
+from CaTCH.libraries.CaTCHBarcodeLibrary import CaTCHBarcodeLibrary
+from CaTCH.utils.Algorithms import Algorithms
 
 
 class SingleCellLibrary:
@@ -22,12 +23,10 @@ class SingleCellLibrary:
         self._nInvalid10XBarcodes = 0
         self._nAmbiguous10XBarcodes = 0
 
-
     def _get_size_(self) -> int:
         return len(self._cells)
 
     size = property(_get_size_)
-
 
     def addCellRecord(self, record: SingleCellRecord) -> bool:
         if not record:
@@ -39,12 +38,9 @@ class SingleCellLibrary:
                 self._filter_stats[idx] += 1
                 return False
 
-        # First, check if the cell ID is present in the list as is for performance
-        # reasons. 
+        # First, check if the cell ID is present in the list as is for performance reasons.
         if not record.barcode_10X in self._whitelist:
-            # In case it is not, get the list of similar 10X barcodes with the
-            # Hamming distance of 1. If there are more than 1, then the barcode 
-            # cannot be corrected confidently and, thus, must be ambiguous. 
+            # In case it is not, get the list of similar 10X barcodes with the Hamming distance of 1. If there are more than 1, then the barcode cannot be corrected confidently and, thus, must be ambiguous.
             similar = Algorithms.findSimilarBarcodes(record.barcode_10X, self._whitelist, 1)
             # No similar barcodes found
             if len(similar) == 0:
@@ -55,7 +51,7 @@ class SingleCellLibrary:
                 return False
             if len(similar) == 1:
                 record._10x_bc = similar[0][0]
-            
+
         cell = self._cells.get(record.barcode_10X)
         if not cell:
             cell = SingleCell(record.barcode_10X)
@@ -63,7 +59,6 @@ class SingleCellLibrary:
         self._cells[cell.barcode_10X].addCellRecord(record)
         return True
 
-    
     def getFilterStatistics(self) -> Tuple[int, List[Tuple[str, int]]]:
         stats = []
         nTotal = 0
@@ -75,7 +70,6 @@ class SingleCellLibrary:
         stats.append(("Invalid 10X cell barcodes", self._nInvalid10XBarcodes))
         stats.append(("Ambiguous 10X cell barcodes", self._nAmbiguous10XBarcodes))
         return (nTotal, stats)
-        
 
     def removeBackground(self, minCoverage: int = 10, inplace: bool = True) -> "SingleCellLibrary":
         _tmp = dict()
@@ -90,6 +84,18 @@ class SingleCellLibrary:
             result._cells = _tmp
             return result
 
+    def removeCollapsedBackground(self, minCoverage: int = 10, inplace: bool = True) -> "SingleCellLibrary":
+        _tmp = dict()
+        for bc10X in self._cells:
+            if self._cells[bc10X].removeCollapsedBackground(minCoverage = minCoverage) > 0:
+                _tmp[bc10X] = self._cells[bc10X]
+        if inplace:
+            self._cells = _tmp
+            return self
+        else:
+            result = SingleCellLibrary()
+            result._cells = _tmp
+            return result
 
     def collapseSimilarCaTCHBarcodes(self, maxDist: int = 1, inplace: bool = True) -> "SingleCellLibrary":
         if inplace:
@@ -103,10 +109,42 @@ class SingleCellLibrary:
                 result._cells[barcode] = tmp
             return result
 
+    def collapseSimilarCaTCHBarcodes_umitools(
+        self, maxDist: int = 1, inplace: bool = True
+    ) -> "SingleCellLibrary":
+        if inplace:
+            for barcode in self._cells:
+                self._cells[barcode].collapseCaTCHBarcodes_umitools(
+                    maxDist=maxDist, inplace=True
+                )
+            return self
+        else:
+            result = SingleCellLibrary()
+            for barcode in self._cells:
+                tmp = self._cells[barcode].collapseCaTCHBarcodes_umitools(
+                    maxDist=maxDist, inplace=False
+                )
+                result._cells[barcode] = tmp
+            return result
+
+    def collapseSimilarCaTCHumis(
+        self, maxDist: int = 1, inplace: bool = True
+    ) -> "SingleCellLibrary":
+        if inplace:
+            for barcode in self._cells:
+                self._cells[barcode].collapseCaTCHumis(maxDist=maxDist, inplace=True)
+            return self
+        else:
+            result = SingleCellLibrary()
+            for barcode in self._cells:
+                tmp = self._cells[barcode].collapseCaTCHumis(
+                    maxDist=maxDist, inplace=False
+                )
+                result._cells[barcode] = tmp
+            return result
 
     def enumerateSingleCells(self, sort: Literal["None", "10X barcode"] = "None", reversed: bool = False):
         return SingleCellIterator(self._cells, sort = sort, reversed = reversed)
-
 
     def generateCaTCHBarcodesLibrary(self, useMultiplets: bool = False) -> "CaTCHBarcodeLibrary":
         lib = CaTCHBarcodeLibrary()
@@ -119,6 +157,18 @@ class SingleCellLibrary:
                 lib.addBarcode(bc)
         return lib
 
+    def generateUniqueCaTCHBarcodesLibrary(
+        self, useMultiplets: bool = False
+    ) -> "CaTCHBarcodeLibrary":
+        lib = CaTCHBarcodeLibrary()
+        for bc10x in self._cells:
+            cell = self._cells[bc10x]
+            bclib = cell.CaTCH_barcodes_unique
+            if bclib.distinct > 1 and not useMultiplets:
+                continue
+            for bc in bclib.listBarcodes():
+                lib.addBarcode(bc)
+        return lib
 
     def merge(self, other: SingleCellLibrary):
         self._nInvalid10XBarcodes += other._nInvalid10XBarcodes
@@ -131,11 +181,10 @@ class SingleCellLibrary:
                 self._cells[bc10X] = other._cells[bc10X].copy()
             else:
                 self._cells[bc10X].merge(other._cells[bc10X])
-        
+
         # Merge the filter statistics
         for idx, val in enumerate(other._filter_stats):
             self._filter_stats[idx] += val
-
 
     def saveToJSON(self, filename: str):
         tmp = {"invalid10XBarcodes": self._nInvalid10XBarcodes,
@@ -146,7 +195,6 @@ class SingleCellLibrary:
             tmp["cells"][bc10X] = self._cells[bc10X].toJSON()
         with open(filename, "wt") as hOutput:
             json.dump(tmp, hOutput)
-
 
     def loadFromJSON(filename: str) -> SingleCellLibrary:
         hInput = open(filename)
@@ -161,7 +209,6 @@ class SingleCellLibrary:
             cell = SingleCell.loadFromJSON(data["cells"][bc10X])
             scl._cells[bc10X] = cell
         return scl
-
 
 
 class SingleCellIterator:

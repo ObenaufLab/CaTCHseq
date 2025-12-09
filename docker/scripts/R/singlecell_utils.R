@@ -351,12 +351,6 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
             }
         }
 
-        # tmplist <- list(first=firstsce, rest = scetomerge)
-        # saveRDS(tmplist, "SCE_for_merging.rds", compress = "gzip")
-        # tmplist <- list(first=firstseurat, rest = seurattomerge)
-        # saveRDS(tmplist, "SEURAT_for_merging.rds", compress = "gzip")
-        # rm(tmplist)
-        # sce <- cbind(firstsce, scetomerge)  # merge all the sce datasets
         print("Merging SCE")
         sce <- firstsce
         for (x in scetomerge) {
@@ -367,10 +361,6 @@ create_SCEs <- function(smpl, data10X, bc, annotation, minBC = 10, singletCut = 
         seurat_sce <- merge(firstseurat, seurattomerge, add.cell.ids = samplelist, project = "scCaTCH", merge.data = TRUE, merge.dr = FALSE) # merge all the seurat datasets
         # Cleanup missing factor levels for seurat object
         seurat_sce[[]]$CaTCH.Status <- factor(seurat_sce[[]]$CaTCH.Status, levels = c("Singlet", "Double_Integration", "Multiplet", "No_barcode", "NA"))
-
-        # print("Cleaning SCE")
-        # metadata = seurat_sce@meta.data
-        # seurat_sce <- CreateSeuratObject(LayerData(seurat_sce, assay = "RNA", layer = "counts"), assay = "RNA", project = "scCaTCH", meta.data = metadata, names.field = 4)
 
         return(list(sce = sce, seurat_sce = seurat_sce))
     }
@@ -603,11 +593,12 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
+        filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
-    samples <- rownames(sampleData)
-
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
+    sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
+    samples <- sampleData$Sample
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
 
@@ -684,15 +675,21 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
     resn <- res
     res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
 
-    res_shrink$Gene <- res_shrink %>%
+    countData <- countData %>%
+      as_tibble(rownames = "Gene")
+    
+    res_shrink <- left_join(res_shrink %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene") %>%
-        pull(Gene)
-
-    res_shrink <- res_shrink %>%
-        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene"), countData, by = "Gene") %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        dplyr::select(-padj)
+        dplyr::select(-padj) %>%
+        group_by(Gene, p.adj) %>%
+        summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+        ungroup() %>%
+        distinct() %>%
+        relocate(p.adj, .after = log2FoldChange) %>%
+        mutate(log2FoldChange = as.numeric(as.character(log2FoldChange))) %>%
+        arrange(desc(log2FoldChange), p.adj)
 
     # sort and output
     resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
@@ -702,27 +699,28 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
 
     # Output no shrink
     res <- resn[order(resn$log2FoldChange), ]
-    res$Gene <- res %>%
+    res <- left_join(res %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene") %>%
-        pull(Gene)
+        rownames_to_column("Gene"), countData, by = "Gene") %>%
+        group_by(Gene, log2FoldChange) %>%
+        summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+        ungroup() %>%
+        mutate(p.adj = as.numeric(as.character(padj))) %>%
+        dplyr::select(-padj) %>%
+        distinct() %>%
+        relocate(p.adj, .after = pvalue) %>%
+        arrange(desc(log2FoldChange), p.adj)
 
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
 
     r <- resn %>%
-        as_tibble(rownames = NA) %>%
+        as_tibble(rownames = "Gene") %>%
         filter(!is.na(padj), padj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
-        arrange(desc(Type), desc(abs(log2FoldChange)))
-
-    r <- r %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
-        dplyr::select(-padj)
-
-    r$Gene <- r %>%
-        as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene") %>%
-        pull(Gene)
+        relocate(p.adj, .after = pvalue) %>%
+        dplyr::select(-padj) %>%
+        arrange(desc(Type), desc(abs(log2FoldChange)))
 
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))
@@ -742,10 +740,14 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
+        filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
-    samples <- rownames(sampleData)
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
+    sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
+    sampleData$Condition <- relevel(sampleData$Condition, ref = B[[1]])
+    samples <- colnames(countData) 
+    degroups <- colnames(countData) %>% str_remove_all(., "_\\d")
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
@@ -776,23 +778,18 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
 
     ## create DGEList
     genes <- rownames(countData)
-    dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
+    dge <- DGEList(counts = countData, group = degroups, samples = samples, genes = genes)
 
     ## filter low counts
     # keep <- filterByExpr(dge)
     # dge <- dge[keep, , keep.lib.sizes = FALSE]
 
-    # relevel to base condition B
-    dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
-
     ## normalize with TMM
     dgen <- calcNormFactors(dge, method = "TMM")
 
     ## create file normalized table
-    tmm <- as.data.frame(cpm(dge))
-    colnames(tmm) <- t(dgen$samples$samples)
-    tmm$ID <- dgen$genes$genes
-    tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
+    tmm <- as.data.frame(cpm(dge)) %>%
+      as_tibble(rownames = "Gene")
 
     write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
     rm(dgen)
@@ -800,35 +797,40 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
     # dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
-    qlf <- exactTest(dge, dispersion = bcv^2)
+    qlf <- exactTest(dge, pair = c(B, A),dispersion = bcv^2)
 
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
-    tops$Gene <- tops %>%
-        as_tibble(rownames = NA) %>%
-        rownames_to_column("Gene") %>%
-        pull(Gene)
 
-    tops <- tops %>%
+    countData <- countData %>%
+      as_tibble(rownames = "Gene")
+    
+    tops <- left_join(tops %>%
+        as_tibble(rownames = NA) %>%
+        rownames_to_column("Gene"), countData, by = "Gene") %>%
+        group_by(Gene, logFC) %>%
+        summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
+        ungroup() %>%
         mutate(log2FoldChange = as.numeric(as.character(logFC))) %>%
         dplyr::select(-logFC) %>%
         mutate(p.adj = as.numeric(as.character(FDR))) %>%
-        dplyr::select(-FDR)
+        dplyr::select(-FDR, -genes) %>%
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
+    
+    write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
 
     tops <- tops %>%
         filter(!is.na(p.adj), p.adj <= 0.1) %>%
         mutate(Type = if_else(log2FoldChange > 0, "Enriched", "Depleted")) %>%
         arrange(desc(Type), desc(abs(log2FoldChange)))
 
-    write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
-
-
     return(list(dds = qlf, res = tops))
 }
 
 
-run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
+run_deseq_bcs <- function(contrast, sampleData_all, countData_all) {
     contrast_name <- contrast
     contrast_groups <- strsplit(contrast, "-vs-")
     print(paste("Comparing ", contrast_name, sep = ""))
@@ -839,12 +841,15 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
+        filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition))
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
     samples <- rownames(sampleData)
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
+    sampleData$Condition <- factor(unique(sampleData$Condition), levels = unique(sampleData$Condition))
+    sampleData$Condition <- relevel(sampleData$Condition, ref = B)
 
     ## Create design-table considering different types (paired, unpaired) and batches
     if (length(unique(subset(sampleData, A == Condition)$type)) > 1 | length(unique(subset(sampleData, B == Condition)$type)) > 1) {
@@ -917,34 +922,36 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
     res <- results(dds, contrast = c("Condition", A, B), parallel = TRUE)
     resn <- res
     res_shrink <- lfcShrink(dds = dds, coef = paste("Condition", A, "vs", B, sep = "_"), res = res, type = "apeglm")
-
+    
+    countData <- countData %>%
+      as_tibble(rownames = "CaTCH.BC_ID")
+    
     res_shrink <- left_join(res_shrink %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
+        rownames_to_column("CaTCH.BC_ID"), countData, by = "CaTCH.BC_ID") %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
         group_by(CaTCH.BC_ID, Sample) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
-        unique()
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
 
-    # sort and output
-    resOrdered <- res_shrink[order(res_shrink$log2FoldChange), ]
-
-    # write the table to a tsv file
-    write.table(as.data.frame(resOrdered), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
+        # write the table to a tsv file
+    write.table(as.data.frame(res_shrink), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
 
     # Output no shrink
     res <- resn[order(resn$log2FoldChange), ]
     res <- left_join(res %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
+        rownames_to_column("CaTCH.BC_ID"), countData, by = "CaTCH.BC_ID") %>%
         group_by(CaTCH.BC_ID, log2FoldChange) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
-        unique()
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
 
 
     write.table(as.data.frame(res), gzfile(paste("DE", "DESEQ2", contrast_name, "table", "results_noshrink.tsv.gz", sep = "_")), sep = "\t", row.names = FALSE, quote = F)
@@ -965,14 +972,14 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all, ids) {
         ungroup() %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
-        unique()
+        distinct() 
 
     rm(res, resn, resOrdered)
     return(list(dds = r, res = res_shrink))
 }
 
 
-run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.1) {
+run_edger_bcs <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
     # Typical values for the common BCV (square-root-dispersion) for datasets arising from well-controlled experiments are 0.4 for human data, 0.1 for data on genetically identical model organisms or 0.01 for technical replicates
     # https://bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
     contrast_name <- contrast
@@ -985,11 +992,14 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
 
     # subset Datasets for pairwise comparison
     countData <- countData_all %>%
-        dplyr::select(starts_with(c(A, B)))
+        dplyr::select(starts_with(c(paste0(A, "_"), paste0(B, "_")))) %>%
+        filter_at(vars(starts_with(c(A, B))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
-        filter(grepl(paste0("^", A), Condition) | grepl(paste0("^", B), Condition)) %>%
-        droplevels()
-    samples <- rownames(sampleData)
+        filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition)) 
+    sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
+    sampleData$Condition <- relevel(sampleData$Condition, ref = B)
+    samples <- sampleData$Sample
+    degroups <- colnames(countData) %>% str_remove_all(., "_\\d")
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])
     tl <- sapply("type", paste0, levels(sampleData$type)[1:length(levels(sampleData$type)) - 1])
@@ -1017,25 +1027,21 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         }
     }
     print(design)
-
+    
     ## create DGEList
     genes <- rownames(countData)
-    dge <- DGEList(counts = countData, group = sampleData$Condition, samples = samples, genes = genes)
+    dge <- DGEList(counts = countData, group = degroups, samples = samples, genes = genes)
 
     ## filter low counts
     # keep <- filterByExpr(dge, min.count = 1)
     # dge <- dge[keep, keep.lib.sizes = FALSE]
-
-    # relevel to base condition B
-    dge$samples$group <- relevel(dge$samples$group, ref = B[[1]])
 
     ## normalize with TMM
     dgen <- calcNormFactors(dge, method = "TMM")
 
     ## create file normalized table
     tmm <- as.data.frame(cpm(dge))
-    colnames(tmm) <- t(dgen$samples$samples)
-    tmm$ID <- dgen$genes$genes
+    tmm$CaTCH.BC_ID <- dgen$genes$genes
     tmm <- tmm[c(ncol(tmm), 1:ncol(tmm) - 1)]
 
     write.table(as.data.frame(tmm), gzfile(paste("DE_EDGER", contrast_name, "Normalized.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
@@ -1044,14 +1050,18 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
     ## estimate Dispersion, THIS IS SKIPPED AS WE HAVE TO SET BCV MANUALLY WITHOUT REPLICATES
     # dge <- estimateDisp(dge, design, robust = TRUE)
     bcv <- bcv
-    qlf <- exactTest(dge, dispersion = bcv^2)
+    qlf <- exactTest(dge, pair=c(B, A), dispersion = bcv^2)
 
     # create sorted results Tables
     tops <- topTags(qlf, n = nrow(qlf$table), sort.by = "logFC")
     tops <- tops$table
+
+    countData <- countData %>%
+      as_tibble(rownames = "CaTCH.BC_ID")
+    
     tops <- left_join(tops %>%
         as_tibble(rownames = NA) %>%
-        rownames_to_column("CaTCH.BC_ID"), ids, by = "CaTCH.BC_ID") %>%
+        rownames_to_column("CaTCH.BC_ID"), countData, by = "CaTCH.BC_ID") %>%
         group_by(CaTCH.BC_ID, logFC) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
@@ -1059,7 +1069,8 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
         dplyr::select(-logFC) %>%
         mutate(p.adj = as.numeric(as.character(FDR))) %>%
         dplyr::select(-FDR) %>%
-        unique()
+        distinct() %>%
+        arrange(desc(log2FoldChange), p.adj)
 
     write.table(tops, gzfile(paste("DE_EDGER", contrast_name, "resultsLogFCsorted.tsv.gz", sep = "_")), sep = "\t", quote = F, row.names = FALSE)
 
@@ -1072,7 +1083,7 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, ids, bcv = 0.
 }
 
 
-celltype_anno <- function(counts, ref, refname, assay = 1, labels = "main") {
+celltype_anno_celldex <- function(counts, ref, refname, assay = 1, labels = "main") {
     if (labels == "main") {
         labs <- ref$label.main
     } else if (labels == "fine") {
@@ -1085,6 +1096,34 @@ celltype_anno <- function(counts, ref, refname, assay = 1, labels = "main") {
     predcells <- SingleR(
         test = counts, ref = ref, assay.type.test = assay,
         labels = labs
+    )
+
+    # Plot Heatmap
+    pdf(
+        file = paste("SingleR_SCE_Predcells_Heatmap_", refname, "_", labels, ".pdf", sep = ""),
+        width = 15, height = 10
+    )
+    print(plotScoreHeatmap(predcells))
+    dev.off()
+
+    # Plot Deltas
+    pdf(
+        file = paste("SingleR_SCE_Predcells_Deltas_", refname, "_", labels, ".pdf", sep = ""),
+        width = 15, height = 10
+    )
+    print(plotDeltaDistribution(predcells, ncol = 3))
+    dev.off()
+
+    return(predcells)
+}
+
+celltype_anno_generic <- function(counts, ref, refname, assay = 1, labels = "main") {
+    
+    print(paste("Running SingleR with ", refname, sep = " "))
+
+    predcells <- SingleR(
+        test = counts, ref = str_to_title(ref), assay.type.test = assay,
+        labels = str_to_title(labs)
     )
 
     # Plot Heatmap

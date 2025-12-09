@@ -24,7 +24,7 @@ RUN apt-get update \
 		&& apt-get autoclean -y 
 
 # Install the required Python packages and add the CaTCH package
-RUN     pip install pandas numpy biopython
+RUN     pip install pandas numpy biopython umi_tools
 RUN     mkdir -p /packages/CaTCH && mkdir -p /tools/{data,scripts}
 COPY    CaTCH /packages/CaTCH
 COPY    data /tools/data

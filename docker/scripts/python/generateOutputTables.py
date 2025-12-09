@@ -6,11 +6,12 @@
         Cells (--cells)                     Cell IDs and the CaTCH barcodes within each cell
 """
 
-import sys
 import argparse
 import os
+import sys
 from datetime import datetime
 from typing import List
+
 from CaTCH.libraries.SingleCellLibrary import SingleCellLibrary
 
 
@@ -30,13 +31,17 @@ def generateCellsTable(scl: SingleCellLibrary, filename: str):
             print(f"{cell.barcode_10X}\t{';'.join(bclist)}\t{';'.join(bccounts)}", file = hOutput)
 
 
-def generateCaTCHTable(scl: SingleCellLibrary, filename: str):
+def generateCaTCHTable(scl: SingleCellLibrary, filename: str, unique: bool):
     if not filename:
         return
 
     with(open(filename, "wt")) as hOutput:
         print("CaTCH barcode\tCell counts", file = hOutput)
-        lib_CaTCH = scl.generateCaTCHBarcodesLibrary()
+        lib_CaTCH = (
+            scl.generateCaTCHBarcodesLibrary()
+            if not unique
+            else scl.generateUniqueCaTCHBarcodesLibrary()
+        )
         for bc in lib_CaTCH.listBarcodes(sort = "Count", reversed = True):
             print(f"{bc.seq}\t{lib_CaTCH.getBarcodeCount(bc)}", file = hOutput)
 
@@ -47,7 +52,13 @@ def main():
     parser.add_argument("--library", type = str, required = True, help = "path to the single cell library JSON file")
     parser.add_argument("--CaTCH", type = str, required = False, help = "path to the file containing the CaTCH frequencies table")
     parser.add_argument("--cells", type = str, required = False, help = "path to the file containin the cells and their CaTCH barcodes")
-
+    parser.add_argument(
+        "--unique",
+        required=False,
+        type=bool,
+        default=False,
+        help="whether or not to use unique CaTCH UMI barcodes",
+    )
 
     try:
         opts = parser.parse_args()
@@ -65,8 +76,7 @@ def main():
 
     dt = datetime.now()
     print(f"[{dt}] Generating the CaTCH table...")
-    generateCaTCHTable(scl, opts.CaTCH)
-        
+    generateCaTCHTable(scl, opts.CaTCH, opts.unique)
 
 
 if __name__ == "__main__":

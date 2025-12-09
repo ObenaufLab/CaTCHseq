@@ -105,9 +105,10 @@ Idents(pseudo) <- "de.ident"
  
 # Extract Count Data
 countData <- pseudo@assays$RNA$counts %>%
-  as_tibble(rownames = NA) %>%
+  as_tibble(rownames = "Gene") %>%
   rename_with(., ~ gsub("-|_", ".", ., perl = T)) %>%
-  rename_with(., ~ gsub("\\.([0-9]+)", "_\\1", ., perl = T))
+  rename_with(., ~ gsub("\\.([0-9]+)", "_\\1", ., perl = T)) %>%
+  column_to_rownames("Gene")
 
 pseudo$Sample <- pseudo@meta.data %>%
    rownames_to_column(., var = "Sample") %>%
@@ -115,7 +116,9 @@ pseudo$Sample <- pseudo@meta.data %>%
    mutate(Sample = gsub("\\.([0-9]+)", "_\\1", Sample, perl = T)) %>%
    pull(Sample)
 
- 
+ids <- countData %>%
+    as_tibble(rownames = "Gene")
+
 # Extract Metadata
 metadata <- pseudo@meta.data %>%
    as_tibble(rownames = NA) %>%

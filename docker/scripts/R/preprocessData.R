@@ -113,7 +113,9 @@ seurat_sce$Replicate <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) p
 seurat_sce$Sample <- as.factor(unlist(lapply(seurat_sce$Sample, function(x) unlist(str_split(x, "_"))[1])))
 
 #### calculate percentage of MT reads SEURAT ####
-seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^MT-|^mt-", col.name = "percent.mt")
+seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^MT-|^mt-|^Mt-", col.name = "percent.mt")
+seurat_sce <- PercentageFeatureSet(seurat_sce, pattern = "^RP[SL]|^rp[sl]|^Rp[sl]", col.name = "percent.ribo")
+
 pdf(file = paste0(opt$out, "_QC_Violin_MT_content.pdf"), width = 30, height = 10)
 VlnPlot(seurat_sce, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = "Sample")
 dev.off()
@@ -130,7 +132,14 @@ dev.off()
 print("Normalize sce ...")
 
 is.mitochondrial <- grepl(
-    pattern = "^MT-|^mt-", # Needed e.g. for mouse 10x data with cellranger prebuilt index
+    pattern = "^MT-|^mt-|^Mt-", # Needed e.g. for mouse 10x data with cellranger prebuilt index
+    x = rownames(sce),
+    ignore.case = FALSE,
+    perl = TRUE
+)
+
+is.ribosomal <- grepl(
+    pattern = "^RP[SL]|^rp[sl]|^Rp[sl]", # Needed e.g. for mouse 10x data with cellranger prebuilt index
     x = rownames(sce),
     ignore.case = FALSE,
     perl = TRUE
@@ -138,7 +147,7 @@ is.mitochondrial <- grepl(
 
 sce <- sce %>%
     scater::logNormCounts() %>%
-    scater::addPerCellQC(subsets = list(MT = is.mitochondrial)) %>%
+    scater::addPerCellQC(subsets = list(MT = is.mitochondrial, RB = is.ribosomal)) %>%
     scater::addPerFeatureQC()
 
 ### Normalize and scale counts Seurat ####
@@ -149,6 +158,7 @@ seurat_sce <- normalize_Seurat(seurat_sce)
 #### annotate low yield and damaged cells ####
 print("Annotate sce ...")
 rowData(sce)["is.mitochondrial"] <- is.mitochondrial
+rowData(sce)["is.ribosomal"] <- is.ribosomal
 colData(sce)["is.damaged"] <- colData(sce)[, "subsets_MT_percent"] > opt$max_mt
 colData(sce)["is.low_yield"] <- colData(sce)[, "detected"] < opt$min_features
 
@@ -310,12 +320,28 @@ seurat_sce <- umap_Seurat(seurat_sce, assay = "SCT", reduction = "pca_sct", dims
 #### Assign CaTCH barcode indices based on their abundance in the reference samples ####
 print("Assign CaTCH barcodes ...")
 
-tmp <- colData(sce) %>%
+# Create unique BC for merge
+colData(sce)["CaTCH.BC_unique"] <- colData(sce) %>%
+  as_tibble() %>%
+  select(CaTCH.Status, CaTCH.BCs) %>%
+  rowwise() %>%
+  mutate(CaTCH.BC_unique = ifelse(CaTCH.Status == "Singlet", str_split_1(CaTCH.BCs, ";")[1], ifelse(CaTCH.Status == "Double_Integration", paste0(str_split_1(CaTCH.BCs, ";")[1], str_split_1(CaTCH.BCs, ";")[2], sep="+"), paste0(CaTCH.BCs)))) %>%
+  ungroup() %>%
+  select(CaTCH.BC_unique)
+
+seurat_sce@meta.data$CaTCH.BC_unique <- seurat_sce@meta.data %>%
+  select(CaTCH.Status, CaTCH.BCs) %>%
+  rowwise() %>%
+  mutate(CaTCH.BC_unique = ifelse(CaTCH.Status == "Singlet", str_split_1(CaTCH.BCs, ";")[1], ifelse(CaTCH.Status == "Double_Integration", paste(str_split_1(CaTCH.BCs, ";")[1], str_split_1(CaTCH.BCs, ";")[2], sep="+"), CaTCH.BCs))) %>%
+  ungroup() %>%
+  pull(CaTCH.BC_unique)
+
+tmp <- seurat_sce@meta.data %>%
     as_tibble() %>%
-    dplyr::select(c(CaTCH.Status, Condition, CaTCH.BCs, Sample)) %>%
+    dplyr::select(c(CaTCH.Status, Condition, CaTCH.BC_unique, Sample)) %>%
     filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration", Condition == opt$baseCond) %>%
-    dplyr::select(CaTCH.BCs, Sample, CaTCH.Status) %>%
-    group_by(CaTCH.BCs, Sample) %>%
+    dplyr::select(CaTCH.BC_unique, Sample, CaTCH.Status) %>%
+    group_by(CaTCH.BC_unique, Sample) %>%
     mutate(n = n()) %>%
     ungroup() %>%
     distinct() %>%
@@ -326,18 +352,19 @@ tmp <- colData(sce) %>%
     rowid_to_column(".ID") %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(.ID), "BC_0", ifelse(CaTCH.Status == "Singlet", paste0("BC_", .ID), paste0("BC*_", .ID)))) %>%
     dplyr::select(-.Means, -.ID) %>%
-    relocate(CaTCH.BC_ID, .after = CaTCH.BCs) %>%
-    dplyr::select(CaTCH.BCs, CaTCH.BC_ID)
+    relocate(CaTCH.BC_ID, .after = CaTCH.BC_unique) %>%
+    dplyr::select(CaTCH.BC_unique, CaTCH.BC_ID)
+
 
 colData(sce)["CaTCH.BC_ID"] <- colData(sce) %>%
     as_tibble() %>%
-    left_join(y = tmp, by = "CaTCH.BCs") %>%
+    left_join(y = tmp, by = "CaTCH.BC_unique") %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(CaTCH.BC_ID), "BC_0", CaTCH.BC_ID)) %>%
     mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
     dplyr::select(CaTCH.BC_ID)
 
 seurat_sce@meta.data$CaTCH.BC_ID <- seurat_sce@meta.data %>%
-    left_join(y = tmp, by = "CaTCH.BCs") %>%
+    left_join(y = tmp, by = "CaTCH.BC_unique") %>%
     mutate(CaTCH.BC_ID = ifelse(is.na(CaTCH.BC_ID), "BC_0", CaTCH.BC_ID)) %>%
     mutate(CaTCH.BC_ID = factor(CaTCH.BC_ID, levels = str_sort(unique(CaTCH.BC_ID), numeric = TRUE))) %>%
     pull(CaTCH.BC_ID)

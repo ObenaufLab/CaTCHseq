@@ -98,8 +98,8 @@ ref.Condition <- opt$baseCond
 ### Count Barcodes ###
 bc.counts <- sce@meta.data %>%
     filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
-    dplyr::select(CaTCH.BCs, Replicate, CaTCH.BC_ID) %>%
-    group_by(CaTCH.BCs, Replicate) %>%
+    dplyr::select(CaTCH.BC_unique, Replicate, CaTCH.BC_ID) %>%
+    group_by(CaTCH.BC_unique, Replicate) %>%
     mutate(n = n()) %>%
     ungroup() %>%
     distinct() %>%
@@ -116,19 +116,8 @@ row.names(metadata) <- metadata$Sample
 
 ### Run pairwise DE Analysis for BCs ###
 countData <- bc.counts %>%
-    dplyr::select(-CaTCH.BCs) %>%
+    dplyr::select(-CaTCH.BC_unique) %>%
     column_to_rownames(var = "CaTCH.BC_ID")
-
-ids <- sce@meta.data %>%
-    filter((CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") & CaTCH.BC_ID != "BC_0") %>%
-    dplyr::select(CaTCH.BCs, Condition, CaTCH.BC_ID, CellID) %>%
-    group_by(CaTCH.BCs, Condition) %>%
-    mutate(n = n()) %>%
-    ungroup() %>%
-    distinct() %>%
-    pivot_wider(names_from = Condition, values_from = n, values_fill = 0) %>%
-    filter(rowSums(across(starts_with(ref.Condition))) > 0) %>%
-    drop_na()
 
 comparison_objs <- list()
 for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
@@ -139,11 +128,11 @@ for (t in setdiff(levels(metadata$Condition), ref.Condition)) {
     if (length(metadata$Replicate) >= length(metadata$Condition) * 2) {
         print("Enough replicates found, running DESeq2")
 
-        ddslist <- run_deseq_bcs(contrast_name, metadata, countData, ids)
+        ddslist <- run_deseq_bcs(contrast_name, metadata, countData)
     } else {
         print("Not enough replicates found, running edgeR")
         detool <- "EDGER"
-        ddslist <- run_edger_bcs(contrast_name, metadata, countData, ids)
+        ddslist <- run_edger_bcs(contrast_name, metadata, countData)
     }
     comparison_objs[[contrast_name]] <- ddslist
 

@@ -11,7 +11,7 @@ Authors
 ************************************************************************/
 
 //Version Check
-nextflowVersion = '>=20.01.0.5264'  // '>=23.04.2'
+nextflowVersion = '>=23.04.2'
 nextflow.enable.dsl=2
 
 //define unset Params
@@ -59,6 +59,7 @@ mapref = get_always('reference') ?: params.mapRef
 mapanno = get_always('annotation') ?: params.mapAnno
 filtering = get_always('filter') ?: params.filter
 organism = get_always('organism') ?: params.organism
+uniqueCaTCH = get_always('uniqueCaTCH') ?: params.uniqueCaTCH
 minBC = get_always('min_detected_barcodes') ?: params.minDetectedBarcodes
 singletCutoff = get_always('singlet_cutoff') ?: params.singletCutoff
 bc1Cutoff = get_always('bc1_cutoff') ?: params.bc1Cutoff
@@ -113,6 +114,7 @@ def helpMessage() {
         --star_params           Optional parameters for STAR mapping
         --idx_params            Optional parameters for STAR index generation
         --filter                Postprocess filtered counts (default: ${filter})
+        --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${uniqueCaTCH})
         --organism              Identifier for organism (choice: ["Human", 
         "Mouse"], default: "Human")
         --baseline              Name of reference day/condition (default: ${refName})
@@ -168,12 +170,20 @@ log.info """
  | Optional arguments
  |   outputDir               : ${outputDir}
  |   reportsDir              : ${reportsDir}
- |   filter                  : ${filtering}
  |   withQC                  : ${runqc}
  |   whitelist               : ${whitelist}
  |   mapper                  : ${mapperbin}
+     index                   : ${mapindex}
+     reference               : ${mapref}
+     annotation              : ${mapanno}
+|    fastqc_params           : ${qcparams}
+|    star_params             : ${starparams}
+|    idx_params              : ${idxparams}         
+ |   filter                  : ${filtering}
+ |   uniqueCaTCH             : ${uniqueCaTCH}
  |   max_mt_percent          : ${maxMtPercent}
  |   min_detected_features   : ${minDetectedFeatures}
+ |   min_detected_barcodes   : ${minBC}
  |   markerfile              : ${markerfile}
  |   chunk size              : ${chunkSize}
  |   organism                : ${organism}
@@ -220,6 +230,29 @@ process check_samplesheet {
     && mv ${samplesheet} Valid_${samplesheet}
     """
 }
+
+
+/************************************************************************
+                CONCATENATE LANES
+************************************************************************/
+
+process concat_lanes {
+
+    tag "${sampleName}"
+
+    input:
+    tuple val(sampleName), path("inputs/R1_?"), path("inputs/R2_?"), val(cells_expected), val(chemistry)
+
+    output:
+    tuple val(sampleName), path("${sampleName}_R1.fastq.gz",includeInputs:false), path("${sampleName}_R2.fastq.gz",includeInputs:false), val(cells_expected), val(chemistry)
+
+    script:
+    """
+    cat inputs/R1_* > "${sampleName}_R1.fastq.gz"
+    cat inputs/R2_* > "${sampleName}_R2.fastq.gz"
+    """
+}
+
 
 /************************************************************************
                 STEP 0: Run read QC
@@ -307,11 +340,11 @@ process Cellranger_idx{
     label 'big_mem'
     //validExitStatus 0,1
 
-    publishDir "${absDir}/" , mode: 'link',
+    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
-        else if (filename == ${mapindex})          "${mapindex}"
-        else                                       "${mapindex}/${file(filename).getName()}"
+        else if (filename.indexOf(".idx") > 0)     "${mapindex}.idx"
+        else                                       "${mapindex}"
     }
 
     input:
@@ -321,14 +354,26 @@ process Cellranger_idx{
     output:
     path "${file(mapindex).getName()}", emit: idx
     path "${file(mapindex).getName()}*", emit: idx_extra
+    path "star.idx", emit: idxlink
     path "*.out", emit: idxlog
 
     script:
     gen =  file(genome).getName()
     an  = file(anno).getName()
     IDX = file(mapindex).getName()
+    taskmem = task.memory.toGiga()
+
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && cellranger mkref --genome=${IDX} --fasta tmp.fa --genes tmp_anno && rm -f tmp.fa tmp_anno
+    zcat ${gen} > tmp.fa \
+        && zcat ${an} > tmp_anno \
+        && cellranger mkref ${idxparams}\
+        --genome=${IDX} \
+        --nthreads ${task.cpus} \
+        --memgb ${taskmem} \
+        --fasta tmp.fa \
+        --genes tmp_anno \
+        && rm -f tmp.fa tmp_anno \
+        && ln -s ${IDX}/star star.idx
     """
     //cellranger mkgtf $anno $filt --attribute=gene_biotype:protein_coding &&
 }
@@ -351,8 +396,8 @@ process runCellrangerCount{
     //publishDir "outputs/cellranger/", mode: "copy"
 
     input:
-        tuple val(sampleName), path("inputs/R1_*"), path("inputs/R2_*"), val(cells_expected), val(chemistry), path(index)
-    
+        tuple val(sampleName), path('inputs/'), path('inputs/'), val(cells_expected), val(chemistry), path(index)
+
     
     output:
         path "${sampleName}", emit: name
@@ -363,9 +408,9 @@ process runCellrangerCount{
     
     script:
     // Check chemistry specific settings
-    chemistry = chemistry[0]
-    cells_expected = cells_expected[0]
-    if (chemistry != "10X"){
+    chemistry = chemistry.unique()[0]
+    cells_expected = cells_expected.unique()[0]
+    if (!chemistry.contains("10X")){
         log.error("Running CellRanger on chemistry different than 10X is not supported, please check your settings and sample sheet.")
 
     }
@@ -376,23 +421,26 @@ process runCellrangerCount{
             crparams = crparams + ' --expect-cells ' + cells_expected 
         }
     }
+    taskmem = task.memory.toGiga()
+
     """
     # Find all reads, sort them by name to ensure that the paired files are on the consecutive lines,
     # and then create symlinks with proper names (SampleName_S1_R1_xxx.fastq.gz)
     IDX=1
     BKP=\${IFS}
     IFS=\$'\\n'
-    for LINE in \$(find inputs/ -name "R[12]_*" -exec readlink -f {} \\; | sort | paste - -);
+    for LINE in \$(find inputs/ -regextype posix-extended -regex ".*R[12][\\._].*fastq.gz" -exec readlink -f {} \\; | sort | paste - -);
     do
         SUFFIX=\$(printf "%03d" \${IDX})
 
-        R1=\$(echo \${LINE} | cut -f1)
+        mkdir -p tomap
+        R1=\$(echo \${LINE} | cut -f1|sed 's|*/||g')
         NEW_NAME=${sampleName}_S1_R1_\${SUFFIX}.fastq.gz
-        ln -sf \${R1} inputs/\${NEW_NAME}
+        ln -sf \${R1} tomap/\${NEW_NAME}
 
-        R2=\$(echo \${LINE} | cut -f2)
+        R2=\$(echo \${LINE} | cut -f2|sed 's|*/||g')
         NEW_NAME=${sampleName}_S1_R2_\${SUFFIX}.fastq.gz
-        ln -sf \${R2} inputs/\${NEW_NAME}
+        ln -sf \${R2} tomap/\${NEW_NAME}
 
         IDX=\$((IDX + 1))
     done
@@ -404,10 +452,10 @@ process runCellrangerCount{
         ${crparams} \
         --jobmode local \
         --localcores ${task.cpus} \
-        --localmem 96 \
+        --localmem ${taskmem} \
         --transcriptome ${index} \
         --id ${sampleName} \
-        --fastqs inputs
+        --fastqs tomap
 
     mv ${sampleName} rundir
     mv rundir/outs ${sampleName}
@@ -483,9 +531,9 @@ process star_idx{
     gen =  genome.getName()
     an  = anno.getName()
     IDX = file(gen).getSimpleName()+'_idx'
-
+    taskmem      = task.memory ? "--limitGenomeGenerateRAM ${task.memory.toBytes() - 100000000}" : ''   
     """
-    zcat $gen > tmp.fa && zcat $an > tmp_anno && mkdir -p $IDX && STAR $idxparams --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir $IDX --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
+    zcat ${gen} > tmp.fa && zcat ${an} > tmp_anno && mkdir -p ${IDX} && STAR ${idxparams} --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir ${IDX} --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno ${taskmem} && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
     """
 }
 
@@ -545,8 +593,8 @@ process star_mapping{
     idxdir = idx.toRealPath()
     extraparams = ''
     
-    chemistry = chemistry[0]
-    cells_expected = cells_expected[0]
+    chemistry = chemistry.unique()[0]
+    cells_expected = cells_expected.unique()[0]
     
     // Check whitelist
     if( (whitelist.size() > 0 ) && (chemistry != 'ScaleBio')){
@@ -572,7 +620,10 @@ process star_mapping{
     }
     // Check expected cell count
     if (cells_expected != "NA"){
-        starparams = starparams + ' --nExpectedCells ' + cells_expected.replaceAll('!', '')
+        cellsexpCR = cells_expected.replaceAll('!', '') + ' 0.99 10'
+        cellsexpED = cells_expected.replaceAll('!', '') + ' 0.99 10 45000 90000 500 0.01 20000 0.01 10000'
+        starparams = starparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexpCR).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexpED)
+        extraparams = extraparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexpCR).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexpED)
     }
     
     // Build params
@@ -619,8 +670,8 @@ process star_mapping{
     mv ${of} ${gb}
     samtools index ${gb}
     mv ${sampleName}.Solo.out ${sampleName}
-    gzip ${sampleName}/${sfeature}/filtered/*
-    gzip ${sampleName}/${sfeature}/raw/*
+    gzip -f ${sampleName}/*/filtered/*
+    gzip -f ${sampleName}/*/raw/*
     ln -s ${sampleName}/${sfeature}/filtered ${sampleName}_filtered_feature_bc_matrix
     ln -s ${sampleName}/${sfeature}/raw ${sampleName}_raw_feature_bc_matrix
     ln -s ${sampleName}/${sfeature}/filtered/barcodes.tsv.gz ${sampleName}_filtered_barcodes.tsv.gz
@@ -753,11 +804,16 @@ process collapseAndFilterBarcodes{
         tuple val(sampleName), path('*.collapsed.stats'), emit: collapsed_stats
 
     script:
+    unique = "false"
+    if (uniqueCaTCH){
+        unique = "true"
+    }
     """
     ${scriptDirPy}collapseCaTCHbarcodes.py \
         --library ${library} \
         --maxdist ${maxDist} \
         --minsupport ${minReads} \
+        --unique ${unique} \
         --outlib ${sampleName}.collapsed.sclib \
     | tee ${sampleName}.collapsed.stats
     """
@@ -800,10 +856,10 @@ process resolveMultiplets{
 
 
 /************************************************************************
-                    STEP 6: Generate reports
+                    STEP 6: Generate tables
 ************************************************************************/
 
-process generateReports{
+process generateTables{
     
     //conda "cellranger.yaml"
     cache 'lenient'
@@ -829,7 +885,8 @@ process generateReports{
     ${scriptDirPy}generateOutputTables.py \
         --library ${library} \
         --CaTCH ${sampleName}.CaTCHbarcodes \
-        --cells ${sampleName}.cells
+        --cells ${sampleName}.cells \
+        --unique ${uniqueCaTCH} \
     """
 }
 
@@ -990,6 +1047,10 @@ process createOverviewPlots{
     """
 }
 
+/***************************************************************************
+                STEP 10 (OPTIONAL): Calculate CaTCH barcode enrichment
+****************************************************************************/
+
 process calculateBarcodeEnrichment{
 
     //conda "cellranger.yaml"
@@ -1019,7 +1080,7 @@ process calculateBarcodeEnrichment{
         outname = 'scCaTCH'
     }
     """
-    Rscript --vanilla ${scriptDirR}plot_enriched_and_depleted_BCs.R \
+    Rscript --vanilla ${scriptDirR}identify_de_catch_barcodes.R \
         --sce ${sce} \
         --baseCond ${refName} \
         --plots_per_row 5 \
@@ -1032,6 +1093,11 @@ process calculateBarcodeEnrichment{
         --libpath ${scriptDirR}
     """
 }
+
+
+/***************************************************************************
+                STEP 11 (OPTIONAL): Find DE genes
+****************************************************************************/
 
 process identifyDEGenes{
 
@@ -1161,13 +1227,10 @@ workflow{
         }
         //Ch_whitelist.subscribe {  println "Whitelist: $it"  }
 
+        Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0)
+        
         if (mapperbin == 'CellRanger'){
-            Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0).combine( Ch_mapping_idx )
-            
-            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }.groupTuple(by: 0)
-            
-        }else if (mapperbin == 'STAR'){
-           Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0).combine( Ch_mapping_idx ).combine( Ch_whitelist )
+            Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }.groupTuple(by: 0)            
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
@@ -1179,11 +1242,17 @@ workflow{
         }
 
         /**********************************************************
+                STEP 0.1: Concat Lanes
+        ***********************************************************/
+
+        concat_lanes(Ch_map_input)
+
+        /**********************************************************
                 STEP 1: Count Reads
         ***********************************************************/
 
         if (mapperbin == 'CellRanger'){
-            runCellrangerCount(Ch_map_input)
+            runCellrangerCount(concat_lanes.out.combine( Ch_mapping_idx ))
             useCellrangerData(Ch_map_precomputed)
 
             if (filtering){
@@ -1192,7 +1261,7 @@ workflow{
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
-            star_mapping(Ch_map_input)
+            star_mapping(concat_lanes.out.combine( Ch_mapping_idx ).combine( Ch_whitelist ))
             if (filtering){
                 Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
@@ -1234,10 +1303,10 @@ workflow{
 
 
         /**************************************************************
-                STEP 6: Generate reports
+                STEP 6: Generate tables
         ***************************************************************/
 
-        generateReports(resolveMultiplets.out.resolved_multiplets_libraries)
+        generateTables(resolveMultiplets.out.resolved_multiplets_libraries)
 
 
         /**************************************************************
@@ -1276,11 +1345,11 @@ workflow{
         ***************************************************************/
 
         //Ch_script = Channel.fromPath("${scriptDirR}"+"preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
-        //Ch_preprocess_input = Ch_cell_data.map { sample, data -> data }.combine(generateReports.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
+        //Ch_preprocess_input = Ch_cell_data.map { sample, data -> data }.combine(generateTables.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
         //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
         //preprocessSingleCellData(Ch_preprocess_input)
 
-        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateReports.out.report_cells.map { sample, data -> data }.collect(), Channel.fromPath(mapanno))
+        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateTables.out.report_cells.map { sample, data -> data }.collect(), Channel.fromPath(mapanno))
 
         /**************************************************************
                 STEP 9: Generate overview plots
@@ -1288,7 +1357,7 @@ workflow{
         createOverviewPlots(preprocessSingleCellData.out.basic_seurat_sce)
         
         /**************************************************************
-                STEP 10: Run DE Analysis for Barcodes and Genes
+                STEP 10 & 11 (OPTIONAL): Run DE Analysis for Barcodes and Genes
         ***************************************************************/
         
         calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_Conditions.multi.collect())        

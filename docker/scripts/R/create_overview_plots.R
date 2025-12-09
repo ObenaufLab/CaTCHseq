@@ -16,11 +16,11 @@ option_list <- list(
         help = "format of the plots: pdf (default), jpeg, png, tiff"
     ),
     make_option(c("--width"),
-        type = "numeric", default = 30,
+        type = "numeric", default = 7,
         help = "width of the plot. The units depend on the format: inches for PDF, pixels otherwise"
     ),
     make_option(c("--height"),
-        type = "numeric", default = 15,
+        type = "numeric", default = 7,
         help = "height of the plot. The units depend on the format: inches for PDF, pixels otherwise"
     ),
     make_option(c("--out"),
@@ -210,9 +210,9 @@ p.cellstage_samples_distr <- createValueDistrPlot(sce,
 
 p.unique_bc_distr <- sce@meta.data %>%
     filter(CaTCH.Status == "Singlet" | CaTCH.Status == "Double_Integration") %>%
-    dplyr::select(Sample, CaTCH.BCs) %>%
+    dplyr::select(Sample, CaTCH.BC_unique) %>%
     group_by(Sample) %>%
-    summarise(Unique = n_distinct(CaTCH.BCs)) %>%
+    summarise(Unique = n_distinct(CaTCH.BC_unique)) %>%
     ggplot() +
     geom_col(aes(x = Sample, y = Unique)) +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +

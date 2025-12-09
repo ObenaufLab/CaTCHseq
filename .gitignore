@@ -1,3 +1,4 @@
 sccatch.tar.gz
 *buildlog
 *__pycache__
+.vscode*

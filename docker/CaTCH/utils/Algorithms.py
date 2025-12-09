@@ -2,6 +2,7 @@ import sys
 from typing import List, Tuple
 
 from CaTCH.base.Exceptions import BarcodeLengthException
+from umi_tools import UMIClusterer
 
 
 class Algorithms:
@@ -43,3 +44,16 @@ class Algorithms:
             if d <= maxDist:
                 result.append((bc, d))
         return result
+
+    def clusterUMIs(umilist: List[str], maxDist: int = 1) -> List[str]:
+        clusterer = UMIClusterer(cluster_method="directional")
+        return clusterer(umilist, threshold=maxDist)
+
+    def clusterCaTCH(umidict: dict[str], maxDist: int = 1) -> List[str]:
+
+        clusterer = UMIClusterer(cluster_method="directional")
+
+        bcdict = dict(
+            zip([k.seq.encode("utf-8") for k in umidict.keys()], umidict.values())
+        )
+        return clusterer(bcdict, threshold=maxDist)
