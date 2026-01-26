@@ -74,6 +74,12 @@ reportsDir = get_always('reportsDir') ?: params.reportsDir
 outputDir = get_always('outputDir') ?: params.outputDir
 stopOnWarnings = get_always('stopOnWarnings') ?: true
 
+// normalize string-like params to avoid Boolean/Null concatenation issues
+crparams   = (crparams   instanceof Boolean || crparams   == null) ? '' : crparams.toString()
+starparams = (starparams instanceof Boolean || starparams == null) ? '' : starparams.toString()
+idxparams  = (idxparams  instanceof Boolean || idxparams  == null) ? '' : idxparams.toString()
+qcparams   = (qcparams   instanceof Boolean || qcparams   == null) ? '' : qcparams.toString()
+
 
 def helpMessage() {
     log.info"""
@@ -102,34 +108,42 @@ def helpMessage() {
                                     CellNumber      number of expected cells (NA if not available, number for soft constraint, number! for hard constraint)
                                     Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq), this may not set adequate parameters for mappers automatically, make sure you check them accordingly
 
-      Optional arguments:
-        --chunkSize             number of reads per chunk (default: ${chunkSize})
-        --index                 Path to mapper index directory (default: ${mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
-        --mapper                Which mapper to run (default: CellRanger, optional: STAR)
-        --withQC                Boolean, run FastQC and MultiQC (default: ${runqc})
-        --reference             Path to reference fasta.gz
-        --annotation            Path to annotation gtf.gz 
-        --whitelist             Path to barcode whitelist
-        --fastqc_params         Optional parameters for FASTQC
-        --star_params           Optional parameters for STAR mapping
-        --idx_params            Optional parameters for STAR index generation
-        --filter                Postprocess filtered counts (default: ${filter})
-        --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${uniqueCaTCH})
-        --organism              Identifier for organism (choice: ["Human", 
-        "Mouse"], default: "Human")
-        --baseline              Name of reference day/condition (default: ${refName})
-        --marker                RDS file of cellcycle markers (default: ${marker}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
-        --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBC})
-        --singlet_cutoff        Min ratio for sum of CaTCH barcodes 1 to classify cell as 'Singlet' (default: ${singletCutoff})
-        --bc1_cutoff            Min ratio for CaTCH barcode 1 to classify cell as 'Dual_Integration' (default: ${bc1Cutoff})
-        --bc2_cutoff            Min ratio for CaTCH barcode 2 to classify cell as 'Dual_Integration' (default: ${bc2Cutoff})
-        --vote                  Number of votes needed for majority voting (default: ${majorityVote})
-        --outputDir             specifies the output directory (default: ${outputDir})
-        --reportsDir            specifies the reports directory.(default: ${reportsDir})
-        --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/R/ for instances not running docker)
-        --scriptDirPy            specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/python/ for instances not running docker)
-        --binDir            specifies the path to the binary directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /usr/bin/local which is valid for docker instance; set to '' for instances not running docker)
-        --help                  print this help message
+            Optional arguments:
+                --outputDir             specifies the output directory (default: ${outputDir})
+                --reportsDir            specifies the reports directory.(default: ${reportsDir})
+                --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/R/ for instances not running docker)
+                --scriptDirPy           specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/python/ for instances not running docker)
+                --binDir                specifies the path to the binary directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /usr/bin/local which is valid for docker instance; set to '' for instances not running docker)
+                --mapper                Which mapper to run (default: CellRanger, optional: STAR)
+                --index                 Path to mapper index directory (default: ${mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
+                --reference             Path to reference fasta.gz
+                --annotation            Path to annotation gtf.gz 
+                --whitelist             Path to barcode whitelist
+                --withQC                Boolean, run FastQC and MultiQC (default: ${runqc})
+                --fastqc_params         Optional parameters for FASTQC
+                --cellranger_params     Optional parameters for CellRanger (default: ${crparams})
+                --star_params           Optional parameters for STAR mapping
+                --idx_params            Optional parameters for STAR index generation
+                --filter                Postprocess filtered counts (default: ${filter})
+                --minReads              Minimum reads to keep cell (default: ${minReads})
+                --chunkSize             number of reads per chunk (default: ${chunkSize})
+                --maxDist               maximum distance for barcode merging (default: ${maxDist})
+                --majorityVote          Number of votes needed for majority voting (default: ${majorityVote})
+                --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${uniqueCaTCH})
+                --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBC})
+                --singlet_cutoff        Min ratio for sum of CaTCH barcodes 1 to classify cell as 'Singlet' (default: ${singletCutoff})
+                --bc1_cutoff            Min ratio for CaTCH barcode 1 to classify cell as 'Dual_Integration' (default: ${bc1Cutoff})
+                --bc2_cutoff            Min ratio for CaTCH barcode 2 to classify cell as 'Dual_Integration' (default: ${bc2Cutoff})
+                --max_mt_percent        Maximum mitochondrial read percentage (default: ${maxMtPercent})
+                --min_detected_features Minimum detected features cutoff (default: ${minDetectedFeatures})
+                --hvg_cutoff            Highly variable genes cutoff (default: ${hvgCutoff})
+                --pval_cutoff           P-value cutoff for DE analysis (default: ${pvalCutoff})
+                --lfc_cutoff            Log-fold-change cutoff for DE analysis (default: ${lfcCutoff})
+                --organism              Identifier for organism (choice: ["Human", "Mouse"], default: ${organism})
+                --baseline              Name of reference day/condition (default: ${refName})
+                --marker                RDS file of cellcycle markers (default: ${markerfile}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
+                --stopOnWarnings        Stop pipeline when warnings occur (default: ${stopOnWarnings})
+                --help                  print this help message
 
     """.stripIndent()
 }
@@ -170,24 +184,38 @@ log.info """
  | Optional arguments
  |   outputDir               : ${outputDir}
  |   reportsDir              : ${reportsDir}
- |   withQC                  : ${runqc}
- |   whitelist               : ${whitelist}
+ |   scriptDirR              : ${scriptDirR}
+ |   scriptDirPy             : ${scriptDirPy}
+ |   binDir                  : ${binDir}
  |   mapper                  : ${mapperbin}
-     index                   : ${mapindex}
-     reference               : ${mapref}
-     annotation              : ${mapanno}
-|    fastqc_params           : ${qcparams}
-|    star_params             : ${starparams}
-|    idx_params              : ${idxparams}         
+ |   index                   : ${mapindex}
+ |   reference               : ${mapref}
+ |   annotation              : ${mapanno}
+ |   whitelist               : ${whitelist}
+ |   withQC                  : ${runqc}
+ |   fastqc_params           : ${qcparams}
+ |   cellranger_params       : ${crparams}
+ |   star_params             : ${starparams}
+ |   idx_params              : ${idxparams}
  |   filter                  : ${filtering}
+ |   minReads                : ${minReads}
+ |   chunkSize               : ${chunkSize}
+ |   maxDist                 : ${maxDist}
+ |   majorityVote            : ${majorityVote}
  |   uniqueCaTCH             : ${uniqueCaTCH}
+ |   min_detected_barcodes   : ${minBC}
+ |   singlet_cutoff          : ${singletCutoff}
+ |   bc1_cutoff              : ${bc1Cutoff}
+ |   bc2_cutoff              : ${bc2Cutoff}
  |   max_mt_percent          : ${maxMtPercent}
  |   min_detected_features   : ${minDetectedFeatures}
- |   min_detected_barcodes   : ${minBC}
+ |   hvg_cutoff              : ${hvgCutoff}
+ |   pval_cutoff             : ${pvalCutoff}
+ |   lfc_cutoff              : ${lfcCutoff}
  |   markerfile              : ${markerfile}
- |   chunk size              : ${chunkSize}
  |   organism                : ${organism}
  |   baseline                : ${refName}
+ |   stopOnWarnings          : ${stopOnWarnings}
  |
  ======================================================================
 """.stripIndent()
