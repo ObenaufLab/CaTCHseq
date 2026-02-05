@@ -958,7 +958,7 @@ process preprocessSingleCellData{
     //conda "cellranger.yaml"
     cache 'lenient'
     //label 'big_mem'
-    tag "${sampleName}"
+    tag "Preprocess_SingleCellData"
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
@@ -1378,8 +1378,7 @@ workflow{
         //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
         //preprocessSingleCellData(Ch_preprocess_input)
 
-        preprocessSingleCellData(
-            Ch_cell_data.map { sample, data -> sample }.collect(),
+        preprocessSingleCellData(            
             Ch_cell_data.map { sample, data -> data }.collect(),
             generateTables.out.report_cells.map { sample, data -> data }.collect(),
             Channel.fromPath(mapanno)
