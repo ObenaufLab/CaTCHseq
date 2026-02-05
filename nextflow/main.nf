@@ -266,7 +266,7 @@ process check_samplesheet {
 
 process concat_lanes {
 
-    tag "${sampleName}"
+    tag { sampleNames instanceof List ? sampleNames.join(',') : sampleNames }
 
     input:
     tuple val(sampleName), path("inputs/R1_?"), path("inputs/R2_?"), val(cells_expected), val(chemistry)
@@ -974,6 +974,7 @@ process preprocessSingleCellData{
     }
 
     input:
+        val(sampleNames)
         path(featureMatrix)
         path(catchBarcodes)
         path(gtf)
@@ -1377,7 +1378,12 @@ workflow{
         //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
         //preprocessSingleCellData(Ch_preprocess_input)
 
-        preprocessSingleCellData(Ch_cell_data.map { sample, data -> data }.collect(), generateTables.out.report_cells.map { sample, data -> data }.collect(), Channel.fromPath(mapanno))
+        preprocessSingleCellData(
+            Ch_cell_data.map { sample, data -> sample }.collect(),
+            Ch_cell_data.map { sample, data -> data }.collect(),
+            generateTables.out.report_cells.map { sample, data -> data }.collect(),
+            Channel.fromPath(mapanno)
+        )
 
         /**************************************************************
                 STEP 9: Generate overview plots
