@@ -1354,13 +1354,10 @@ workflow{
                 STEP 8: Generate SingleCellExperiment object
         ***************************************************************/
 
-        Ch_gtf = Channel.fromPath(mapanno)
-
         Ch_preprocess_input = Ch_cell_data.join(generateTables.out.report_cells, by: 0)
-                                         .combine(Ch_gtf)
-                                         .map { sampleName, featureMatrix, catchBarcodes, gtf ->
+                                         .map { sampleName, featureMatrix, catchBarcodes ->
                                              def sampleTag = sampleName.tokenize('_')[0]
-                                             tuple(sampleName, sampleTag, featureMatrix, catchBarcodes, gtf)
+                                             tuple(sampleName, sampleTag, featureMatrix, catchBarcodes, file(mapanno))
                                          }
 
         preprocessSingleCellData(Ch_preprocess_input)
