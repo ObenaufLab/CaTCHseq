@@ -1371,14 +1371,9 @@ workflow{
                 STEP 10 & 11 (OPTIONAL): Run DE Analysis for Barcodes and Genes
         ***************************************************************/
         def Ch_multi_conditions = Ch_Conditions.multi.collect()
-
-        Ch_sce_with_conditions = preprocessSingleCellData.out.basic_seurat_sce.map { tupleVal ->
-            def (sampleTag, sce) = tupleVal
-            tuple(sampleTag, sce, Ch_multi_conditions)
-        }
         
-        calculateBarcodeEnrichment(Ch_sce_with_conditions)        
-        identifyDEGenes(Ch_sce_with_conditions)        
+        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)        
+        identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)        
         
     //emit:
     //createOverviewPlots.out.pdf
