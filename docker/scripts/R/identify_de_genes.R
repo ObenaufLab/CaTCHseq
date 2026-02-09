@@ -130,6 +130,12 @@ metadata <- metadata %>%
   mutate(Condition = as.factor(gsub("\\.([0-9]+)", "_\\1", Condition, perl = T)))
 row.names(metadata) <- NULL
 
+# Check if reference condition is present in the metadata
+if(!ref.Condition %in% metadata$Condition){    
+    saveRDS(metadata, file = paste0(opt$out, "_DE_pseudobulk_list.rds.gz"), compress = "gzip")    
+    stop("Reference condition not found in the metadata")
+}
+
 ### Pseudo Gene DE #####
 comparison_objs <- list()
 
