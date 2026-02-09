@@ -1079,9 +1079,9 @@ process calculateBarcodeEnrichment{
         val(check)
 
     output:
-        tuple val(sampleTag), path "*.pdf", emit: pdf
-        tuple val(sampleTag), path "*.tsv.gz", emit: tables
-        tuple val(sampleTag), path "*.rds.gz", emit: rds
+        tuple val(sampleTag), path("*.pdf"), emit: pdf
+        tuple val(sampleTag), path("*.tsv.gz"), emit: tables
+        tuple val(sampleTag), path("*.rds.gz"), emit: rds
 
     script:
      if (filtering){
@@ -1127,9 +1127,9 @@ process identifyDEGenes{
         val(check)
 
     output:
-        tuple val(sampleTag), path "*.pdf", emit: pdf
-        tuple val(sampleTag), path "*.tsv.gz", emit: tables
-        tuple val(sampleTag), path "*.rds.gz", emit: rds
+        tuple val(sampleTag), path("*.pdf"), emit: pdf
+        tuple val(sampleTag), path("*.tsv.gz"), emit: tables
+        tuple val(sampleTag), path("*.rds.gz"), emit: rds
 
     script:
      if (filtering){
