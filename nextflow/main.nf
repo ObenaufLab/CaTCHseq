@@ -1370,7 +1370,7 @@ workflow{
         /**************************************************************
                 STEP 10 & 11 (OPTIONAL): Run DE Analysis for Barcodes and Genes
         ***************************************************************/
-        Ch_multi_conditions = Ch_Conditions.multi.collect()
+        Ch_Conditions.multi.collect().set { Ch_multi_conditions }
         Ch_sce_with_conditions = preprocessSingleCellData.out.basic_seurat_sce.combine(Ch_multi_conditions) { tupleVal, conds ->
             def (sampleTag, sce) = tupleVal
             tuple(sampleTag, sce, conds)
