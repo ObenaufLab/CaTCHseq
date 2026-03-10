@@ -44,6 +44,10 @@ binDir = get_always('binDir') ?: params.binDir
 libraries = get_always('libraries')
 chunkSize = get_always('chunkSize') ?: params.chunkSize
 maxDist = get_always('maxDist') ?: params.maxDist
+maxDistCaTCH = get_always('maxDistCaTCH') ?: params.maxDistCaTCH
+maxDistUMIs = get_always('maxDistUMIs') ?: params.maxDistUMIs
+clusterMethodCaTCH = get_always('clusterMethodCaTCH') ?: params.clusterMethodCaTCH
+clusterMethodUMIs = get_always('clusterMethodUMIs') ?: params.clusterMethodUMIs
 minReads = get_always('minReads') ?: params.minReads
 majorityVote = get_always('majorityVote') ?: params.majorityVote
 qcparams = get_always('fastqc_params') ?: params.qcParams
@@ -128,6 +132,10 @@ def helpMessage() {
                 --minReads              Minimum reads to keep cell (default: ${minReads})
                 --chunkSize             number of reads per chunk (default: ${chunkSize})
                 --maxDist               maximum distance for barcode merging (default: ${maxDist})
+                --maxDistCaTCH          maximum distance for CaTCH barcode collapsing (default: ${maxDistCaTCH})
+                --maxDistUMIs           maximum distance for UMI collapsing (default: ${maxDistUMIs})
+                --clusterMethodCaTCH    umi_tools cluster method for CaTCH barcode collapsing (default: ${clusterMethodCaTCH})
+                --clusterMethodUMIs     umi_tools cluster method for UMI collapsing (default: ${clusterMethodUMIs})
                 --majorityVote          Number of votes needed for majority voting (default: ${majorityVote})
                 --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${uniqueCaTCH})
                 --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBC})
@@ -201,6 +209,10 @@ log.info """
  |   minReads                : ${minReads}
  |   chunkSize               : ${chunkSize}
  |   maxDist                 : ${maxDist}
+ |   maxDistCaTCH            : ${maxDistCaTCH}
+ |   maxDistUMIs             : ${maxDistUMIs}
+ |   clusterMethodCaTCH      : ${clusterMethodCaTCH}
+ |   clusterMethodUMIs       : ${clusterMethodUMIs}
  |   majorityVote            : ${majorityVote}
  |   uniqueCaTCH             : ${uniqueCaTCH}
  |   min_detected_barcodes   : ${minBC}
@@ -836,12 +848,20 @@ process collapseAndFilterBarcodes{
     if (uniqueCaTCH){
         unique = "true"
     }
+    catchMax = maxDistCaTCH ?: maxDist
+    umiMax = maxDistUMIs ?: maxDist
+    catchMethod = clusterMethodCaTCH ? "--cluster-method-catch ${clusterMethodCaTCH}" : ""
+    umiMethod = clusterMethodUMIs ? "--cluster-method-umis ${clusterMethodUMIs}" : ""
     """
     ${scriptDirPy}collapseCaTCHbarcodes.py \
         --library ${library} \
         --maxdist ${maxDist} \
+        --maxdist-catch ${catchMax} \
+        --maxdist-umis ${umiMax} \
         --minsupport ${minReads} \
         --unique ${unique} \
+        ${catchMethod} \
+        ${umiMethod} \
         --outlib ${sampleName}.collapsed.sclib \
     | tee ${sampleName}.collapsed.stats
     """

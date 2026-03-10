@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import pdb
-from collections import Counter
 from typing import List
 
 from CaTCH.base.CaTCHBarcode import CaTCHBarcode
@@ -143,7 +141,10 @@ class SingleCell:
             return result
 
     def collapseCaTCHBarcodes_umitools(
-        self, maxDist: int = 1, inplace: bool = True
+        self,
+        maxDist: int = 1,
+        cluster_method_catch: str = "directional",
+        inplace: bool = True,
     ) -> SingleCell:
         """
         Collapses the CaTCH barcodes of the current cell. In brief, the method collapses all CaTCH barcodes with distance smaller than the cut-off value maxDist into a single CaTCH barcode, while keeping all UMIs via the umi_tools API.
@@ -157,7 +158,9 @@ class SingleCell:
             nTotalReads += n
 
         # print(f"BCDICT: {bcdict}")
-        bclist = Algorithms.clusterCaTCH(bcdict, maxDist)
+        bclist = Algorithms.clusterCaTCH(
+            bcdict, maxDist, cluster_method=cluster_method_catch
+        )
 
         collapsedBCs = dict()
         for cluster in bclist:
@@ -187,7 +190,12 @@ class SingleCell:
             result._catch_umi_rel = collapsedBCs
             return result
 
-    def collapseCaTCHumis(self, maxDist: int = 1, inplace: bool = True) -> SingleCell:
+    def collapseCaTCHumis(
+        self,
+        maxDist: int = 1,
+        cluster_method_umis: str = "directional",
+        inplace: bool = True,
+    ) -> SingleCell:
         """
         Collapses the UMIs for CaTCH barcodes of the current cell utilizing the umi_tools API
         """
@@ -200,7 +208,9 @@ class SingleCell:
             umidict = dict(
                 zip([str(k).encode("utf-8") for k in umidict.keys()], umidict.values())
             )
-            umis = Algorithms.clusterUMIs(umidict, maxDist)
+            umis = Algorithms.clusterUMIs(
+                umidict, maxDist, cluster_method=cluster_method_umis
+            )
 
             collapsedUMIs = dict()
             for cluster in umis:

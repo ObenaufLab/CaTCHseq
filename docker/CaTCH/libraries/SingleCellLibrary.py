@@ -39,7 +39,7 @@ class SingleCellLibrary:
                 return False
 
         # First, check if the cell ID is present in the list as is for performance reasons.
-        if not record.barcode_10X in self._whitelist:
+        if record.barcode_10X not in self._whitelist:
             # In case it is not, get the list of similar 10X barcodes with the Hamming distance of 1. If there are more than 1, then the barcode cannot be corrected confidently and, thus, must be ambiguous.
             similar = Algorithms.findSimilarBarcodes(record.barcode_10X, self._whitelist, 1)
             # No similar barcodes found
@@ -110,35 +110,51 @@ class SingleCellLibrary:
             return result
 
     def collapseSimilarCaTCHBarcodes_umitools(
-        self, maxDist: int = 1, inplace: bool = True
+        self,
+        maxDist: int = 1,
+        cluster_method_catch: str = "directional",
+        inplace: bool = True,
     ) -> "SingleCellLibrary":
         if inplace:
             for barcode in self._cells:
                 self._cells[barcode].collapseCaTCHBarcodes_umitools(
-                    maxDist=maxDist, inplace=True
+                    maxDist=maxDist,
+                    cluster_method_catch=cluster_method_catch,
+                    inplace=True,
                 )
             return self
         else:
             result = SingleCellLibrary()
             for barcode in self._cells:
                 tmp = self._cells[barcode].collapseCaTCHBarcodes_umitools(
-                    maxDist=maxDist, inplace=False
+                    maxDist=maxDist,
+                    cluster_method_catch=cluster_method_catch,
+                    inplace=False,
                 )
                 result._cells[barcode] = tmp
             return result
 
     def collapseSimilarCaTCHumis(
-        self, maxDist: int = 1, inplace: bool = True
+        self,
+        maxDist: int = 1,
+        cluster_method_umis: str = "directional",
+        inplace: bool = True,
     ) -> "SingleCellLibrary":
         if inplace:
             for barcode in self._cells:
-                self._cells[barcode].collapseCaTCHumis(maxDist=maxDist, inplace=True)
+                self._cells[barcode].collapseCaTCHumis(
+                    maxDist=maxDist,
+                    cluster_method_umis=cluster_method_umis,
+                    inplace=True,
+                )
             return self
         else:
             result = SingleCellLibrary()
             for barcode in self._cells:
                 tmp = self._cells[barcode].collapseCaTCHumis(
-                    maxDist=maxDist, inplace=False
+                    maxDist=maxDist,
+                    cluster_method_umis=cluster_method_umis,
+                    inplace=False,
                 )
                 result._cells[barcode] = tmp
             return result
