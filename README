@@ -1,0 +1,70 @@
+scCaTCH pipeline
+================
+
+Overview
+--------
+The scCaTCH pipeline processes PCR-amplified CaTCH libraries from FASTQ files through mapping, barcode collapsing/deduplication, multiplet handling, and reporting. It is built with Nextflow (DSL2) and supports CellRanger or STARsolo mapping. Deduplication leverages umi_tools network-based clustering with tunable strategies and distances for CaTCH barcodes and UMIs.
+
+Quick start (Docker-based defaults)
+-----------------------------------
+```bash
+nextflow run nextflow/main.nf \
+	--libraries <libraries.csv> \
+	--outputDir ./scCaTCH_OUTPUT \
+	--reportsDir ./REPORTS
+```
+
+Key inputs
+----------
+- `--libraries` (CSV, required): columns SampleName, Condition, Replicate, LibraryType (GEX|scCaTCH), R1, R2, CellNumber, Chemistry.
+- Reference inputs vary by mapper:
+	- CellRanger: `--index` (transcriptome), `--reference`, `--annotation` as needed for building indexes.
+	- STARsolo: `--index`, `--reference`, `--annotation`, optional `--whitelist`.
+
+Major parameters
+----------------
+- General
+	- `--mapper` (CellRanger|STAR) and mapper-specific params `--cellranger_params`, `--star_params`, `--idx_params`.
+	- `--withQC` to run FastQC/MultiQC; `--fastqc_params` for extra options.
+	- `--chunkSize` read chunking for barcode counting.
+	- `--minReads` minimum reads per CaTCH barcode; `--filter` to use filtered counts.
+	- `--min_detected_barcodes`, `--singlet_cutoff`, `--bc1_cutoff`, `--bc2_cutoff` for downstream classification.
+
+- Barcode/UMI collapsing (umi_tools-backed)
+	- Distance cutoffs:
+		- `--maxDist` global fallback (default 1).
+		- `--maxDistCaTCH` distance for CaTCH barcode collapsing (default 1; falls back to `--maxDist`).
+		- `--maxDistUMIs` distance for UMI collapsing (default 1; falls back to `--maxDist`).
+	- Network methods:
+		- `--clusterMethodCaTCH` (directional/adjacency/cluster, default directional).
+		- `--clusterMethodUMIs` (directional/adjacency/cluster, default directional).
+	- Uniqueness toggle: `--uniqueCaTCH` (true/false) to enable umi_tools-based collapsing; otherwise Hamming distance.
+
+Pipeline steps (high level)
+---------------------------
+1) **QC** (optional): FastQC → MultiQC summaries.
+2) **Mapping**: CellRanger count or STARsolo (with chemistry-specific presets).
+3) **Barcode counting**: Count CaTCH barcodes in chunks and merge.
+4) **Collapse & filter**: Apply distance/method settings to deduplicate CaTCH barcodes and UMIs; remove background.
+5) **Multiplet resolution**: Majority-vote based merging of multiplets.
+6) **Reports & tables**: Generate CaTCH barcode and cell summaries plus analytics plots.
+
+CLI mapping for collapse script
+-------------------------------
+- Nextflow params map to `collapseCaTCHbarcodes.py`:
+	- `--clusterMethodCaTCH` → `--cluster-method-catch`
+	- `--clusterMethodUMIs`  → `--cluster-method-umis`
+	- `--maxDistCaTCH`       → `--maxdist-catch`
+	- `--maxDistUMIs`        → `--maxdist-umis`
+- All default to the original behaviour (directional, distance 1) if not set.
+
+Outputs
+-------
+- `OUTPUT/Counts/` – intermediate and collapsed `.sclib` libraries and stats.
+- `OUTPUT/Reports/` – tables (`*.CaTCHbarcodes`, `*.cells`) and plots.
+- `OUTPUT/CellRanger/` or `OUTPUT/STAR/` – mapper-specific outputs.
+
+Tips
+----
+- Provide chemistry-specific parameters for STARsolo if deviating from 10X presets.
+- Ensure `--libraries` paths are accessible where Nextflow executes (local or workdir-mounted in containers).
