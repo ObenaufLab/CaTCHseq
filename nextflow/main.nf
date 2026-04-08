@@ -278,7 +278,7 @@ process check_samplesheet {
 
 process concat_lanes {
 
-    tag { sampleNames instanceof List ? sampleNames.join(',') : sampleNames }
+    tag { sampleName instanceof List ? sampleName.join(',') : sampleName }
 
     input:
     tuple val(sampleName), path("inputs/R1_?"), path("inputs/R2_?"), val(cells_expected), val(chemistry)
