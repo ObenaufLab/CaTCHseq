@@ -5,10 +5,8 @@
 """
 
 import argparse
-import os
 import sys
 from datetime import datetime
-from typing import List
 
 from CaTCH.libraries.SingleCellLibrary import SingleCellLibrary
 
@@ -20,6 +18,20 @@ def main():
     parser.add_argument(
         "--maxdist", type=int, default=1, help="maximum Hamming distance (default: 1)"
     )
+    parser.add_argument(
+        "--maxdist-catch",
+        type=int,
+        dest="maxdist_catch",
+        default=None,
+        help="maximum distance for collapsing CaTCH barcodes (overrides --maxdist if set)",
+    )
+    parser.add_argument(
+        "--maxdist-umis",
+        type=int,
+        dest="maxdist_umis",
+        default=None,
+        help="maximum distance for collapsing UMIs (overrides --maxdist if set)",
+    )
     parser.add_argument("--minsupport", type = int, default = 10, help = "minimum reads supporting the CaTCH barcode (default: 10)")
     parser.add_argument(
         "--unique",
@@ -27,11 +39,25 @@ def main():
         default=False,
         help="true if CaTCH barcodes and UMIs should be made unique with umi_tools, else Hamming distance (default: False)",
     )
+    parser.add_argument(
+        "--cluster-method-catch",
+        type=str,
+        choices=["directional", "adjacency", "cluster"],
+        default="directional",
+        help="umi_tools network-based deduplication method for collapsing CaTCH barcodes (default: directional)",
+    )
+    parser.add_argument(
+        "--cluster-method-umis",
+        type=str,
+        choices=["directional", "adjacency", "cluster"],
+        default="directional",
+        help="umi_tools network-based deduplication method for collapsing UMIs (default: directional)",
+    )
     parser.add_argument("--outlib", type = str, required = True, help = "path to the output single cell library JSON file")
 
     try:
         opts = parser.parse_args()
-    except:
+    except Exception:
         parser.print_help()
         sys.exit(0)
 
@@ -46,11 +72,20 @@ def main():
 
     # Collapse similar CaTCH barcodes
     dt = datetime.now()
-    print(f"[{dt}] Collapsing similar CaTCH barcodes (min Hamming distance {opts.maxdist})...")
+    maxdist_catch = (
+        opts.maxdist_catch if opts.maxdist_catch is not None else opts.maxdist
+    )
+    maxdist_umis = opts.maxdist_umis if opts.maxdist_umis is not None else opts.maxdist
+
+    print(
+        f"[{dt}] Collapsing similar CaTCH barcodes (min Hamming distance {maxdist_catch})..."
+    )
     if opts.unique:
-        scl.collapseSimilarCaTCHBarcodes_umitools(maxDist=opts.maxdist)
+        scl.collapseSimilarCaTCHBarcodes_umitools(
+            maxDist=maxdist_catch, cluster_method_catch=opts.cluster_method_catch
+        )
     else:
-        scl.collapseSimilarCaTCHBarcodes(maxDist=opts.maxdist)
+        scl.collapseSimilarCaTCHBarcodes(maxDist=maxdist_catch)
     nMultiplets = 0
     for sc in scl.enumerateSingleCells():
         if sc.CaTCH_barcodes.distinct > 1:
@@ -65,7 +100,9 @@ def main():
     for sc in scl.enumerateSingleCells():
         nCaTCHBCsRaw += len(set(sc.umis))
     if opts.unique:
-        scl.collapseSimilarCaTCHumis(maxDist=opts.maxdist)
+        scl.collapseSimilarCaTCHumis(
+            maxDist=maxdist_umis, cluster_method_umis=opts.cluster_method_umis
+        )
     nCaTCHBCs = 0
     for sc in scl.enumerateSingleCells():
         nCaTCHBCs += len(set(sc.umis))

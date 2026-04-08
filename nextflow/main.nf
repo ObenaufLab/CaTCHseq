@@ -44,6 +44,10 @@ binDir = get_always('binDir') ?: params.binDir
 libraries = get_always('libraries')
 chunkSize = get_always('chunkSize') ?: params.chunkSize
 maxDist = get_always('maxDist') ?: params.maxDist
+maxDistCaTCH = get_always('maxDistCaTCH') ?: params.maxDistCaTCH
+maxDistUMIs = get_always('maxDistUMIs') ?: params.maxDistUMIs
+clusterMethodCaTCH = get_always('clusterMethodCaTCH') ?: params.clusterMethodCaTCH
+clusterMethodUMIs = get_always('clusterMethodUMIs') ?: params.clusterMethodUMIs
 minReads = get_always('minReads') ?: params.minReads
 majorityVote = get_always('majorityVote') ?: params.majorityVote
 qcparams = get_always('fastqc_params') ?: params.qcParams
@@ -128,6 +132,10 @@ def helpMessage() {
                 --minReads              Minimum reads to keep cell (default: ${minReads})
                 --chunkSize             number of reads per chunk (default: ${chunkSize})
                 --maxDist               maximum distance for barcode merging (default: ${maxDist})
+                --maxDistCaTCH          maximum distance for CaTCH barcode collapsing (default: ${maxDistCaTCH})
+                --maxDistUMIs           maximum distance for UMI collapsing (default: ${maxDistUMIs})
+                --clusterMethodCaTCH    umi_tools cluster method for CaTCH barcode collapsing (default: ${clusterMethodCaTCH})
+                --clusterMethodUMIs     umi_tools cluster method for UMI collapsing (default: ${clusterMethodUMIs})
                 --majorityVote          Number of votes needed for majority voting (default: ${majorityVote})
                 --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${uniqueCaTCH})
                 --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBC})
@@ -201,6 +209,10 @@ log.info """
  |   minReads                : ${minReads}
  |   chunkSize               : ${chunkSize}
  |   maxDist                 : ${maxDist}
+ |   maxDistCaTCH            : ${maxDistCaTCH}
+ |   maxDistUMIs             : ${maxDistUMIs}
+ |   clusterMethodCaTCH      : ${clusterMethodCaTCH}
+ |   clusterMethodUMIs       : ${clusterMethodUMIs}
  |   majorityVote            : ${majorityVote}
  |   uniqueCaTCH             : ${uniqueCaTCH}
  |   min_detected_barcodes   : ${minBC}
@@ -836,12 +848,20 @@ process collapseAndFilterBarcodes{
     if (uniqueCaTCH){
         unique = "true"
     }
+    catchMax = maxDistCaTCH ?: maxDist
+    umiMax = maxDistUMIs ?: maxDist
+    catchMethod = clusterMethodCaTCH ? "--cluster-method-catch ${clusterMethodCaTCH}" : ""
+    umiMethod = clusterMethodUMIs ? "--cluster-method-umis ${clusterMethodUMIs}" : ""
     """
     ${scriptDirPy}collapseCaTCHbarcodes.py \
         --library ${library} \
         --maxdist ${maxDist} \
+        --maxdist-catch ${catchMax} \
+        --maxdist-umis ${umiMax} \
         --minsupport ${minReads} \
         --unique ${unique} \
+        ${catchMethod} \
+        ${umiMethod} \
         --outlib ${sampleName}.collapsed.sclib \
     | tee ${sampleName}.collapsed.stats
     """
@@ -958,7 +978,7 @@ process preprocessSingleCellData{
     //conda "cellranger.yaml"
     cache 'lenient'
     //label 'big_mem'
-    tag "Preprocess_SingleCellData_${sampleNames.join('_')}"
+    tag "Preprocess_SingleCellData_${sampleTag}"
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
@@ -974,46 +994,28 @@ process preprocessSingleCellData{
     }
 
     input:
-        val(sampleNames)
-        path(featureMatrix)
-        path(catchBarcodes)
-        path(gtf)
-        //path(script)
+        tuple val(sampleName), val(sampleTag), path(featureMatrix), path(catchBarcodes), path(gtf)
 
     output:
-        path("scCaTCH*_filtered_seurat_sce.rds.gz"), emit: basic_seurat_sce
-        path("scCaTCH*_filtered_sce.rds.gz"), emit: basic_sce
-        path("scCaTCH*_unfiltered_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
-        path("scCaTCH*_unfiltered_sce.rds.gz"), emit: basic_raw_sce
-        //path("*.sce.prefiltered.tsne.gz"), emit: basic_sce_tsne
-        //path("*.sce.prefiltered.metadata.gz"), emit: basic_sce_metadata
-        path("*.pdf"), emit: basic_sce_qc, optional: true
+        tuple val(sampleTag), path("*_filtered_seurat_sce.rds.gz"), emit: basic_seurat_sce
+        tuple val(sampleTag), path("*_filtered_sce.rds.gz"), emit: basic_sce
+        tuple val(sampleTag), path("*_unfiltered_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
+        tuple val(sampleTag), path("*_unfiltered_sce.rds.gz"), emit: basic_raw_sce
+        tuple val(sampleTag), path("*.pdf"), emit: basic_sce_qc, optional: true
 
     script:
     if (filtering){
-        featurematrix = "filtered_feature_bc_matrix"
+        featurematrix = "${featureMatrix}"
         outname = 'scCaTCH.prefiltered'
     }else{
-        featurematrix = "raw_feature_bc_matrix"
+        featurematrix = "${featureMatrix}"
         outname = 'scCaTCH'
     }
-    """ 
-    SAMPLES=''
-    BCS=''
-    FEATURES=''
-    IDX=1
-    for bc in \$(find . -name "*.cells"|cut -d'/' -f2);
-    do
-        SN=\${bc%*.cells}
-        SAMPLES+="\${SN},"
-        BCS+="\${bc},"
-        FEATURES+="\${SN}_${featurematrix},"
-        IDX=\$((IDX + 1))
-    done
-    
-    SAMPLES=\${SAMPLES:0:-1}
-    FEATURES=\${FEATURES:0:-1}
-    BCS=\${BCS:0:-1}
+    outprefix = "${sampleTag}_${outname}"
+    """
+    SAMPLES='${sampleName}'
+    BCS='${catchBarcodes}'
+    FEATURES='${featurematrix}'
 
     Rscript --vanilla ${scriptDirR}preprocessData.R \
        --sample \$SAMPLES \
@@ -1028,7 +1030,7 @@ process preprocessSingleCellData{
        --max_mt ${maxMtPercent} \
        --min_features ${minDetectedFeatures} \
        --hvg_cutoff ${hvgCutoff} \
-       --out ${outname} \
+       --out ${outprefix} \
        --marker ${markerfile} \
        --libpath ${scriptDirR}
     """
@@ -1043,7 +1045,7 @@ process createOverviewPlots{
     //conda "cellranger.yaml"
     cache 'lenient'
     //label 'big_mem'
-    tag "${sampleName}"
+    tag "${sampleTag}"
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
@@ -1052,17 +1054,16 @@ process createOverviewPlots{
     }
 
     input:
-        //tuple path(sce), path(script)
-        path(sce)
+        tuple val(sampleTag), path(sce)
 
     output:
-        path("*overview.pdf"), emit: pdf
+        tuple val(sampleTag), path("*overview.pdf"), emit: pdf
 
     script:
     if (filtering){
-        outname = 'scCaTCH.prefiltered'
+        outname = "${sampleTag}_scCaTCH.prefiltered"
     }else{
-        outname = 'scCaTCH'
+        outname = "${sampleTag}_scCaTCH"
     }
     """
     Rscript --vanilla ${scriptDirR}create_overview_plots.R \
@@ -1085,7 +1086,7 @@ process calculateBarcodeEnrichment{
     //conda "cellranger.yaml"
     cache 'lenient'
     //label 'big_mem'
-    tag "${sampleName}"
+    tag "${sampleTag}"
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
@@ -1094,19 +1095,19 @@ process calculateBarcodeEnrichment{
     }
 
     input:
-        path(sce)
+        tuple val(sampleTag), path(sce)
         val(check)
 
     output:
-        path "*.pdf", emit: pdf
-        path "*.tsv.gz", emit: tables
-        path "*.rds.gz", emit: rds
+        tuple val(sampleTag), path("*.pdf"), emit: pdf, optional: true
+        tuple val(sampleTag), path("*.tsv.gz"), emit: tables, optional: true
+        tuple val(sampleTag), path("*.rds.gz"), emit: rds
 
     script:
      if (filtering){
-        outname = 'scCaTCH.prefiltered'
+        outname = "${sampleTag}_scCaTCH.prefiltered"
     }else{
-        outname = 'scCaTCH'
+        outname = "${sampleTag}_scCaTCH"
     }
     """
     Rscript --vanilla ${scriptDirR}identify_de_catch_barcodes.R \
@@ -1133,7 +1134,7 @@ process identifyDEGenes{
     //conda "cellranger.yaml"
     cache 'lenient'
     //label 'big_mem'
-    tag "${sampleName}"
+    tag "${sampleTag}"
 
     publishDir "${absDir}/", mode: 'link',
     saveAs: {filename ->
@@ -1142,19 +1143,19 @@ process identifyDEGenes{
     }
 
     input:
-        path(sce)
+        tuple val(sampleTag), path(sce)
         val(check)
 
     output:
-        path "*.pdf", emit: pdf
-        path "*.tsv.gz", emit: tables
-        path "*.rds.gz", emit: rds
+        tuple val(sampleTag), path("*.pdf"), emit: pdf, optional: true
+        tuple val(sampleTag), path("*.tsv.gz"), emit: tables, optional: true
+        tuple val(sampleTag), path("*.rds.gz"), emit: rds
 
     script:
      if (filtering){
-        outname = 'scCaTCH.prefiltered'
+        outname = "${sampleTag}_scCaTCH.prefiltered"
     }else{
-        outname = 'scCaTCH'
+        outname = "${sampleTag}_scCaTCH"
     }
     """
     Rscript --vanilla ${scriptDirR}identify_de_genes.R \
@@ -1373,17 +1374,13 @@ workflow{
                 STEP 8: Generate SingleCellExperiment object
         ***************************************************************/
 
-        //Ch_script = Channel.fromPath("${scriptDirR}"+"preprocessData.R")  // This will only work if repo is cloned in absdir, for docker we actually want to use /tools/scripts/R/ NEEDS TO BE OPTION DEPENDENT
-        //Ch_preprocess_input = Ch_cell_data.map { sample, data -> data }.combine(generateTables.out.report_cells, by: 0).combine(Ch_script).collect().flatten().collate(4)
-        //Ch_preprocess_input.subscribe {  println "SCE: $it"  }
-        //preprocessSingleCellData(Ch_preprocess_input)
+        Ch_preprocess_input = Ch_cell_data.join(generateTables.out.report_cells, by: 0)
+                                         .map { sampleName, featureMatrix, catchBarcodes ->
+                                             def sampleTag = sampleName.tokenize('_')[0]
+                                             tuple(sampleName, sampleTag, featureMatrix, catchBarcodes, file(mapanno))
+                                         }
 
-        preprocessSingleCellData(           
-            Ch_cell_data.map { sample, data -> sample }.collect(), 
-            Ch_cell_data.map { sample, data -> data }.collect(),
-            generateTables.out.report_cells.map { sample, data -> data }.collect(),
-            Channel.fromPath(mapanno)
-        )
+        preprocessSingleCellData(Ch_preprocess_input)
 
         /**************************************************************
                 STEP 9: Generate overview plots
@@ -1393,9 +1390,10 @@ workflow{
         /**************************************************************
                 STEP 10 & 11 (OPTIONAL): Run DE Analysis for Barcodes and Genes
         ***************************************************************/
+        def Ch_multi_conditions = Ch_Conditions.multi.collect()
         
-        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_Conditions.multi.collect())        
-        identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce, Ch_Conditions.multi.collect())        
+        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)        
+        identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)        
         
     //emit:
     //createOverviewPlots.out.pdf

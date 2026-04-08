@@ -114,6 +114,12 @@ metadata <- metadata %>%
     dplyr::select(Condition, Replicate)
 row.names(metadata) <- metadata$Sample
 
+# Check if reference condition is present in the metadata
+if(!ref.Condition %in% metadata$Condition){    
+    saveRDS(metadata, file = paste0(opt$out, "_DE_list.rds.gz"), compress = "gzip")
+    stop("Reference condition not found in the metadata")
+}
+
 ### Run pairwise DE Analysis for BCs ###
 countData <- bc.counts %>%
     dplyr::select(-CaTCH.BC_unique) %>%
