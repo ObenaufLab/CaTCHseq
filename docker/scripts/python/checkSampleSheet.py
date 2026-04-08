@@ -252,9 +252,9 @@ def check_samplesheet(file_in):
 
             SampleName,Condition,Replicate,Lane,LibraryType,R1,R2,CellNumber,Chemistry
             ScaleBio,Scale,1,1,GEX,S1_R1_001.fastq.gz,S1_R2_001.fastq.gz,NA,ScaleBio
-            ScaleBio,Scale,1,1,scCaTCH,S6_L001_R1_001.fastq.gz,S6_L001_R2_001.fastq.gz,NA,ScaleBio
+            ScaleBio,Scale,1,1,CaTCHseq,S6_L001_R1_001.fastq.gz,S6_L001_R2_001.fastq.gz,NA,ScaleBio
             Day0,Day0,1,1,GEX,S2_L001_R1_001.fastq.gz,S2_L001_R2_001.fastq.gz,7500!,10X
-            Day0,Day0,1,1,scCaTCH,S3_L001_R1_001.fastq.gz,S3_L001_R2_001.fastq.gz,NA,10X
+            Day0,Day0,1,1,CaTCHseq,S3_L001_R1_001.fastq.gz,S3_L001_R2_001.fastq.gz,NA,10X
 
     """
     required_columns = {
