@@ -1,22 +1,22 @@
-scCaTCH pipeline
+CaTCHseq pipeline
 ================
 
 Overview
 --------
-The scCaTCH pipeline processes PCR-amplified CaTCH libraries from FASTQ files through mapping, barcode collapsing/deduplication, multiplet handling, and reporting. It is built with Nextflow (DSL2) and supports CellRanger or STARsolo mapping. Deduplication leverages umi_tools network-based clustering with tunable strategies and distances for CaTCH barcodes and UMIs.
+The CaTCHseq pipeline processes PCR-amplified CaTCH libraries from FASTQ files through mapping, barcode collapsing/deduplication, multiplet handling, and reporting. It is built with Nextflow (DSL2) and supports CellRanger or STARsolo mapping. Deduplication leverages umi_tools network-based clustering with tunable strategies and distances for CaTCH barcodes and UMIs.
 
 Quick start (Docker-based defaults)
 -----------------------------------
 ```bash
 nextflow run nextflow/main.nf \
 	--libraries <libraries.csv> \
-	--outputDir ./scCaTCH_OUTPUT \
+	--outputDir ./CaTCHseq_OUTPUT \
 	--reportsDir ./REPORTS
 ```
 
 Key inputs
 ----------
-- `--libraries` (CSV, required): columns SampleName, Condition, Replicate, LibraryType (GEX|scCaTCH), R1, R2, CellNumber, Chemistry.
+- `--libraries` (CSV, required): columns SampleName, Condition, Replicate, LibraryType (GEX|CaTCHseq), R1, R2, CellNumber, Chemistry.
 - Reference inputs vary by mapper:
 	- CellRanger: `--index` (transcriptome), `--reference`, `--annotation` as needed for building indexes.
 	- STARsolo: `--index`, `--reference`, `--annotation`, optional `--whitelist`.

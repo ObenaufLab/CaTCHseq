@@ -1,4 +1,4 @@
-buildDockerImage([imageName: "sccatch", dockerContext: "docker", dockerFile: "docker/Dockerfile", pushRegistryNamespace: "obenauf", pushRegistry: "docker.artifactory.imp.ac.at", testCmd: null, pushBranches:["main"]])
+buildDockerImage([imageName: "CaTCHseq", dockerContext: "docker", dockerFile: "docker/Dockerfile", pushRegistryNamespace: "obenauf", pushRegistry: "docker.artifactory.imp.ac.at", testCmd: null, pushBranches:["main"]])
 
 //pipeline{
 //    agent {
@@ -6,7 +6,7 @@ buildDockerImage([imageName: "sccatch", dockerContext: "docker", dockerFile: "do
 //        dockerfile {
 //            filename 'Dockerfile'
 //            dir 'docker'
-//            label 'scCaTCH'
+//            label 'CaTCHseq'
 //            additionalBuildArgs  '--build-arg version=0.0.1'
 //        }
 //    }
