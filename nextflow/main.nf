@@ -98,7 +98,7 @@ def helpMessage() {
     ======================================================================
 
       Usage:
-      nextflow run sccatch/nextflow/main_dsl2.nf --libraries <list of libraries and FASTQ files> 
+      nextflow run CaTCHseq/nextflow/main_dsl2.nf --libraries <list of libraries and FASTQ files> 
 
       Mandatory arguments:
         --libraries             CSV file with the following columns: 
@@ -106,7 +106,7 @@ def helpMessage() {
                                                     the library was sequenced in several runs)
                                     Condition       condition for this sample (e.g. timepoint, KO, treatment)
                                     Replicate       replicate (even if a single replicate is present, this column cannot be missing or be empty)
-                                    LibraryType     either GEX or scCaTCH
+                                    LibraryType     either GEX or CaTCHseq
                                     R1              path to the R1 read
                                     R2              path to the R2 read (if available)
                                     CellNumber      number of expected cells (NA if not available, number for soft constraint, number! for hard constraint)
@@ -115,9 +115,9 @@ def helpMessage() {
             Optional arguments:
                 --outputDir             specifies the output directory (default: ${outputDir})
                 --reportsDir            specifies the reports directory.(default: ${reportsDir})
-                --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/R/ for instances not running docker)
-                --scriptDirPy           specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${absDir}/sccatch/docker/scripts/python/ for instances not running docker)
-                --binDir                specifies the path to the binary directory, do not change if running with docker, otherwise set to path on sccatch git repo.(default: /usr/bin/local which is valid for docker instance; set to '' for instances not running docker)
+                --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${absDir}/CaTCHseq/docker/scripts/R/ for instances not running docker)
+                --scriptDirPy           specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${absDir}/CaTCHseq/docker/scripts/python/ for instances not running docker)
+                --binDir                specifies the path to the binary directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /usr/bin/local which is valid for docker instance; set to '' for instances not running docker)
                 --mapper                Which mapper to run (default: CellRanger, optional: STAR)
                 --index                 Path to mapper index directory (default: ${mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
                 --reference             Path to reference fasta.gz
@@ -1006,10 +1006,10 @@ process preprocessSingleCellData{
     script:
     if (filtering){
         featurematrix = "${featureMatrix}"
-        outname = 'scCaTCH.prefiltered'
+        outname = 'CaTCHseq.prefiltered'
     }else{
         featurematrix = "${featureMatrix}"
-        outname = 'scCaTCH'
+        outname = 'CaTCHseq'
     }
     outprefix = "${sampleTag}_${outname}"
     """
@@ -1061,9 +1061,9 @@ process createOverviewPlots{
 
     script:
     if (filtering){
-        outname = "${sampleTag}_scCaTCH.prefiltered"
+        outname = "${sampleTag}_CaTCHseq.prefiltered"
     }else{
-        outname = "${sampleTag}_scCaTCH"
+        outname = "${sampleTag}_CaTCHseq"
     }
     """
     Rscript --vanilla ${scriptDirR}create_overview_plots.R \
@@ -1105,9 +1105,9 @@ process calculateBarcodeEnrichment{
 
     script:
      if (filtering){
-        outname = "${sampleTag}_scCaTCH.prefiltered"
+        outname = "${sampleTag}_CaTCHseq.prefiltered"
     }else{
-        outname = "${sampleTag}_scCaTCH"
+        outname = "${sampleTag}_CaTCHseq"
     }
     """
     Rscript --vanilla ${scriptDirR}identify_de_catch_barcodes.R \
@@ -1153,9 +1153,9 @@ process identifyDEGenes{
 
     script:
      if (filtering){
-        outname = "${sampleTag}_scCaTCH.prefiltered"
+        outname = "${sampleTag}_CaTCHseq.prefiltered"
     }else{
-        outname = "${sampleTag}_scCaTCH"
+        outname = "${sampleTag}_CaTCHseq"
     }
     """
     Rscript --vanilla ${scriptDirR}identify_de_genes.R \
@@ -1286,16 +1286,16 @@ workflow{
             useCellrangerData(Ch_map_precomputed)
 
             if (filtering){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (mapperbin == 'STAR'){
             star_mapping(concat_lanes.out.combine( Ch_mapping_idx ).combine( Ch_whitelist ))
             if (filtering){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "scCaTCH" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0)
             }
             
         }
