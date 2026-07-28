@@ -6,7 +6,6 @@
 
 import argparse
 import gzip
-import os
 import sys
 from datetime import datetime
 from typing import List
@@ -15,8 +14,6 @@ import CaTCH.builtin.CaTCHBarcodeFilters as bcf
 import CaTCH.builtin.SingleCellRecordFilters as crf
 from CaTCH.base.singlecell.SingleCellDataReader import SingleCellDataReader
 from CaTCH.libraries.SingleCellLibrary import SingleCellLibrary
-
-FIXED_PAMS = [(21, 24, "CCG"), (32, 35, "CCN"), (45, 48, "CCG")]
 
 
 def loadValidCellIDs(filenames: List[str]) -> List[str]:
@@ -92,6 +89,14 @@ def main():
         help="length of umi",
     )
 
+    parser.add_argument(
+        "--stringency",
+        type=str,
+        default="default",
+        choices=["default", "stringent", "lenient"],
+        help="set stringency level for fixed elements filter in barcode sequence",
+    )
+
     try:
         opts = parser.parse_args()
     except:
@@ -100,6 +105,20 @@ def main():
 
     dt = datetime.now()
     print(f"[{dt}] Started")
+
+    if opts.stringency == "stringent":
+        FIXED_PAMS = [
+            (
+                0,
+                48,
+                "[TC]{1}[ATGC]{2}[AT]{1}[TG]{1}[TGC]{1}[AT]{1}[TGC]{1}[ATGC]{1}[TGC]{1}[ATGC]{1}[ATC]{1}[TGC]{1}[ATGC]{3}[CG]{1}[ATGC]{1}[CGA]{1}CGCCG[TC]{1}[AGTC]{2}[AT]{1}[TG]{1}[TCG]{1}[AT]{1}GCC[ATGC]{1}[ACT]{1}[ATGC]{4}[GC]{1}[AGTC]{1}[CGA]{1}CGCCG",
+            )
+        ]
+    elif opts.stringency == "lenient":
+        FIXED_PAMS = [(21, 24, "CCG"), (32, 35, "CCN"), (45, 48, "CCG")]
+
+    else:
+        FIXED_PAMS = [(19, 48, "CGCCG[ATGC]{7}GCC[ATGC]{9}CGCCG")]
 
     cellIDs = loadValidCellIDs(opts.cellIDs)
     print(f"[{dt}] Loaded {len(cellIDs):,} cell IDs identified by CellRanger::count")

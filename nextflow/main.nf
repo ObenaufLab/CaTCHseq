@@ -63,6 +63,7 @@ mapref = get_always('reference') ?: params.mapRef
 mapanno = get_always('annotation') ?: params.mapAnno
 filtering = get_always('filter') ?: params.filter
 organism = get_always('organism') ?: params.organism
+stringency = get_always('stringency') ?: params.stringency
 uniqueCaTCH = get_always('uniqueCaTCH') ?: params.uniqueCaTCH
 minBC = get_always('min_detected_barcodes') ?: params.minDetectedBarcodes
 singletCutoff = get_always('singlet_cutoff') ?: params.singletCutoff
@@ -137,6 +138,7 @@ def helpMessage() {
                 --clusterMethodCaTCH    umi_tools cluster method for CaTCH barcode collapsing (default: ${clusterMethodCaTCH})
                 --clusterMethodUMIs     umi_tools cluster method for UMI collapsing (default: ${clusterMethodUMIs})
                 --majorityVote          Number of votes needed for majority voting (default: ${majorityVote})
+                --stringency              Stringency level for fixed elements filter in barcode sequence (default: ${stringency}, choices: ["default", "stringent", "lenient"])
                 --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${uniqueCaTCH})
                 --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBC})
                 --singlet_cutoff        Min ratio for sum of CaTCH barcodes 1 to classify cell as 'Singlet' (default: ${singletCutoff})
@@ -772,6 +774,7 @@ process countBarcodesInChunks{
         --r2 ${r2} \
         --cellIDs ${cellIDs} \
         --counts Counts \
+        --stringency ${stringency} \
         ${extraparams} \
     | tee log \
     | grep -Po "Read [0-9,]+ single cell entries" \
