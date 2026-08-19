@@ -8,12 +8,42 @@ import argparse
 import gzip
 import sys
 from datetime import datetime
-from typing import List
+from typing import List, Tuple
 
 import CaTCH.builtin.CaTCHBarcodeFilters as bcf
 import CaTCH.builtin.SingleCellRecordFilters as crf
 from CaTCH.base.singlecell.SingleCellDataReader import SingleCellDataReader
 from CaTCH.libraries.SingleCellLibrary import SingleCellLibrary
+
+STRINGENCY_LEVELS = ("default", "stringent", "lenient")
+
+
+def getFixedElements(stringency: str = "default") -> List[Tuple[int, int, str]]:
+    """
+    Return the list of fixed element definitions (start, end, regex pattern)
+    used by the CaTCHFixedElementsFilter for the requested stringency level.
+
+    Args:
+        stringency: one of "default" (CaTCHv2), "stringent" or "lenient".
+
+    Returns:
+        A list of (start, end, pattern) tuples.
+    """
+    if stringency == "stringent":
+        return [
+            (
+                0,
+                48,
+                "[TC]{1}[ATGC]{2}[AT]{1}[TG]{1}[TGC]{1}[AT]{1}[TGC]{1}[ATGC]{1}[TGC]{1}[ATGC]{1}[ATC]{1}[TGC]{1}[ATGC]{3}[CG]{1}[ATGC]{1}[CGA]{1}CGCCG[TC]{1}[AGTC]{2}[AT]{1}[TG]{1}[TCG]{1}[AT]{1}GCC[ATGC]{1}[ACT]{1}[ATGC]{4}[GC]{1}[AGTC]{1}[CGA]{1}CGCCG",
+            )
+        ]
+    elif stringency == "lenient":
+        return [(21, 24, "CCG"), (32, 35, "CCN"), (45, 48, "CCG")]
+    elif stringency == "default":
+        return [(19, 48, "CGCCG[ATGC]{7}GCC[ATGC]{9}CGCCG")]
+    raise ValueError(
+        f"Unknown stringency '{stringency}'; expected one of {STRINGENCY_LEVELS}"
+    )
 
 
 def loadValidCellIDs(filenames: List[str]) -> List[str]:
@@ -93,7 +123,7 @@ def main():
         "--stringency",
         type=str,
         default="default",
-        choices=["default", "stringent", "lenient"],
+        choices=list(STRINGENCY_LEVELS),
         help="set stringency level for fixed elements filter in barcode sequence",
     )
 
@@ -106,19 +136,7 @@ def main():
     dt = datetime.now()
     print(f"[{dt}] Started")
 
-    if opts.stringency == "stringent":
-        FIXED_PAMS = [
-            (
-                0,
-                48,
-                "[TC]{1}[ATGC]{2}[AT]{1}[TG]{1}[TGC]{1}[AT]{1}[TGC]{1}[ATGC]{1}[TGC]{1}[ATGC]{1}[ATC]{1}[TGC]{1}[ATGC]{3}[CG]{1}[ATGC]{1}[CGA]{1}CGCCG[TC]{1}[AGTC]{2}[AT]{1}[TG]{1}[TCG]{1}[AT]{1}GCC[ATGC]{1}[ACT]{1}[ATGC]{4}[GC]{1}[AGTC]{1}[CGA]{1}CGCCG",
-            )
-        ]
-    elif opts.stringency == "lenient":
-        FIXED_PAMS = [(21, 24, "CCG"), (32, 35, "CCN"), (45, 48, "CCG")]
-
-    else:
-        FIXED_PAMS = [(19, 48, "CGCCG[ATGC]{7}GCC[ATGC]{9}CGCCG")]
+    FIXED_PAMS = getFixedElements(opts.stringency)
 
     cellIDs = loadValidCellIDs(opts.cellIDs)
     print(f"[{dt}] Loaded {len(cellIDs):,} cell IDs identified by CellRanger::count")
