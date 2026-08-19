@@ -1,7 +1,7 @@
 #FROM    public.ecr.aws/lts/ubuntu:latest
 #FROM 	 rocker/tidyverse
 #ENV     DEBIAN_FRONTEND noninteractive
-FROM 	bioconductor/bioconductor_docker:RELEASE_3_18
+FROM 	bioconductor/bioconductor_docker:RELEASE_3_22
 
 ## Otherwise timedatectl will get called which leads to 'no systemd' inside Docker
 ENV TZ UTC

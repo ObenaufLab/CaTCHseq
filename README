@@ -40,6 +40,15 @@ Major parameters
 		- `--clusterMethodUMIs` (directional/adjacency/cluster, default directional).
 	- Uniqueness toggle: `--uniqueCaTCH` (true/false) to enable umi_tools-based collapsing; otherwise Hamming distance.
 
+- CaTCH barcode differential enrichment
+	- `--de_method` (barbieq|deseq2, default barbieq) selects the analysis method. `deseq2` runs the legacy DESeq2/edgeR analysis.
+	- barbieQ computes per-sample diversity (Shannon/Simpson) and dominance (Simpson's D, Berger-Parker) indices and tests differential barcode proportions of every condition against the reference condition (`--refName`).
+	- `--de_min_count` (default 10, 0 disables) drops barcodes whose summed count within the two contrasted conditions is below the cutoff; applied per comparison.
+	- `--de_min_replicates` (default 2) minimum replicates in a condition required to run differential testing.
+	- `--de_all_vs_all` additionally tests every condition against every other condition into a separate table.
+	- `--de_rds` optional precomputed barbieQ `.rds` to reuse instead of rebuilding the object, needs to be an absolute path accessible from the task.
+	- As before, the barcode DE analysis runs once per sample tag over all its conditions and replicates, and is skipped entirely when fewer than two conditions are present.
+
 Pipeline steps (high level)
 ---------------------------
 1) **QC** (optional): FastQC → MultiQC summaries.

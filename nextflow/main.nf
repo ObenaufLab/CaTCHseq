@@ -74,6 +74,12 @@ minDetectedFeatures = get_always('min_detected_features') ?: params.minDetectedF
 hvgCutoff = get_always('hvg_cutoff') ?: params.hvgCutoff
 pvalCutoff = get_always('pval_cutoff') ?: params.pvalCutoff
 lfcCutoff = get_always('lfc_cutoff') ?: params.lfcCutoff
+demethod = get_always('de_method') ?: params.de_method
+// 0 is a valid value for de_min_count (disables the filter), so do not use '?:' here
+deminCount = params.de_min_count
+deminReplicates = get_always('de_min_replicates') ?: params.de_min_replicates
+deallVsAll = get_always('de_all_vs_all') ?: params.de_all_vs_all
+derds = get_always('de_rds') ?: params.de_rds
 markerfile = get_always('markers') ?: params.markerFile
 reportsDir = get_always('reportsDir') ?: params.reportsDir
 outputDir = get_always('outputDir') ?: params.outputDir
@@ -149,6 +155,11 @@ def helpMessage() {
                 --hvg_cutoff            Highly variable genes cutoff (default: ${hvgCutoff})
                 --pval_cutoff           P-value cutoff for DE analysis (default: ${pvalCutoff})
                 --lfc_cutoff            Log-fold-change cutoff for DE analysis (default: ${lfcCutoff})
+                --de_method             Method for the CaTCH barcode DE analysis (choice: ["barbieq", "deseq2"], default: ${demethod}; "deseq2" runs the legacy DESeq2/edgeR analysis)
+                --de_min_count          barbieq only: drop barcodes whose summed count within the two contrasted groups is below this (default: ${deminCount}, 0 disables)
+                --de_min_replicates     barbieq only: minimum replicates in a group required to run differential testing (default: ${deminReplicates})
+                --de_all_vs_all         barbieq only: also test every condition against every other condition, written to a separate table (default: ${deallVsAll})
+                --de_rds                barbieq only: optional precomputed barbieQ .rds to reuse instead of rebuilding the object, needs to be an absolute path accessible from the task (default: ${derds})
                 --organism              Identifier for organism (choice: ["Human", "Mouse"], default: ${organism})
                 --baseline              Name of reference day/condition (default: ${refName})
                 --marker                RDS file of cellcycle markers (default: ${markerfile}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
@@ -226,6 +237,11 @@ log.info """
  |   hvg_cutoff              : ${hvgCutoff}
  |   pval_cutoff             : ${pvalCutoff}
  |   lfc_cutoff              : ${lfcCutoff}
+ |   de_method               : ${demethod}
+ |   de_min_count            : ${deminCount}
+ |   de_min_replicates       : ${deminReplicates}
+ |   de_all_vs_all           : ${deallVsAll}
+ |   de_rds                  : ${derds}
  |   markerfile              : ${markerfile}
  |   organism                : ${organism}
  |   baseline                : ${refName}
@@ -1128,6 +1144,73 @@ process calculateBarcodeEnrichment{
 }
 
 
+process calculateBarcodeEnrichmentBarbieq{
+
+    cache 'lenient'
+    tag "${sampleTag}"
+
+    publishDir "${absDir}/", mode: 'link',
+    saveAs: {filename ->
+        if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
+        else                                    "OUTPUT/DE/BarCodes/${file(filename).getName()}"
+    }
+
+    input:
+        tuple val(sampleTag), path(sce)
+        val(check)
+
+    output:
+        tuple val(sampleTag), path("*.pdf"), emit: pdf, optional: true
+        tuple val(sampleTag), path("*barbieQ_counts.tsv"), emit: counts, optional: true
+        tuple val(sampleTag), path("*barbieQ_design.csv"), emit: design, optional: true
+        tuple val(sampleTag), path("*barbieQ_diversity.tsv"), emit: diversity, optional: true
+        tuple val(sampleTag), path("*barbieQ_diversity_raw.tsv"), emit: diversity_raw, optional: true
+        tuple val(sampleTag), path("*barbieQ_diffProp_results.tsv"), emit: diffprop, optional: true
+        tuple val(sampleTag), path("*barbieQ_diffProp_results_allVsAll.tsv"), emit: diffprop_all, optional: true
+        tuple val(sampleTag), path("*barbieQ_topBarcodes.tsv"), emit: topbarcodes, optional: true
+        tuple val(sampleTag), path("*barbieQ.rds"), emit: rds, optional: true
+        tuple val(sampleTag), path("*barbieQ_status.txt"), emit: status, optional: true
+
+    script:
+    if (filtering){
+        outname = "${sampleTag}_CaTCHseq.prefiltered"
+    }else{
+        outname = "${sampleTag}_CaTCHseq"
+    }
+    rdsarg = (derds && !(derds instanceof Boolean)) ? "-R ${derds}" : ''
+    allvsallarg = deallVsAll ? '--allVsAll' : ''
+    """
+    Rscript --vanilla ${scriptDirR}prepare_barbieq_input.R \
+        --sce ${sce} \
+        --baseCond ${refName} \
+        --out ${outname} \
+        --libpath ${scriptDirR}
+
+    Rscript --vanilla ${scriptDirR}barbieQanalysis.R \
+        -c ${outname}_barbieQ_counts.tsv \
+        -d ${outname}_barbieQ_design.csv \
+        -o . \
+        -p ${outname}_ \
+        -t ${task.cpus} \
+        -m ${deminCount} \
+        -r ${deminReplicates} \
+        ${rdsarg} \
+        ${allvsallarg}
+
+    Rscript --vanilla ${scriptDirR}plot_barbieq_results.R \
+        --diversity ${outname}_barbieQ_diversity.tsv \
+        --diffprop ${outname}_barbieQ_diffProp_results.tsv \
+        --plots_per_row 3 \
+        --format pdf \
+        --width 20 \
+        --height 25 \
+        --pcut ${pvalCutoff} \
+        --out ${outname} \
+        --libpath ${scriptDirR}
+    """
+}
+
+
 /***************************************************************************
                 STEP 11 (OPTIONAL): Find DE genes
 ****************************************************************************/
@@ -1395,7 +1478,11 @@ workflow{
         ***************************************************************/
         def Ch_multi_conditions = Ch_Conditions.multi.collect()
         
-        calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)        
+        if (demethod == 'barbieq'){
+            calculateBarcodeEnrichmentBarbieq(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)
+        } else {
+            calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)
+        }
         identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)        
         
     //emit:
