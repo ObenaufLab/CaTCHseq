@@ -1335,16 +1335,16 @@ workflow{
             useCellrangerData(Ch_map_precomputed)
 
             if (params.filter){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize.toInteger(), file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize.toInteger(), file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
         }else if (params.mapperbin == 'STAR'){
             star_mapping(concat_lanes.out.combine( Ch_mapping_idx ).combine( Ch_whitelist ))
             if (params.filter){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize.toInteger(), file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize.toInteger(), file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0)
             }
             
         }
