@@ -11,85 +11,50 @@ Authors
 ************************************************************************/
 
 //Version Check
-nextflowVersion = '>=23.04.2'
 nextflow.enable.dsl=2
 
-//define unset Params
-def get_always(parameter){
-    if (!params.containsKey(parameter)){
-        params.put(parameter, null)
-    }
-    return params[parameter]
+//normalize potentially Boolean/null string params to avoid concatenation issues
+def normalizeStr(value){
+    return (value instanceof Boolean || value == null) ? '' : value.toString()
 }
 
 //parse chemistry params into defined paramstring
 def chemistry_params_to_str(xtra){
     xtra = xtra.trim().replaceAll(" \n", "")
-    tmpmap = xtra.tokenize("--").collectEntries{ 
+    def tmpmap = xtra.tokenize("--").collectEntries{ 
                it.split(" ",2).with{ 
                    [ (it[0].replaceAll("--", "")): (it.size()<2) ? null : it[1] ?: null ] 
                 }
             }
     //print(tmpmap)
-    map = ["bcStart" : tmpmap["soloCBstart"].toInteger()-1, "bcLength" : tmpmap["soloCBlen"].toInteger(), "umiStart" : tmpmap["soloUMIstart"].toInteger()-1, "umiLength" : tmpmap["soloUMIlen"].toInteger()]
+    def map = ["bcStart" : tmpmap["soloCBstart"].toInteger()-1, "bcLength" : tmpmap["soloCBlen"].toInteger(), "umiStart" : tmpmap["soloUMIstart"].toInteger()-1, "umiLength" : tmpmap["soloUMIlen"].toInteger()]
     xtra = map.collect{ k, v -> v ? "--" + k + " " + v : "" }.join(" ")
     return xtra
 }
 
 //Params from CL
-absDir = workflow.launchDir
-scriptDirR = get_always('scriptDirR') ?: params.scriptDirR
-scriptDirPy = get_always('scriptDirPy') ?: params.scriptDirPy
-binDir = get_always('binDir') ?: params.binDir
-libraries = get_always('libraries')
-chunkSize = get_always('chunkSize') ?: params.chunkSize
-maxDist = get_always('maxDist') ?: params.maxDist
-maxDistCaTCH = get_always('maxDistCaTCH') ?: params.maxDistCaTCH
-maxDistUMIs = get_always('maxDistUMIs') ?: params.maxDistUMIs
-clusterMethodCaTCH = get_always('clusterMethodCaTCH') ?: params.clusterMethodCaTCH
-clusterMethodUMIs = get_always('clusterMethodUMIs') ?: params.clusterMethodUMIs
-minReads = get_always('minReads') ?: params.minReads
-majorityVote = get_always('majorityVote') ?: params.majorityVote
-qcparams = get_always('fastqc_params') ?: params.qcParams
-mapperbin = get_always('mapper') ?: params.mapperBin
-runqc = get_always('withQC') ?: params.runQC
-crparams = get_always('cellranger_params') ?: params.crParams
-starparams = get_always('star_params') ?: params.starMappingParams
-idxparams = get_always('idx_params') ?: params.idxParams
-whitelist = get_always('whitelist') ?: params.whitelist
-refName = get_always('refName') ?: params.refName
-mapindex = get_always('index') ?: params.mapIndex
-mapref = get_always('reference') ?: params.mapRef
-mapanno = get_always('annotation') ?: params.mapAnno
-filtering = get_always('filter') ?: params.filter
-organism = get_always('organism') ?: params.organism
-stringency = get_always('stringency') ?: params.stringency
-uniqueCaTCH = get_always('uniqueCaTCH') ?: params.uniqueCaTCH
-minBC = get_always('min_detected_barcodes') ?: params.minDetectedBarcodes
-singletCutoff = get_always('singlet_cutoff') ?: params.singletCutoff
-bc1Cutoff = get_always('bc1_cutoff') ?: params.bc1Cutoff
-bc2Cutoff = get_always('bc2_cutoff') ?: params.bc2Cutoff
-maxMtPercent = get_always('max_mt_percent') ?: params.maxMtPercent
-minDetectedFeatures = get_always('min_detected_features') ?: params.minDetectedFeatures
-hvgCutoff = get_always('hvg_cutoff') ?: params.hvgCutoff
-pvalCutoff = get_always('pval_cutoff') ?: params.pvalCutoff
-lfcCutoff = get_always('lfc_cutoff') ?: params.lfcCutoff
-demethod = get_always('de_method') ?: params.de_method
-// 0 is a valid value for de_min_count (disables the filter), so do not use '?:' here
-deminCount = params.de_min_count
-deminReplicates = get_always('de_min_replicates') ?: params.de_min_replicates
-deallVsAll = get_always('de_all_vs_all') ?: params.de_all_vs_all
-derds = get_always('de_rds') ?: params.de_rds
-markerfile = get_always('markers') ?: params.markerFile
-reportsDir = get_always('reportsDir') ?: params.reportsDir
-outputDir = get_always('outputDir') ?: params.outputDir
-stopOnWarnings = get_always('stopOnWarnings') ?: true
-
-// normalize string-like params to avoid Boolean/Null concatenation issues
-crparams   = (crparams   instanceof Boolean || crparams   == null) ? '' : crparams.toString()
-starparams = (starparams instanceof Boolean || starparams == null) ? '' : starparams.toString()
-idxparams  = (idxparams  instanceof Boolean || idxparams  == null) ? '' : idxparams.toString()
-qcparams   = (qcparams   instanceof Boolean || qcparams   == null) ? '' : qcparams.toString()
+//most params are used directly as params.<name> (see conf/default-params.config for defaults).
+//the following are aliases for CLI flags whose names differ from their internal default names.
+params.absDir = workflow.launchDir
+params.qcparams = normalizeStr(params.fastqc_params ?: params.qcParams)
+params.mapperbin = params.mapper ?: params.mapperBin
+params.runqc = params.withQC ?: params.runQC
+params.crparams = normalizeStr(params.cellranger_params ?: params.crParams)
+params.starparams = normalizeStr(params.star_params ?: params.starMappingParams)
+params.idxparams = normalizeStr(params.idx_params ?: params.idxParams)
+params.mapindex = params.index ?: params.mapIndex
+params.mapref = params.reference ?: params.mapRef
+params.mapanno = params.annotation ?: params.mapAnno
+params.minBC = params.min_detected_barcodes ?: params.minDetectedBarcodes
+params.markerfile = params.markers ?: params.markerFile
+params.singletcutoff = params.singlet_cutoff ?: params.singletCutoff
+params.bc1cutoff = params.bc1_cutoff ?: params.bc1Cutoff
+params.bc2cutoff = params.bc2_cutoff ?: params.bc2Cutoff
+params.maxmtpercent = params.max_mt_percent ?: params.maxMtPercent
+params.mindetectedfeatures = params.min_detected_features ?: params.minDetectedFeatures
+params.hvgcutoff = params.hvg_cutoff ?: params.hvgCutoff
+params.pvalcutoff = params.pval_cutoff ?: params.pvalCutoff
+params.lfccutoff = params.lfc_cutoff ?: params.lfcCutoff
 
 
 def helpMessage() {
@@ -120,152 +85,61 @@ def helpMessage() {
                                     Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq), this may not set adequate parameters for mappers automatically, make sure you check them accordingly
 
             Optional arguments:
-                --outputDir             specifies the output directory (default: ${outputDir})
-                --reportsDir            specifies the reports directory.(default: ${reportsDir})
-                --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${absDir}/CaTCHseq/docker/scripts/R/ for instances not running docker)
-                --scriptDirPy           specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${absDir}/CaTCHseq/docker/scripts/python/ for instances not running docker)
+                --outputDir             specifies the output directory (default: ${params.outputDir})
+                --reportsDir            specifies the reports directory.(default: ${params.reportsDir})
+                --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${params.absDir}/CaTCHseq/docker/scripts/R/ for instances not running docker)
+                --scriptDirPy           specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${params.absDir}/CaTCHseq/docker/scripts/python/ for instances not running docker)
                 --binDir                specifies the path to the binary directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /usr/bin/local which is valid for docker instance; set to '' for instances not running docker)
                 --mapper                Which mapper to run (default: CellRanger, optional: STAR)
-                --index                 Path to mapper index directory (default: ${mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
+                --index                 Path to mapper index directory (default: ${params.mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
                 --reference             Path to reference fasta.gz
                 --annotation            Path to annotation gtf.gz 
                 --whitelist             Path to barcode whitelist
-                --withQC                Boolean, run FastQC and MultiQC (default: ${runqc})
+                --withQC                Boolean, run FastQC and MultiQC (default: ${params.runqc})
                 --fastqc_params         Optional parameters for FASTQC
-                --cellranger_params     Optional parameters for CellRanger (default: ${crparams})
+                --cellranger_params     Optional parameters for CellRanger (default: ${params.crparams})
                 --star_params           Optional parameters for STAR mapping
                 --idx_params            Optional parameters for STAR index generation
-                --filter                Postprocess filtered counts (default: ${filter})
-                --minReads              Minimum reads to keep cell (default: ${minReads})
-                --chunkSize             number of reads per chunk (default: ${chunkSize})
-                --maxDist               maximum distance for barcode merging (default: ${maxDist})
-                --maxDistCaTCH          maximum distance for CaTCH barcode collapsing (default: ${maxDistCaTCH})
-                --maxDistUMIs           maximum distance for UMI collapsing (default: ${maxDistUMIs})
-                --clusterMethodCaTCH    umi_tools cluster method for CaTCH barcode collapsing (default: ${clusterMethodCaTCH})
-                --clusterMethodUMIs     umi_tools cluster method for UMI collapsing (default: ${clusterMethodUMIs})
-                --majorityVote          Number of votes needed for majority voting (default: ${majorityVote})
-                --stringency              Stringency level for fixed elements filter in barcode sequence (default: ${stringency}, choices: ["default", "stringent", "lenient"])
-                --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${uniqueCaTCH})
-                --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${minBC})
-                --singlet_cutoff        Min ratio for sum of CaTCH barcodes 1 to classify cell as 'Singlet' (default: ${singletCutoff})
-                --bc1_cutoff            Min ratio for CaTCH barcode 1 to classify cell as 'Dual_Integration' (default: ${bc1Cutoff})
-                --bc2_cutoff            Min ratio for CaTCH barcode 2 to classify cell as 'Dual_Integration' (default: ${bc2Cutoff})
-                --max_mt_percent        Maximum mitochondrial read percentage (default: ${maxMtPercent})
-                --min_detected_features Minimum detected features cutoff (default: ${minDetectedFeatures})
-                --hvg_cutoff            Highly variable genes cutoff (default: ${hvgCutoff})
-                --pval_cutoff           P-value cutoff for DE analysis (default: ${pvalCutoff})
-                --lfc_cutoff            Log-fold-change cutoff for DE analysis (default: ${lfcCutoff})
-                --de_method             Method for the CaTCH barcode DE analysis (choice: ["barbieq", "deseq2"], default: ${demethod}; "deseq2" runs the legacy DESeq2/edgeR analysis)
-                --de_min_count          barbieq only: drop barcodes whose summed count within the two contrasted groups is below this (default: ${deminCount}, 0 disables)
-                --de_min_replicates     barbieq only: minimum replicates in a group required to run differential testing (default: ${deminReplicates})
-                --de_all_vs_all         barbieq only: also test every condition against every other condition, written to a separate table (default: ${deallVsAll})
-                --de_rds                barbieq only: optional precomputed barbieQ .rds to reuse instead of rebuilding the object, needs to be an absolute path accessible from the task (default: ${derds})
-                --organism              Identifier for organism (choice: ["Human", "Mouse"], default: ${organism})
-                --baseline              Name of reference day/condition (default: ${refName})
-                --marker                RDS file of cellcycle markers (default: ${markerfile}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
-                --stopOnWarnings        Stop pipeline when warnings occur (default: ${stopOnWarnings})
+                --filter                Postprocess filtered counts (default: ${params.filter})
+                --minReads              Minimum reads to keep cell (default: ${params.minReads})
+                --chunkSize             number of reads per chunk (default: ${params.chunkSize})
+                --maxDist               maximum distance for barcode merging (default: ${params.maxDist})
+                --maxDistCaTCH          maximum distance for CaTCH barcode collapsing (default: ${params.maxDistCaTCH})
+                --maxDistUMIs           maximum distance for UMI collapsing (default: ${params.maxDistUMIs})
+                --clusterMethodCaTCH    umi_tools cluster method for CaTCH barcode collapsing (default: ${params.clusterMethodCaTCH})
+                --clusterMethodUMIs     umi_tools cluster method for UMI collapsing (default: ${params.clusterMethodUMIs})
+                --majorityVote          Number of votes needed for majority voting (default: ${params.majorityVote})
+                --stringency              Stringency level for fixed elements filter in barcode sequence (default: ${params.stringency}, choices: ["default", "stringent", "lenient"])
+                --uniqueCaTCH           Collapse CaTCH barcodes to unique or keep counts (default: ${params.uniqueCaTCH})
+                --min_detected_barcodes Minimum number of CaTCH barcode reads per cell filter (default: ${params.minBC})
+                --singlet_cutoff        Min ratio for sum of CaTCH barcodes 1 to classify cell as 'Singlet' (default: ${params.singletcutoff})
+                --bc1_cutoff            Min ratio for CaTCH barcode 1 to classify cell as 'Dual_Integration' (default: ${params.bc1cutoff})
+                --bc2_cutoff            Min ratio for CaTCH barcode 2 to classify cell as 'Dual_Integration' (default: ${params.bc2cutoff})
+                --max_mt_percent        Maximum mitochondrial read percentage (default: ${params.maxmtpercent})
+                --min_detected_features Minimum detected features cutoff (default: ${params.mindetectedfeatures})
+                --hvg_cutoff            Highly variable genes cutoff (default: ${params.hvgcutoff})
+                --pval_cutoff           P-value cutoff for DE analysis (default: ${params.pvalcutoff})
+                --lfc_cutoff            Log-fold-change cutoff for DE analysis (default: ${params.lfccutoff})
+                --de_method             Method for the CaTCH barcode DE analysis (choice: ["barbieq", "deseq2"], default: ${params.de_method}; "deseq2" runs the legacy DESeq2/edgeR analysis)
+                --de_min_count          barbieq only: drop barcodes whose summed count within the two contrasted groups is below this (default: ${params.de_min_count}, 0 disables)
+                --de_min_replicates     barbieq only: minimum replicates in a group required to run differential testing (default: ${params.de_min_replicates})
+                --de_all_vs_all         barbieq only: also test every condition against every other condition, written to a separate table (default: ${params.de_all_vs_all})
+                --de_rds                barbieq only: optional precomputed barbieQ .rds to reuse instead of rebuilding the object, needs to be an absolute path accessible from the task (default: ${params.de_rds})
+                --organism              Identifier for organism (choice: ["Human", "Mouse"], default: ${params.organism})
+                --baseline              Name of reference day/condition (default: ${params.refName})
+                --marker                RDS file of cellcycle markers (default: ${params.markerfile}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
+                --stopOnWarnings        Stop pipeline when warnings occur (default: ${params.stopOnWarnings})
                 --help                  print this help message
 
     """.stripIndent()
 }
 
 
-// Show the help message if --help is specified or if essential arguments are not provided 
-if (params.help) {
-    helpMessage()
-    exit 0
-}
-
-if (!libraries) {
-    log.info("ERROR: --libraries is not specified")
-    helpMessage()
-    exit 1
-}
-
-
-// Check all required input files before they are fed to a channel because this 
-// causes the pipeline to fail immediately on AWS before starting up the machines
-if(!file(libraries).exists()) {
-    log.info("ERROR: the file '${libraries}' does not exist")
-    exit 2
-}
-
-
-// Print execution parameters to stdout
-log.info """
- ======================================================================
- | singlecell-catch-nf
- |
- | Version: ${workflow.manifest.version}
- ----------------------------------------------------------------------
- |
- | Mandatory arguments
- |   libraries               : ${libraries}
- |
- | Optional arguments
- |   outputDir               : ${outputDir}
- |   reportsDir              : ${reportsDir}
- |   scriptDirR              : ${scriptDirR}
- |   scriptDirPy             : ${scriptDirPy}
- |   binDir                  : ${binDir}
- |   mapper                  : ${mapperbin}
- |   index                   : ${mapindex}
- |   reference               : ${mapref}
- |   annotation              : ${mapanno}
- |   whitelist               : ${whitelist}
- |   withQC                  : ${runqc}
- |   fastqc_params           : ${qcparams}
- |   cellranger_params       : ${crparams}
- |   star_params             : ${starparams}
- |   idx_params              : ${idxparams}
- |   filter                  : ${filtering}
- |   minReads                : ${minReads}
- |   chunkSize               : ${chunkSize}
- |   maxDist                 : ${maxDist}
- |   maxDistCaTCH            : ${maxDistCaTCH}
- |   maxDistUMIs             : ${maxDistUMIs}
- |   clusterMethodCaTCH      : ${clusterMethodCaTCH}
- |   clusterMethodUMIs       : ${clusterMethodUMIs}
- |   majorityVote            : ${majorityVote}
- |   uniqueCaTCH             : ${uniqueCaTCH}
- |   min_detected_barcodes   : ${minBC}
- |   singlet_cutoff          : ${singletCutoff}
- |   bc1_cutoff              : ${bc1Cutoff}
- |   bc2_cutoff              : ${bc2Cutoff}
- |   max_mt_percent          : ${maxMtPercent}
- |   min_detected_features   : ${minDetectedFeatures}
- |   hvg_cutoff              : ${hvgCutoff}
- |   pval_cutoff             : ${pvalCutoff}
- |   lfc_cutoff              : ${lfcCutoff}
- |   de_method               : ${demethod}
- |   de_min_count            : ${deminCount}
- |   de_min_replicates       : ${deminReplicates}
- |   de_all_vs_all           : ${deallVsAll}
- |   de_rds                  : ${derds}
- |   markerfile              : ${markerfile}
- |   organism                : ${organism}
- |   baseline                : ${refName}
- |   stopOnWarnings          : ${stopOnWarnings}
- |
- ======================================================================
-""".stripIndent()
-
-if (runqc){
-    log.info("Running QC")
-}
-
-if (filtering){
-    log.info("Using filtered count output")
-}else{
-    log.info("Using raw count output")
-}
-
 // ---------------------------------------------------------------------
 // Pipeline Channels and Processes
 // ---------------------------------------------------------------------
 
 // For more information about syntax, please refer to the nextflow documentation at https://www.nextflow.io/docs/latest/index.html
-stopOnWarn = (stopOnWarnings) ? "yes" : "no"
 
 /************************************************************************
                 SANITY CHECK SAMPLESHEET
@@ -283,7 +157,7 @@ process check_samplesheet {
 
     script: 
     """
-    ${scriptDirPy}checkSampleSheet.py \
+    ${params.scriptDirPy}checkSampleSheet.py \
         ${samplesheet} \
     && mv ${samplesheet} Valid_${samplesheet}
     """
@@ -325,7 +199,7 @@ process qc_raw{
     //validExitStatus 0,1
     tag "${sampleName}"
 
-    publishDir "${absDir}/" , mode: 'link',
+    publishDir "${params.absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("zip") > 0)          "OUTPUT/QC/FASTQC/${file(filename).getName()}"
         else if (filename.indexOf("html") > 0)    "OUTPUT/QC/FASTQC/${file(filename).getName()}"
@@ -340,13 +214,13 @@ process qc_raw{
     path("*.html"), emit: html
 
     script:
-    if (binDir){
-        fqc = binDir+"fastqc"
+    if (params.binDir){
+        fqc = params.binDir+"fastqc"
     } else{
         fqc = "fastqc"
     }
     """
-    ${fqc} --quiet -t ${task.cpus} $qcparams --noextract -f fastq $read1 $read2 && 
+    ${fqc} --quiet -t ${task.cpus} $params.qcparams --noextract -f fastq $read1 $read2 && 
     for fqc in *_fastqc.{zip,html}
     do
         mv "\$fqc" "${sampleName}_\$fqc"
@@ -359,9 +233,8 @@ process mqc{
     //cpus THREADS
 	cache 'lenient'
     //validExitStatus 0,1
-    tag "${sampleName}"
 
-    publishDir "${absDir}/" , mode: 'link',
+    publishDir "${params.absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("zip") > 0)          "OUTPUT/QC/MULTI/${file(filename).getName()}"
         else if (filename.indexOf("html") > 0)    "OUTPUT/QC/MULTI/${file(filename).getName()}"
@@ -376,8 +249,8 @@ process mqc{
     path "*.html", includeInputs:false, emit: html
 
     script:
-    if (binDir != ''){
-        mqc = binDir+"multiqc"
+    if (params.binDir != ''){
+        mqc = params.binDir+"multiqc"
     } else{
         fqc = "multiqc"
     }
@@ -398,11 +271,11 @@ process Cellranger_idx{
     label 'big_mem'
     //validExitStatus 0,1
 
-    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
+    publishDir "${params.absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/CellRanger/LOGS/${file(filename).getName()}"
-        else if (filename.indexOf(".idx") > 0)     "${mapindex}.idx"
-        else                                       "${mapindex}"
+        else if (filename.indexOf(".idx") > 0)     "${params.mapindex}.idx"
+        else                                       "${params.mapindex}"
     }
 
     input:
@@ -410,21 +283,21 @@ process Cellranger_idx{
     path anno
 
     output:
-    path "${file(mapindex).getName()}", emit: idx
-    path "${file(mapindex).getName()}*", emit: idx_extra
+    path "${file(params.mapindex).getName()}", emit: idx
+    path "${file(params.mapindex).getName()}*", emit: idx_extra
     path "star.idx", emit: idxlink
     path "*.out", emit: idxlog
 
     script:
     gen =  file(genome).getName()
     an  = file(anno).getName()
-    IDX = file(mapindex).getName()
+    IDX = file(params.mapindex).getName()
     taskmem = task.memory.toGiga()
 
     """
     zcat ${gen} > tmp.fa \
         && zcat ${an} > tmp_anno \
-        && cellranger mkref ${idxparams}\
+        && cellranger mkref ${params.idxparams}\
         --genome=${IDX} \
         --nthreads ${task.cpus} \
         --memgb ${taskmem} \
@@ -444,7 +317,7 @@ process runCellrangerCount{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${absDir}/" , mode: 'link',
+    publishDir "${params.absDir}/" , mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("feature_bc_matrix") > 0)       "OUTPUT/CellRanger/${file(filename).getName()}"
         else if (filename.indexOf("projection.csv") >0)      "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
@@ -472,6 +345,7 @@ process runCellrangerCount{
         log.error("Running CellRanger on chemistry different than 10X is not supported, please check your settings and sample sheet.")
 
     }
+    crparams = params.crparams
     if (cells_expected != "NA"){
         if (cells_expected.contains("!")){
             crparams = crparams + ' --force-cells ' + cells_expected.replaceAll('!', '')
@@ -531,7 +405,7 @@ process useCellrangerData{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf("feature_bc_matrix") >0)       "OUTPUT/CellRanger/${file(filename).getName()}"
         else if (filename.indexOf("projection.csv") >0)     "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
@@ -569,11 +443,11 @@ process star_idx{
     label 'big_mem'
     //validExitStatus 0,1
 
-    publishDir "${absDir}/" , mode: 'copyNoFollow', overwrite: true,
+    publishDir "${params.absDir}/" , mode: 'copyNoFollow', overwrite: true,
     saveAs: {filename ->
         if (filename.indexOf("Log.out") > 0)       "OUTPUT/STAR/LOGS/${file(filename).getName()}"
-        else if (filename.indexOf(".idx") > 0)     "${mapindex}.idx"
-        else                                       "${mapindex}"
+        else if (filename.indexOf(".idx") > 0)     "${params.mapindex}.idx"
+        else                                       "${params.mapindex}"
     }
 
     input:
@@ -591,7 +465,7 @@ process star_idx{
     IDX = file(gen).getSimpleName()+'_idx'
     taskmem      = task.memory ? "--limitGenomeGenerateRAM ${task.memory.toBytes() - 100000000}" : ''   
     """
-    zcat ${gen} > tmp.fa && zcat ${an} > tmp_anno && mkdir -p ${IDX} && STAR ${idxparams} --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir ${IDX} --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno ${taskmem} && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
+    zcat ${gen} > tmp.fa && zcat ${an} > tmp_anno && mkdir -p ${IDX} && STAR ${params.idxparams} --runThreadN ${task.cpus} --runMode genomeGenerate --outTmpDir STARTMP --genomeDir ${IDX} --genomeFastaFiles tmp.fa --sjdbGTFfile tmp_anno ${taskmem} && mv -f ${IDX}/*.out ${IDX}.Log.out && ln -s ${IDX} ${IDX}.idx
     """
 }
 
@@ -650,6 +524,7 @@ process star_mapping{
     script:
     idxdir = idx.toRealPath()
     extraparams = ''
+    starparams = params.starparams
     
     chemistry = chemistry.unique()[0]
     cells_expected = cells_expected.unique()[0]
@@ -749,7 +624,7 @@ process countBarcodesInChunks{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename == "Counts")       "OUTPUT/Counts/Chunks/${sampleName}/counts"
         else if (filename == "Reads")   "OUTPUT/Counts/Chunks/${sampleName}/reads"
@@ -785,12 +660,12 @@ process countBarcodesInChunks{
     }
 
     """
-    ${scriptDirPy}countBarcodesInChunks.py \
+    ${params.scriptDirPy}countBarcodesInChunks.py \
         --r1 ${r1} \
         --r2 ${r2} \
         --cellIDs ${cellIDs} \
         --counts Counts \
-        --stringency ${stringency} \
+        --stringency ${params.stringency} \
         ${extraparams} \
     | tee log \
     | grep -Po "Read [0-9,]+ single cell entries" \
@@ -810,7 +685,7 @@ process mergeBarcodesInChunks{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".sclib") > 0)         "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
         else if (filename.indexOf(".stats") > 0)    "OUTPUT/Counts/libraries/unfiltered/${file(filename).getName()}"
@@ -829,7 +704,7 @@ process mergeBarcodesInChunks{
     find Counts -name "file*" > librarieslist
     find Reads -name "file*" > readcountslist
 
-    ${scriptDirPy}mergeChunkCounts.py \
+    ${params.scriptDirPy}mergeChunkCounts.py \
         --libraries librarieslist \
         --readcounts readcountslist \
         --outlib ${sampleName}.sclib \
@@ -848,7 +723,7 @@ process collapseAndFilterBarcodes{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".collapsed.sclib") > 0)         "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
         else if (filename.indexOf(".collapsed.stats") > 0)    "OUTPUT/Counts/libraries/collapsed/${file(filename).getName()}"
@@ -864,20 +739,20 @@ process collapseAndFilterBarcodes{
 
     script:
     unique = "false"
-    if (uniqueCaTCH){
+    if (params.uniqueCaTCH){
         unique = "true"
     }
-    catchMax = maxDistCaTCH ?: maxDist
-    umiMax = maxDistUMIs ?: maxDist
-    catchMethod = clusterMethodCaTCH ? "--cluster-method-catch ${clusterMethodCaTCH}" : ""
-    umiMethod = clusterMethodUMIs ? "--cluster-method-umis ${clusterMethodUMIs}" : ""
+    catchMax = params.maxDistCaTCH ?: params.maxDist
+    umiMax = params.maxDistUMIs ?: params.maxDist
+    catchMethod = params.clusterMethodCaTCH ? "--cluster-method-catch ${params.clusterMethodCaTCH}" : ""
+    umiMethod = params.clusterMethodUMIs ? "--cluster-method-umis ${params.clusterMethodUMIs}" : ""
     """
-    ${scriptDirPy}collapseCaTCHbarcodes.py \
+    ${params.scriptDirPy}collapseCaTCHbarcodes.py \
         --library ${library} \
-        --maxdist ${maxDist} \
+        --maxdist ${params.maxDist} \
         --maxdist-catch ${catchMax} \
         --maxdist-umis ${umiMax} \
-        --minsupport ${minReads} \
+        --minsupport ${params.minReads} \
         --unique ${unique} \
         ${catchMethod} \
         ${umiMethod} \
@@ -897,7 +772,7 @@ process resolveMultiplets{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".resolved_multiplets.sclib") > 0)         "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
         else if (filename.indexOf(".resolved_multiplets.stats") > 0)    "OUTPUT/Counts/libraries/resolved_multiplets/${file(filename).getName()}"
@@ -913,9 +788,9 @@ process resolveMultiplets{
 
     script:
     """
-    ${scriptDirPy}resolveMultiplets.py \
+    ${params.scriptDirPy}resolveMultiplets.py \
         --library ${library} \
-        --majority ${majorityVote} \
+        --majority ${params.majorityVote} \
         --outlib ${sampleName}.resolved_multiplets.sclib \
     | tee ${sampleName}.resolved_multiplets.stats
     """
@@ -933,7 +808,7 @@ process generateTables{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".CaTCHbarcodes") > 0)       "OUTPUT/Reports/${file(filename).getName()}"
         else if (filename.indexOf(".cells") > 0)          "OUTPUT/Reports/${file(filename).getName()}"
@@ -949,11 +824,11 @@ process generateTables{
 
     script:
     """
-    ${scriptDirPy}generateOutputTables.py \
+    ${params.scriptDirPy}generateOutputTables.py \
         --library ${library} \
         --CaTCH ${sampleName}.CaTCHbarcodes \
         --cells ${sampleName}.cells \
-        --unique ${uniqueCaTCH} \
+        --unique ${params.uniqueCaTCH} \
     """
 }
 
@@ -969,7 +844,7 @@ process generateAnalyticsPlots{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".png") > 0)       "OUTPUT/Reports/plots/${file(filename).getName()}"
         else                                    "OUTPUT/Reports/plots/${file(filename).getName()}"
@@ -999,9 +874,9 @@ process preprocessSingleCellData{
     //label 'big_mem'
     tag "Preprocess_SingleCellData_${sampleTag}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
-        if(filtering){
+        if(params.filter){
             if (filename.indexOf(".rds.gz") > 0)        "OUTPUT/SCE/filtered/${file(filename).getName()}"
             else if (filename.indexOf(".pdf") > 0)      "OUTPUT/Plots/Overview/${file(filename).getName()}"
             else                                        "OUTPUT/SCE/filtered/${file(filename).getName()}"
@@ -1023,7 +898,7 @@ process preprocessSingleCellData{
         tuple val(sampleTag), path("*.pdf"), emit: basic_sce_qc, optional: true
 
     script:
-    if (filtering){
+    if (params.filter){
         featurematrix = "${featureMatrix}"
         outname = 'CaTCHseq.prefiltered'
     }else{
@@ -1036,22 +911,22 @@ process preprocessSingleCellData{
     BCS='${catchBarcodes}'
     FEATURES='${featurematrix}'
 
-    Rscript --vanilla ${scriptDirR}preprocessData.R \
+    Rscript --vanilla ${params.scriptDirR}preprocessData.R \
        --sample \$SAMPLES \
        --data10X \$FEATURES \
        --catchBC \$BCS \
-       --baseCond ${refName} \
+       --baseCond ${params.refName} \
        --annotation ${gtf} \
-       --minBC ${minBC} \
-       --bc1Cut ${bc1Cutoff} \
-       --bc2Cut ${bc2Cutoff} \
-       --singletCut ${singletCutoff} \
-       --max_mt ${maxMtPercent} \
-       --min_features ${minDetectedFeatures} \
-       --hvg_cutoff ${hvgCutoff} \
+       --minBC ${params.minBC} \
+       --bc1Cut ${params.bc1cutoff} \
+       --bc2Cut ${params.bc2cutoff} \
+       --singletCut ${params.singletcutoff} \
+       --max_mt ${params.maxmtpercent} \
+       --min_features ${params.mindetectedfeatures} \
+       --hvg_cutoff ${params.hvgcutoff} \
        --out ${outprefix} \
-       --marker ${markerfile} \
-       --libpath ${scriptDirR}
+       --marker ${params.markerfile} \
+       --libpath ${params.scriptDirR}
     """
 }
 
@@ -1066,7 +941,7 @@ process createOverviewPlots{
     //label 'big_mem'
     tag "${sampleTag}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/Overview/${file(filename).getName()}"
         else                                    "OUTPUT/Plots/Overview/${file(filename).getName()}"
@@ -1079,20 +954,20 @@ process createOverviewPlots{
         tuple val(sampleTag), path("*overview.pdf"), emit: pdf
 
     script:
-    if (filtering){
+    if (params.filter){
         outname = "${sampleTag}_CaTCHseq.prefiltered"
     }else{
         outname = "${sampleTag}_CaTCHseq"
     }
     """
-    Rscript --vanilla ${scriptDirR}create_overview_plots.R \
+    Rscript --vanilla ${params.scriptDirR}create_overview_plots.R \
         --sce ${sce} \
-        --baseCond ${refName} \
+        --baseCond ${params.refName} \
         --out ${outname}_overview \
         --format pdf \
         --width 25 \
         --height 10 \
-        --libpath ${scriptDirR}
+        --libpath ${params.scriptDirR}
     """
 }
 
@@ -1107,7 +982,7 @@ process calculateBarcodeEnrichment{
     //label 'big_mem'
     tag "${sampleTag}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
         else                                    "OUTPUT/DE/BarCodes/${file(filename).getName()}"
@@ -1123,23 +998,23 @@ process calculateBarcodeEnrichment{
         tuple val(sampleTag), path("*.rds.gz"), emit: rds
 
     script:
-     if (filtering){
+     if (params.filter){
         outname = "${sampleTag}_CaTCHseq.prefiltered"
     }else{
         outname = "${sampleTag}_CaTCHseq"
     }
     """
-    Rscript --vanilla ${scriptDirR}identify_de_catch_barcodes.R \
+    Rscript --vanilla ${params.scriptDirR}identify_de_catch_barcodes.R \
         --sce ${sce} \
-        --baseCond ${refName} \
+        --baseCond ${params.refName} \
         --plots_per_row 5 \
         --format pdf \
         --width 400 \
         --height 300 \
-        --pcut ${pvalCutoff}\
-        --fcut ${lfcCutoff} \
+        --pcut ${params.pvalcutoff}\
+        --fcut ${params.lfccutoff} \
         --out ${outname} \
-        --libpath ${scriptDirR}
+        --libpath ${params.scriptDirR}
     """
 }
 
@@ -1149,7 +1024,7 @@ process calculateBarcodeEnrichmentBarbieq{
     cache 'lenient'
     tag "${sampleTag}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
         else                                    "OUTPUT/DE/BarCodes/${file(filename).getName()}"
@@ -1172,41 +1047,41 @@ process calculateBarcodeEnrichmentBarbieq{
         tuple val(sampleTag), path("*barbieQ_status.txt"), emit: status, optional: true
 
     script:
-    if (filtering){
+    if (params.filter){
         outname = "${sampleTag}_CaTCHseq.prefiltered"
     }else{
         outname = "${sampleTag}_CaTCHseq"
     }
-    rdsarg = (derds && !(derds instanceof Boolean)) ? "-R ${derds}" : ''
-    allvsallarg = deallVsAll ? '--allVsAll' : ''
+    rdsarg = (params.de_rds && !(params.de_rds instanceof Boolean)) ? "-R ${params.de_rds}" : ''
+    allvsallarg = params.de_all_vs_all ? '--allVsAll' : ''
     """
-    Rscript --vanilla ${scriptDirR}prepare_barbieq_input.R \
+    Rscript --vanilla ${params.scriptDirR}prepare_barbieq_input.R \
         --sce ${sce} \
-        --baseCond ${refName} \
+        --baseCond ${params.refName} \
         --out ${outname} \
-        --libpath ${scriptDirR}
+        --libpath ${params.scriptDirR}
 
-    Rscript --vanilla ${scriptDirR}barbieQanalysis.R \
+    Rscript --vanilla ${params.scriptDirR}barbieQanalysis.R \
         -c ${outname}_barbieQ_counts.tsv \
         -d ${outname}_barbieQ_design.csv \
         -o . \
         -p ${outname}_ \
         -t ${task.cpus} \
-        -m ${deminCount} \
-        -r ${deminReplicates} \
+        -m ${params.de_min_count} \
+        -r ${params.de_min_replicates} \
         ${rdsarg} \
         ${allvsallarg}
 
-    Rscript --vanilla ${scriptDirR}plot_barbieq_results.R \
+    Rscript --vanilla ${params.scriptDirR}plot_barbieq_results.R \
         --diversity ${outname}_barbieQ_diversity.tsv \
         --diffprop ${outname}_barbieQ_diffProp_results.tsv \
         --plots_per_row 3 \
         --format pdf \
         --width 20 \
         --height 25 \
-        --pcut ${pvalCutoff} \
+        --pcut ${params.pvalcutoff} \
         --out ${outname} \
-        --libpath ${scriptDirR}
+        --libpath ${params.scriptDirR}
     """
 }
 
@@ -1222,7 +1097,7 @@ process identifyDEGenes{
     //label 'big_mem'
     tag "${sampleTag}"
 
-    publishDir "${absDir}/", mode: 'link',
+    publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
         if (filename.indexOf(".pdf") > 0)       "OUTPUT/Plots/${file(filename).getName()}"
         else                                    "OUTPUT/DE/GENES/${file(filename).getName()}"
@@ -1238,23 +1113,23 @@ process identifyDEGenes{
         tuple val(sampleTag), path("*.rds.gz"), emit: rds
 
     script:
-     if (filtering){
+     if (params.filter){
         outname = "${sampleTag}_CaTCHseq.prefiltered"
     }else{
         outname = "${sampleTag}_CaTCHseq"
     }
     """
-    Rscript --vanilla ${scriptDirR}identify_de_genes.R \
+    Rscript --vanilla ${params.scriptDirR}identify_de_genes.R \
         --sce ${sce} \
-        --baseCond ${refName} \
+        --baseCond ${params.refName} \
         --format pdf \
         --width 400 \
         --height 300 \
-        --organism ${organism}\
-        --pcut ${pvalCutoff}\
-        --fcut ${lfcCutoff} \
+        --organism ${params.organism}\
+        --pcut ${params.pvalcutoff}\
+        --fcut ${params.lfccutoff} \
         --out ${outname} \
-        --libpath ${scriptDirR}
+        --libpath ${params.scriptDirR}
     """
 }
 
@@ -1266,14 +1141,102 @@ process identifyDEGenes{
 workflow{
     main:
 
+        // Show the help message if --help is specified or if essential arguments are not provided
+        if (params.help) {
+            helpMessage()
+            exit 0
+        }
+
+        if (!params.libraries) {
+            log.info("ERROR: --libraries is not specified")
+            helpMessage()
+            exit 1
+        }
+
+        // Check all required input files before they are fed to a channel because this
+        // causes the pipeline to fail immediately on AWS before starting up the machines
+        if(!file(params.libraries).exists()) {
+            log.info("ERROR: the file '${params.libraries}' does not exist")
+            exit 2
+        }
+
+        // Print execution parameters to stdout
+        log.info """
+ ======================================================================
+ | singlecell-catch-nf
+ |
+ | Version: ${workflow.manifest.version}
+ ----------------------------------------------------------------------
+ |
+ | Mandatory arguments
+ |   libraries               : ${params.libraries}
+ |
+ | Optional arguments
+ |   outputDir               : ${params.outputDir}
+ |   reportsDir              : ${params.reportsDir}
+ |   scriptDirR              : ${params.scriptDirR}
+ |   scriptDirPy             : ${params.scriptDirPy}
+ |   binDir                  : ${params.binDir}
+ |   mapper                  : ${params.mapperbin}
+ |   index                   : ${params.mapindex}
+ |   reference               : ${params.mapref}
+ |   annotation              : ${params.mapanno}
+ |   whitelist               : ${params.whitelist}
+ |   withQC                  : ${params.runqc}
+ |   fastqc_params           : ${params.qcparams}
+ |   cellranger_params       : ${params.crparams}
+ |   star_params             : ${params.starparams}
+ |   idx_params              : ${params.idxparams}
+ |   filter                  : ${params.filter}
+ |   minReads                : ${params.minReads}
+ |   chunkSize               : ${params.chunkSize}
+ |   maxDist                 : ${params.maxDist}
+ |   maxDistCaTCH            : ${params.maxDistCaTCH}
+ |   maxDistUMIs             : ${params.maxDistUMIs}
+ |   clusterMethodCaTCH      : ${params.clusterMethodCaTCH}
+ |   clusterMethodUMIs       : ${params.clusterMethodUMIs}
+ |   majorityVote            : ${params.majorityVote}
+ |   uniqueCaTCH             : ${params.uniqueCaTCH}
+ |   min_detected_barcodes   : ${params.minBC}
+ |   singlet_cutoff          : ${params.singletcutoff}
+ |   bc1_cutoff              : ${params.bc1cutoff}
+ |   bc2_cutoff              : ${params.bc2cutoff}
+ |   max_mt_percent          : ${params.maxmtpercent}
+ |   min_detected_features   : ${params.mindetectedfeatures}
+ |   hvg_cutoff              : ${params.hvgcutoff}
+ |   pval_cutoff             : ${params.pvalcutoff}
+ |   lfc_cutoff              : ${params.lfccutoff}
+ |   de_method               : ${params.de_method}
+ |   de_min_count            : ${params.de_min_count}
+ |   de_min_replicates       : ${params.de_min_replicates}
+ |   de_all_vs_all           : ${params.de_all_vs_all}
+ |   de_rds                  : ${params.de_rds}
+ |   markerfile              : ${params.markerfile}
+ |   organism                : ${params.organism}
+ |   baseline                : ${params.refName}
+ |   stopOnWarnings          : ${params.stopOnWarnings}
+ |
+ ======================================================================
+""".stripIndent()
+
+        if (params.runqc){
+            log.info("Running QC")
+        }
+
+        if (params.filter){
+            log.info("Using filtered count output")
+        }else{
+            log.info("Using raw count output")
+        }
+
         /**********************************************************
                 Validate SampleSheet
         ***********************************************************/
 
-        if (file(libraries).exists()){
-            if (file(libraries).isFile()){
-                if (libraries.endsWith(".csv")){
-                    if (file(libraries).size() == 0){
+        if (file(params.libraries).exists()){
+            if (file(params.libraries).isFile()){
+                if (params.libraries.endsWith(".csv")){
+                    if (file(params.libraries).size() == 0){
                         log.error("SampleSheet is empty!")
                     }
                 }else{
@@ -1284,7 +1247,7 @@ workflow{
             }
         }
 
-        check_samplesheet(Channel.fromPath(libraries))
+        check_samplesheet(Channel.fromPath(params.libraries))
 
         /**********************************************************
                 STEP 0: Prepare Input and Indices and run QC
@@ -1301,27 +1264,27 @@ workflow{
         
         //Create a list of unique conditions
         Ch_Conditions = Ch_csv.map { row -> row.Condition }.distinct().branch{                 
-                multi:  it != refName
-                single: it == refName
+                multi:  it != params.refName
+                single: it == params.refName
         }
         //Ch_Conditions.single.subscribe {  println "Single Conditions: $it"  }
         //Ch_Conditions.multi.subscribe {  println "Multi Conditions: $it"  }
-        //println(" IDX "+mapindex+" WL "+whitelist)
+        //println(" IDX "+params.mapindex+" WL "+params.whitelist)
 
-        if (mapindex){
-            if (!file(mapindex).exists()){
-                if (mapperbin == 'CellRanger'){
-                    Cellranger_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
+        if (params.mapindex){
+            if (!file(params.mapindex).exists()){
+                if (params.mapperbin == 'CellRanger'){
+                    Cellranger_idx(Channel.fromPath(params.mapref), Channel.fromPath(params.mapanno))
                     Ch_mapping_idx = Cellranger_idx.out.idx
-                }else if (mapperbin == 'STAR'){
-                    star_idx(Channel.fromPath(mapref), Channel.fromPath(mapanno))
+                }else if (params.mapperbin == 'STAR'){
+                    star_idx(Channel.fromPath(params.mapref), Channel.fromPath(params.mapanno))
                     Ch_mapping_idx = star_idx.out.idxlink
                 }
             }else{
-                if (mapperbin == 'CellRanger'){
-                    Ch_mapping_idx = Channel.fromPath(mapindex)
-                }else if (mapperbin == 'STAR'){
-                    Ch_mapping_idx = Channel.fromPath(mapindex+".idx")
+                if (params.mapperbin == 'CellRanger'){
+                    Ch_mapping_idx = Channel.fromPath(params.mapindex)
+                }else if (params.mapperbin == 'STAR'){
+                    Ch_mapping_idx = Channel.fromPath(params.mapindex+".idx")
                 }
             }
         } else {
@@ -1329,9 +1292,9 @@ workflow{
         }
         //Ch_mapping_idx.subscribe {  println "IDX: $it"  }
 
-        if (whitelist){
-            if (file(whitelist).exists()){
-                Ch_whitelist = Channel.fromPath(whitelist)
+        if (params.whitelist){
+            if (file(params.whitelist).exists()){
+                Ch_whitelist = Channel.fromPath(params.whitelist)
             
             } else {         
             create_dummy_whitelist()   
@@ -1345,12 +1308,12 @@ workflow{
 
         Ch_map_input = Ch_csv_GEX_split.raw.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.CellNumber, row.Chemistry ) }.groupTuple(by: 0)
         
-        if (mapperbin == 'CellRanger'){
+        if (params.mapperbin == 'CellRanger'){
             Ch_map_precomputed = Ch_csv_GEX_split.precomputed.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1)) }.groupTuple(by: 0)            
         }
         //Ch_map_input.subscribe {  println "INPUT: $it"  }
 
-        if(runqc){
+        if(params.runqc){
             Ch_QC_input = Ch_csv.filter { new File(it.R1).isFile() }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2)) }.groupTuple(by: 0)
             //Ch_QC_input.subscribe {  println "QC: $it"  }
             qc_raw(Ch_QC_input)
@@ -1367,21 +1330,21 @@ workflow{
                 STEP 1: Count Reads
         ***********************************************************/
 
-        if (mapperbin == 'CellRanger'){
+        if (params.mapperbin == 'CellRanger'){
             runCellrangerCount(concat_lanes.out.combine( Ch_mapping_idx ))
             useCellrangerData(Ch_map_precomputed)
 
-            if (filtering){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
+            if (params.filter){
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered), by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(runCellrangerCount.out.cell_ids_raw.mix(useCellrangerData.out.cell_ids_from_precomputed_raw), by: 0)
             }
-        }else if (mapperbin == 'STAR'){
+        }else if (params.mapperbin == 'STAR'){
             star_mapping(concat_lanes.out.combine( Ch_mapping_idx ).combine( Ch_whitelist ))
-            if (filtering){
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
+            if (params.filter){
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_filtered, by: 0)
             }else{
-                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0)
+                Ch_count_input = Ch_csv.filter { it.LibraryType == "CaTCHseq" }.map { row -> tuple(row.SampleName.replaceAll("_","-")+'_'+row.Condition.replaceAll("_","-")+'_'+row.Replicate.replaceAll("_","-"), file(row.R1), file(row.R2), row.Chemistry ) }.splitFastq(by: params.chunkSize, file: true, compress: true, pe: true).combine(star_mapping.out.cell_ids_raw, by: 0)
             }
             
         }
@@ -1429,8 +1392,8 @@ workflow{
                 STEP 7: Analytics report
         ***************************************************************/
 
-        if (mapperbin == 'CellRanger'){
-            if (filtering){
+        if (params.mapperbin == 'CellRanger'){
+            if (params.filter){
                 Ch_cell_ids = runCellrangerCount.out.cell_ids_filtered.mix(useCellrangerData.out.cell_ids_from_precomputed_filtered)
 
                 Ch_cell_data = runCellrangerCount.out.cell_data_filtered.mix(useCellrangerData.out.cell_data_from_precomputed_filtered)
@@ -1439,8 +1402,8 @@ workflow{
 
                 Ch_cell_data = runCellrangerCount.out.cell_data_raw.mix(useCellrangerData.out.cell_data_from_precomputed_raw)
             }
-        } else if (mapperbin == 'STAR'){            
-            if (filtering){
+        } else if (params.mapperbin == 'STAR'){            
+            if (params.filter){
                 Ch_cell_ids = star_mapping.out.cell_ids_filtered
 
                 Ch_cell_data = star_mapping.out.cell_data_filtered                
@@ -1463,7 +1426,7 @@ workflow{
         Ch_preprocess_input = Ch_cell_data.join(generateTables.out.report_cells, by: 0)
                                          .map { sampleName, featureMatrix, catchBarcodes ->
                                              def sampleTag = sampleName.tokenize('_')[0]
-                                             tuple(sampleName, sampleTag, featureMatrix, catchBarcodes, file(mapanno))
+                                             tuple(sampleName, sampleTag, featureMatrix, catchBarcodes, file(params.mapanno))
                                          }
 
         preprocessSingleCellData(Ch_preprocess_input)
@@ -1478,7 +1441,7 @@ workflow{
         ***************************************************************/
         def Ch_multi_conditions = Ch_Conditions.multi.collect()
         
-        if (demethod == 'barbieq'){
+        if (params.de_method == 'barbieq'){
             calculateBarcodeEnrichmentBarbieq(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)
         } else {
             calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)
