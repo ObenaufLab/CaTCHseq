@@ -24,7 +24,7 @@ RUN apt-get update \
 		&& apt-get autoclean -y 
 
 # Install the required Python packages and add the CaTCH package
-RUN     pip install pandas numpy biopython umi_tools
+RUN     pip install --break-system-packages --no-cache-dir pandas numpy biopython umi_tools
 RUN     mkdir -p /packages/CaTCH && mkdir -p /tools/{data,scripts}
 COPY    CaTCH /packages/CaTCH
 COPY    data /tools/data
@@ -43,13 +43,13 @@ RUN		R -e "source('/tools/scripts/R/setup_R_env.R')"
 # Install STAR mapper for STARsolo mapping option
 ARG STAR_VERSION=2.7.11a
 
-ENV PACKAGES build-essential g++ wget zlib1g-dev unzip default-jre
+ENV PACKAGES build-essential g++ wget zlib1g-dev unzip default-jre xxd
 
 RUN set -ex
 
-RUN apt-get install -y --no-install-recommends ${PACKAGES} && \
+RUN apt-get update && apt-get install -y --no-install-recommends ${PACKAGES} && \
     	apt-get clean && \
-		rm -rf /var/lib/apt/lists/* \
+		rm -rf /var/lib/apt/lists/* &&\
     	g++ --version && \
     	cd /home && \
     	wget --no-check-certificate https://github.com/alexdobin/STAR/archive/${STAR_VERSION}.zip && \
@@ -88,7 +88,7 @@ RUN cd /home && \
 	rm -rf fastqc_v${FASTQC_VERSION}.zip
 
 # Install MultiQC
-RUN     pip install multiqc
+RUN     pip install --break-system-packages --no-cache-dir multiqc
 
 LABEL   maintainer="sergej.nowoshilow@boehringer-ingelheim.com; joerg.fallmann@imp.ac.at"
 LABEL   version="3.0"

@@ -891,11 +891,11 @@ process preprocessSingleCellData{
         tuple val(sampleName), val(sampleTag), path(featureMatrix), path(catchBarcodes), path(gtf)
 
     output:
-        tuple val(sampleTag), path("*_filtered_seurat_sce.rds.gz"), emit: basic_seurat_sce
-        tuple val(sampleTag), path("*_filtered_sce.rds.gz"), emit: basic_sce
-        tuple val(sampleTag), path("*_unfiltered_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
-        tuple val(sampleTag), path("*_unfiltered_sce.rds.gz"), emit: basic_raw_sce
-        tuple val(sampleTag), path("*.pdf"), emit: basic_sce_qc, optional: true
+        tuple val(sampleTag), val(sampleName), path("*_filtered_seurat_sce.rds.gz"), emit: basic_seurat_sce
+        tuple val(sampleTag), val(sampleName), path("*_filtered_sce.rds.gz"), emit: basic_sce
+        tuple val(sampleTag), val(sampleName), path("*_unfiltered_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
+        tuple val(sampleTag), val(sampleName), path("*_unfiltered_sce.rds.gz"), emit: basic_raw_sce
+        tuple val(sampleTag), val(sampleName), path("*.pdf"), emit: basic_sce_qc, optional: true
 
     script:
     if (params.filter){
@@ -905,7 +905,7 @@ process preprocessSingleCellData{
         featurematrix = "${featureMatrix}"
         outname = 'CaTCHseq'
     }
-    outprefix = "${sampleTag}_${outname}"
+    outprefix = "${sampleName}_${outname}"
     """
     SAMPLES='${sampleName}'
     BCS='${catchBarcodes}'
@@ -948,16 +948,16 @@ process createOverviewPlots{
     }
 
     input:
-        tuple val(sampleTag), path(sce)
+        tuple val(sampleTag), val(sampleName), path(sce)
 
     output:
         tuple val(sampleTag), path("*overview.pdf"), emit: pdf
 
     script:
     if (params.filter){
-        outname = "${sampleTag}_CaTCHseq.prefiltered"
+        outname = "${sampleName}_CaTCHseq.prefiltered"
     }else{
-        outname = "${sampleTag}_CaTCHseq"
+        outname = "${sampleName}_CaTCHseq"
     }
     """
     Rscript --vanilla ${params.scriptDirR}create_overview_plots.R \
@@ -989,7 +989,7 @@ process calculateBarcodeEnrichment{
     }
 
     input:
-        tuple val(sampleTag), path(sce)
+        tuple val(sampleTag), path(sces)
         val(check)
 
     output:
@@ -1003,9 +1003,10 @@ process calculateBarcodeEnrichment{
     }else{
         outname = "${sampleTag}_CaTCHseq"
     }
+    scelist = (sces instanceof List) ? sces.join(',') : "${sces}"
     """
     Rscript --vanilla ${params.scriptDirR}identify_de_catch_barcodes.R \
-        --sce ${sce} \
+        --sce ${scelist} \
         --baseCond ${params.refName} \
         --plots_per_row 5 \
         --format pdf \
@@ -1031,7 +1032,7 @@ process calculateBarcodeEnrichmentBarbieq{
     }
 
     input:
-        tuple val(sampleTag), path(sce)
+        tuple val(sampleTag), path(sces)
         val(check)
 
     output:
@@ -1052,11 +1053,12 @@ process calculateBarcodeEnrichmentBarbieq{
     }else{
         outname = "${sampleTag}_CaTCHseq"
     }
+    scelist = (sces instanceof List) ? sces.join(',') : "${sces}"
     rdsarg = (params.de_rds && !(params.de_rds instanceof Boolean)) ? "-R ${params.de_rds}" : ''
     allvsallarg = params.de_all_vs_all ? '--allVsAll' : ''
     """
     Rscript --vanilla ${params.scriptDirR}prepare_barbieq_input.R \
-        --sce ${sce} \
+        --sce ${scelist} \
         --baseCond ${params.refName} \
         --out ${outname} \
         --libpath ${params.scriptDirR}
@@ -1104,7 +1106,7 @@ process identifyDEGenes{
     }
 
     input:
-        tuple val(sampleTag), path(sce)
+        tuple val(sampleTag), path(sces)
         val(check)
 
     output:
@@ -1118,9 +1120,10 @@ process identifyDEGenes{
     }else{
         outname = "${sampleTag}_CaTCHseq"
     }
+    scelist = (sces instanceof List) ? sces.join(',') : "${sces}"
     """
     Rscript --vanilla ${params.scriptDirR}identify_de_genes.R \
-        --sce ${sce} \
+        --sce ${scelist} \
         --baseCond ${params.refName} \
         --format pdf \
         --width 400 \
@@ -1440,13 +1443,20 @@ workflow{
                 STEP 10 & 11 (OPTIONAL): Run DE Analysis for Barcodes and Genes
         ***************************************************************/
         def Ch_multi_conditions = Ch_Conditions.multi.collect()
+
+        // DE analysis is NOT run per library. 'preprocessSingleCellData' emits one
+        // SCE per library, so all SCEs of a sample tag are grouped here to build
+        // count matrices covering every condition and replicate of that tag.
+        Ch_de_input = preprocessSingleCellData.out.basic_seurat_sce
+                                              .map { sampleTag, sampleName, sce -> tuple(sampleTag, sce) }
+                                              .groupTuple()
         
         if (params.de_method == 'barbieq'){
-            calculateBarcodeEnrichmentBarbieq(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)
+            calculateBarcodeEnrichmentBarbieq(Ch_de_input, Ch_multi_conditions)
         } else {
-            calculateBarcodeEnrichment(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)
+            calculateBarcodeEnrichment(Ch_de_input, Ch_multi_conditions)
         }
-        identifyDEGenes(preprocessSingleCellData.out.basic_seurat_sce, Ch_multi_conditions)        
+        identifyDEGenes(Ch_de_input, Ch_multi_conditions)        
         
     //emit:
     //createOverviewPlots.out.pdf

@@ -39,6 +39,6 @@ BioConductor::scran
 BioConductor::scater
 BioConductor::SingleR
 BioConductor::celldex
-BiocConductor::glmGamPoi
+BioConductor::glmGamPoi
 BioConductor::ComplexHeatmap
 BioConductor::barbieQ
