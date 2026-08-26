@@ -44,13 +44,27 @@ library(R.filesets)
 # sample tag, so the count matrix covers every condition and replicate.
 cellmeta <- collect_SCE_metadata(opt$sce)
 
+### set reference condition ###
+ref.Condition <- opt$baseCond
+
+# Check if reference condition is present in the metadata
+if (!ref.Condition %in% as.character(cellmeta$Condition)) {
+    writeLines(
+        paste0("SKIPPED differential enrichment: reference condition '", ref.Condition, "' not found in the metadata"),
+        paste0(opt$out, "_barbieQ_status.txt")
+    )
+    stop("Reference condition not found in the metadata")
+}
+
+# CaTCH.BC_ID is ranked for the whole run by 'assign_barcode_ids.R'. It is only
+# rebuilt here when the provided objects did not go through that step, because
+# 'preprocessData.R' alone leaves every cell at 'BC_0'.
+cellmeta <- ensure_global_BC_IDs(cellmeta, ref.Condition)
+
 ### collect metadata ###
 metadata <- cellmeta %>%
     dplyr::select(Condition, Replicate) %>%
     distinct()
-
-### set reference condition ###
-ref.Condition <- opt$baseCond
 
 ### Count Barcodes ###
 bc.counts <- cellmeta %>%
@@ -70,14 +84,6 @@ metadata <- metadata %>%
     mutate(Replicate = as.factor(gsub("-", ".", Replicate))) %>%
     dplyr::select(Condition, Replicate)
 
-# Check if reference condition is present in the metadata
-if (!ref.Condition %in% metadata$Condition) {
-    writeLines(
-        paste0("SKIPPED differential enrichment: reference condition '", ref.Condition, "' not found in the metadata"),
-        paste0(opt$out, "_barbieQ_status.txt")
-    )
-    stop("Reference condition not found in the metadata")
-}
 
 ### Count table for barbieQanalysis.R ###
 # barbieQanalysis.R expects the barcode identifier in the first column, an

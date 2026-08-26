@@ -90,6 +90,6 @@ RUN cd /home && \
 # Install MultiQC
 RUN     pip install --break-system-packages --no-cache-dir multiqc
 
-LABEL   maintainer="sergej.nowoshilow@boehringer-ingelheim.com; joerg.fallmann@imp.ac.at"
-LABEL   version="3.0"
-LABEL   release-date="2023-10-04"
+LABEL   maintainer="joerg.fallmann@imp.ac.at"
+LABEL   version="4.0"
+LABEL   release-date="2026-08-26"
