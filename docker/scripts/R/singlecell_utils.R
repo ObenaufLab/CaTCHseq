@@ -632,6 +632,93 @@ collect_SCE_metadata <- function(sces) {
     md
 }
 
+# 'preprocessData.R' assigns CaTCH.BC_ID per library from the cells of the
+# reference condition only. A library holds a single condition, so every library
+# of a non-reference condition can never see a reference cell and ends up with
+# 'BC_0' everywhere, and the IDs of different libraries would not be comparable
+# even if they were assigned. The IDs are therefore rebuilt here, where the
+# metadata of ALL libraries is available: barcodes detected in the reference
+# condition are ranked by their mean count per reference sample and numbered
+# ('BC_<rank>', 'BC*_<rank>' for double integrations), every other barcode keeps
+# 'BC_0'. This is the same ranking 'preprocessData.R' intends, just computed
+# over the whole run instead of a single library.
+build_BC_ID_map <- function(cellmeta, baseCond) {
+    needed <- c("CaTCH.Status", "CaTCH.BC_unique", "Condition", "Replicate")
+    missing <- setdiff(needed, colnames(cellmeta))
+    if (length(missing) > 0) {
+        stop(paste0("Cell metadata is missing the column(s): ", paste(missing, collapse = ", ")))
+    }
+
+    ranked <- cellmeta %>%
+        as_tibble() %>%
+        dplyr::filter(
+            CaTCH.Status %in% c("Singlet", "Double_Integration"),
+            as.character(Condition) == baseCond
+        ) %>%
+        dplyr::mutate(Replicate = as.character(Replicate)) %>%
+        dplyr::count(CaTCH.BC_unique, Replicate, name = "n") %>%
+        tidyr::pivot_wider(names_from = Replicate, values_from = n, values_fill = 0)
+
+    refcols <- setdiff(colnames(ranked), "CaTCH.BC_unique")
+    if (length(refcols) == 0) {
+        stop(paste0("No cells of the reference condition '", baseCond, "' found in the provided SCE files"))
+    }
+
+    ranked <- ranked %>%
+        dplyr::mutate(.Means = rowMeans(dplyr::across(dplyr::all_of(refcols)))) %>%
+        dplyr::filter(.Means > 0) %>%
+        dplyr::arrange(dplyr::desc(.Means)) %>%
+        tibble::rowid_to_column(".ID") %>%
+        dplyr::mutate(CaTCH.BC_ID = ifelse(grepl("+", CaTCH.BC_unique, fixed = TRUE),
+            paste0("BC*_", .ID), paste0("BC_", .ID)
+        )) %>%
+        dplyr::select(CaTCH.BC_unique, CaTCH.BC_ID)
+
+    print(sprintf(
+        "   Ranked %d CaTCH barcode(s) of the reference condition '%s'.",
+        nrow(ranked), baseCond
+    ))
+    ranked
+}
+
+# Apply a barcode ID map built by 'build_BC_ID_map' to a vector of barcodes.
+# Barcodes that are not part of the map, i.e. that were not detected in the
+# reference condition, become 'BC_0'.
+apply_BC_ID_map <- function(barcodes, bc_map) {
+    ids <- bc_map$CaTCH.BC_ID[match(as.character(barcodes), bc_map$CaTCH.BC_unique)]
+    ids[is.na(ids)] <- "BC_0"
+    factor(ids, levels = str_sort(unique(ids), numeric = TRUE))
+}
+
+# Convenience wrapper for the DE scripts: build the map from the pooled metadata
+# and write the IDs back into it.
+assign_global_BC_IDs <- function(cellmeta, baseCond) {
+    bc_map <- build_BC_ID_map(cellmeta, baseCond)
+    cellmeta$CaTCH.BC_ID <- apply_BC_ID_map(cellmeta$CaTCH.BC_unique, bc_map)
+    print(sprintf(
+        "   Assigned %d CaTCH barcode ID(s), %d cell(s) remain 'BC_0'.",
+        nrow(bc_map), sum(as.character(cellmeta$CaTCH.BC_ID) == "BC_0")
+    ))
+    cellmeta
+}
+
+# The IDs are assigned by 'assign_barcode_ids.R' for the whole run, so they are
+# used as they are. Objects that never went through that step carry 'BC_0' for
+# every cell, in which case the IDs are ranked here instead, which keeps the DE
+# scripts usable on their own.
+ensure_global_BC_IDs <- function(cellmeta, baseCond) {
+    ids <- as.character(cellmeta$CaTCH.BC_ID)
+    if (!is.null(ids) && any(ids != "BC_0" & !is.na(ids))) {
+        print(sprintf(
+            "   Using the CaTCH barcode IDs of the provided objects, %d of %d cell(s) carry a ranked ID.",
+            sum(ids != "BC_0" & !is.na(ids)), length(ids)
+        ))
+        return(cellmeta)
+    }
+    print("   The provided objects carry no ranked CaTCH barcode IDs, ranking them from the reference condition ...")
+    assign_global_BC_IDs(cellmeta, baseCond)
+}
+
 # Pseudobulk counts of all SCE files. Every file is aggregated on its own and
 # only the resulting (genes x groups) matrix is kept, which is orders of
 # magnitude smaller than the SCE it came from. Genes are unioned across files,
@@ -753,6 +840,13 @@ run_deseq <- function(contrast, sampleData_all, countData_all, ...) {
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
     sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
+    # 'select(starts_with(...))' above returns the columns of A BEFORE the columns
+    # of B, while 'sampleData' keeps the order of the input metadata. DESeq2 and
+    # edgeR match the count columns to the sample annotation by position, so the
+    # counts are reordered to the sample order here. Without this the annotation
+    # of one condition is attached to the counts of the other and the reported
+    # fold changes come out inverted.
+    countData <- countData %>% dplyr::select(dplyr::all_of(as.character(sampleData$Sample)))
     samples <- sampleData$Sample
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
@@ -901,6 +995,13 @@ run_edger <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
         filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
     sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B[[1]])
+    # 'select(starts_with(...))' above returns the columns of A BEFORE the columns
+    # of B, while 'sampleData' keeps the order of the input metadata. DESeq2 and
+    # edgeR match the count columns to the sample annotation by position, so the
+    # counts are reordered to the sample order here. Without this the annotation
+    # of one condition is attached to the counts of the other and the reported
+    # fold changes come out inverted.
+    countData <- countData %>% dplyr::select(dplyr::all_of(as.character(sampleData$Sample)))
     samples <- colnames(countData) 
     degroups <- colnames(countData) %>% str_remove_all(., "_\\d")
     ## name types and levels for design
@@ -1000,10 +1101,20 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all) {
         filter_at(vars(starts_with(c(paste0(A, "_"), paste0(B, "_")))), all_vars(. > 0))
     sampleData <- sampleData_all %>%
         filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition))
+    # 'select(starts_with(...))' above returns the columns of A BEFORE the columns
+    # of B, while 'sampleData' keeps the order of the input metadata. DESeq2 and
+    # edgeR match the count columns to the sample annotation by position, so the
+    # counts are reordered to the sample order here. Without this the annotation
+    # of one condition is attached to the counts of the other and the reported
+    # fold changes come out inverted.
+    countData <- countData %>% dplyr::select(dplyr::all_of(as.character(sampleData$Replicate)))
     samples <- rownames(sampleData)
     sampleData <- sampleData %>% add_column(type = "none")
     sampleData <- sampleData %>% add_column(batch = "none")
-    sampleData$Condition <- factor(unique(sampleData$Condition), levels = unique(sampleData$Condition))
+    # 'factor(unique(x), levels = unique(x))' assigned only the DISTINCT conditions
+    # back into the column and R recycled them over the rows, so with more than one
+    # replicate per condition the samples were relabelled in an alternating pattern.
+    sampleData$Condition <- factor(as.character(sampleData$Condition), levels = unique(as.character(sampleData$Condition)))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
 
     ## Create design-table considering different types (paired, unpaired) and batches
@@ -1086,10 +1197,15 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all) {
         rownames_to_column("CaTCH.BC_ID"), countData, by = "CaTCH.BC_ID") %>%
         mutate(p.adj = as.numeric(as.character(padj))) %>%
         dplyr::select(-padj) %>%
-        group_by(CaTCH.BC_ID, Sample) %>%
+        group_by(CaTCH.BC_ID, p.adj) %>%
         summarise(across(everything(), ~ paste(unique(.x[!is.na(.x)]), collapse = ","))) %>%
         ungroup() %>%
         distinct() %>%
+        # 'summarise' pasted every column into a string, so the fold change is
+        # turned back into a number here. Otherwise it is sorted alphabetically
+        # and EnhancedVolcano rejects the table.
+        mutate(log2FoldChange = as.numeric(as.character(log2FoldChange))) %>%
+        relocate(p.adj, .after = log2FoldChange) %>%
         arrange(desc(log2FoldChange), p.adj)
 
         # write the table to a tsv file
@@ -1113,7 +1229,7 @@ run_deseq_bcs <- function(contrast, sampleData_all, countData_all) {
 
     r <- results(dds,
         alpha = 0.1,
-        contrast = c("Condition", t, ref.Condition)
+        contrast = c("Condition", A, B)
     ) %>%
         as_tibble(rownames = NA) %>%
         rownames_to_column("CaTCH.BC_ID") %>%
@@ -1153,7 +1269,14 @@ run_edger_bcs <- function(contrast, sampleData_all, countData_all, bcv = 0.1) {
         filter(grepl(paste0("^", A, "$"), Condition) | grepl(paste0("^", B, "$"), Condition)) 
     sampleData$Condition <- factor(sampleData$Condition, levels = unique(sampleData$Condition))
     sampleData$Condition <- relevel(sampleData$Condition, ref = B)
-    samples <- sampleData$Sample
+    # 'select(starts_with(...))' above returns the columns of A BEFORE the columns
+    # of B, while 'sampleData' keeps the order of the input metadata. DESeq2 and
+    # edgeR match the count columns to the sample annotation by position, so the
+    # counts are reordered to the sample order here. Without this the annotation
+    # of one condition is attached to the counts of the other and the reported
+    # fold changes come out inverted.
+    countData <- countData %>% dplyr::select(dplyr::all_of(as.character(sampleData$Replicate)))
+    samples <- sampleData$Replicate
     degroups <- colnames(countData) %>% str_remove_all(., "_\\d")
     ## name types and levels for design
     bl <- sapply("batch", paste0, levels(sampleData$batch)[1:length(levels(sampleData$batch)) - 1])

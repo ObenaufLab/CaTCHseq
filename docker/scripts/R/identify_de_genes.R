@@ -86,7 +86,7 @@ library(ComplexHeatmap)
 ref.Condition <- opt$baseCond
 
 ### Generate Pseudobulk ####
-# Every SCE file of this sample tag is aggregated on its own and only the small
+# Every SCE file of the run is aggregated on its own and only the small
 # pseudobulk matrices are combined, so the count matrix covers all conditions
 # and replicates without ever holding all SCE objects in memory at once.
 pb <- aggregate_SCE_pseudobulk(opt$sce, assay = "RNA", group.by = "pca_cluster")

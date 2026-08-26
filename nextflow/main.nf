@@ -876,7 +876,11 @@ process preprocessSingleCellData{
 
     publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
-        if(params.filter){
+        // The '*_filtered_*' objects are published by 'annotateBarcodeIDs', which
+        // adds the run wide CaTCH barcode IDs to them. Publishing them here as
+        // well would overwrite the annotated objects with the unannotated ones.
+        if (filename.indexOf("_filtered_") > 0 && filename.indexOf(".rds.gz") > 0) null
+        else if(params.filter){
             if (filename.indexOf(".rds.gz") > 0)        "OUTPUT/SCE/filtered/${file(filename).getName()}"
             else if (filename.indexOf(".pdf") > 0)      "OUTPUT/Plots/Overview/${file(filename).getName()}"
             else                                        "OUTPUT/SCE/filtered/${file(filename).getName()}"
@@ -930,6 +934,52 @@ process preprocessSingleCellData{
     """
 }
 
+
+/************************************************************************
+        STEP 8b: Assign run wide CaTCH barcode IDs to all SCE objects
+************************************************************************/
+// 'preprocessData.R' runs on a single library and therefore on a single
+// condition, so it can not rank the CaTCH barcodes of the reference condition
+// and can not produce IDs that mean the same thing in another library. The IDs
+// are ranked once from all cells of the reference condition here and written
+// into every object of the run, which is also why the '*_filtered_*' objects are
+// published by this process instead of 'preprocessSingleCellData'.
+process annotateBarcodeIDs{
+
+    cache 'lenient'
+    tag "${sampleTag}"
+
+    publishDir "${params.absDir}/", mode: 'link',
+    saveAs: {filename ->
+        if (filename.indexOf(".tsv") > 0)           "OUTPUT/DE/BarCodes/${file(filename).getName()}"
+        else if(params.filter)                      "OUTPUT/SCE/filtered/${file(filename).getName()}"
+        else                                        "OUTPUT/SCE/raw/${file(filename).getName()}"
+    }
+
+    input:
+        tuple val(sampleTag), path(sces)
+
+    output:
+        tuple val(sampleTag), path("annotated/*_filtered_seurat_sce.rds.gz"), emit: seurat_sce
+        tuple val(sampleTag), path("annotated/*_filtered_sce.rds.gz"), emit: sce
+        path("*_CaTCH_barcode_IDs.tsv"), emit: bcids, optional: true
+
+    script:
+    if (params.filter){
+        outname = "${sampleTag}_CaTCHseq.prefiltered"
+    }else{
+        outname = "${sampleTag}_CaTCHseq"
+    }
+    scelist = (sces instanceof List) ? sces.join(',') : "${sces}"
+    """
+    Rscript --vanilla ${params.scriptDirR}assign_barcode_ids.R \
+        --sce ${scelist} \
+        --baseCond ${params.refName} \
+        --outdir annotated \
+        --out ${outname} \
+        --libpath ${params.scriptDirR}
+    """
+}
 
 /************************************************************************
                     STEP 9: Generate overview plots
@@ -1435,6 +1485,27 @@ workflow{
         preprocessSingleCellData(Ch_preprocess_input)
 
         /**************************************************************
+                STEP 8b: Assign run wide CaTCH barcode IDs
+        ***************************************************************/
+        // The CaTCH barcode IDs can only be ranked when the cells of the reference
+        // condition are known, which is not the case inside a single library.
+        // EVERY object of the run is therefore collected into one task here, and
+        // all downstream steps use the annotated objects.
+        Ch_annotate_input = preprocessSingleCellData.out.basic_seurat_sce
+                                              .mix(preprocessSingleCellData.out.basic_sce)
+                                              .map { sampleTag, sampleName, sce -> tuple(sampleTag, sce) }
+                                              .toList()
+                                              .map { rows ->
+                                                  // sorted so the task hash stays stable across resumes
+                                                  def sorted = rows.sort { row -> "${row[1].getName()}" }
+                                                  def tags = sorted.collect { row -> row[0] }.unique().sort()
+                                                  def detag = (tags.size() > 3) ? 'allSamples' : tags.join('-')
+                                                  tuple(detag, sorted.collect { row -> row[1] })
+                                              }
+
+        annotateBarcodeIDs(Ch_annotate_input)
+
+        /**************************************************************
                 STEP 9: Generate overview plots
         ***************************************************************/
         createOverviewPlots(preprocessSingleCellData.out.basic_seurat_sce)
@@ -1444,21 +1515,10 @@ workflow{
         ***************************************************************/
         def Ch_multi_conditions = Ch_Conditions.multi.collect()
 
-        // DE analysis is NOT run per library or per sample. 'preprocessSingleCellData'
-        // emits one SCE per library, so EVERY SCE of the run is collected into a single
-        // DE task, otherwise the count matrix would only cover the conditions of one
-        // sample tag. Sample names can differ between conditions, so grouping by tag
-        // would leave a single condition per task and the DE analysis would fail.
-        Ch_de_input = preprocessSingleCellData.out.basic_seurat_sce
-                                              .map { sampleTag, sampleName, sce -> tuple(sampleTag, sce) }
-                                              .toList()
-                                              .map { rows ->
-                                                  // sorted so the task hash stays stable across resumes
-                                                  def sorted = rows.sort { "${it[1].getName()}" }
-                                                  def tags = sorted.collect { it[0] }.unique().sort()
-                                                  def detag = (tags.size() > 3) ? 'allSamples' : tags.join('-')
-                                                  tuple(detag, sorted.collect { it[1] })
-                                              }
+        // DE analysis is NOT run per library or per sample. All annotated Seurat
+        // objects of the run go into a single DE task, otherwise the count matrix
+        // would only cover the conditions of one library.
+        Ch_de_input = annotateBarcodeIDs.out.seurat_sce
         
         if (params.de_method == 'barbieq'){
             calculateBarcodeEnrichmentBarbieq(Ch_de_input, Ch_multi_conditions)
