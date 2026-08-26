@@ -1444,12 +1444,21 @@ workflow{
         ***************************************************************/
         def Ch_multi_conditions = Ch_Conditions.multi.collect()
 
-        // DE analysis is NOT run per library. 'preprocessSingleCellData' emits one
-        // SCE per library, so all SCEs of a sample tag are grouped here to build
-        // count matrices covering every condition and replicate of that tag.
+        // DE analysis is NOT run per library or per sample. 'preprocessSingleCellData'
+        // emits one SCE per library, so EVERY SCE of the run is collected into a single
+        // DE task, otherwise the count matrix would only cover the conditions of one
+        // sample tag. Sample names can differ between conditions, so grouping by tag
+        // would leave a single condition per task and the DE analysis would fail.
         Ch_de_input = preprocessSingleCellData.out.basic_seurat_sce
                                               .map { sampleTag, sampleName, sce -> tuple(sampleTag, sce) }
-                                              .groupTuple()
+                                              .toList()
+                                              .map { rows ->
+                                                  // sorted so the task hash stays stable across resumes
+                                                  def sorted = rows.sort { "${it[1].getName()}" }
+                                                  def tags = sorted.collect { it[0] }.unique().sort()
+                                                  def detag = (tags.size() > 3) ? 'allSamples' : tags.join('-')
+                                                  tuple(detag, sorted.collect { it[1] })
+                                              }
         
         if (params.de_method == 'barbieq'){
             calculateBarcodeEnrichmentBarbieq(Ch_de_input, Ch_multi_conditions)
