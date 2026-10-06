@@ -11,6 +11,9 @@ option_list <- list(
         type = "character", default = NULL,
         help = "Reference condition the barcode IDs are derived from"
     ),
+    make_option(c("--output_anndata"), type = "character", default = "false",
+        help = "export annotated Seurat objects as AnnData (true/false)"
+    ),
     make_option(c("--outdir"),
         type = "character", default = "annotated",
         help = "directory the annotated objects are written to, default 'annotated'"
@@ -35,6 +38,8 @@ if (is.null(opt$sce) || is.null(opt$baseCond)) {
 
 #### Source Functions ####
 source(paste0(opt$libpath, "singlecell_utils.R"))
+source(paste0(opt$libpath, "object_exports.R"))
+opt$output_anndata <- parse_object_flag(opt$output_anndata, "output_anndata")
 
 ########################################################
 library(tidyverse)
@@ -130,6 +135,9 @@ for (i in seq_along(paths)) {
     }
 
     saveRDS(obj, file = outfile, compress = "gzip")
+    if (opt$output_anndata && inherits(obj, "Seurat")) {
+        write_anndata(obj, sub("_seurat_sce\\.rds\\.gz$", ".h5ad", outfile))
+    }
     rm(obj)
     gc(verbose = FALSE)
 }

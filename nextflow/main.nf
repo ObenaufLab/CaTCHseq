@@ -57,6 +57,18 @@ params.pvalcutoff = params.pval_cutoff ?: params.pvalCutoff
 params.lfccutoff = params.lfc_cutoff ?: params.lfcCutoff
 
 
+def objectFlag(value, name) {
+    def text = value?.toString()?.toLowerCase()
+    if (!(text in ['true', 'false'])) {
+        error "--${name} must be true or false"
+    }
+    return text == 'true'
+}
+params.output_seurat = objectFlag(params.output_seurat, 'output_seurat')
+params.output_sce = objectFlag(params.output_sce, 'output_sce')
+params.output_anndata = objectFlag(params.output_anndata, 'output_anndata')
+params.run_sct = objectFlag(params.run_sct, 'run_sct')
+
 def helpMessage() {
     log.info"""
     ======================================================================
@@ -118,6 +130,10 @@ def helpMessage() {
                 --max_mt_percent        Maximum mitochondrial read percentage (default: ${params.maxmtpercent})
                 --min_detected_features Minimum detected features cutoff (default: ${params.mindetectedfeatures})
                 --hvg_cutoff            Highly variable genes cutoff (default: ${params.hvgcutoff})
+                --output_seurat         Publish Seurat objects (true/false, default: ${params.output_seurat})
+                --output_sce            Process/publish SingleCellExperiment objects (true/false, default: ${params.output_sce})
+                --output_anndata        Publish AnnData .h5ad objects (true/false, default: ${params.output_anndata})
+                --run_sct               Run SCTransform and SCT reductions/clustering (true/false, default: ${params.run_sct})
                 --pval_cutoff           P-value cutoff for DE analysis (default: ${params.pvalcutoff})
                 --lfc_cutoff            Log-fold-change cutoff for DE analysis (default: ${params.lfccutoff})
                 --de_method             Method for the CaTCH barcode DE analysis (choice: ["barbieq", "deseq2"], default: ${params.de_method}; "deseq2" runs the legacy DESeq2/edgeR analysis)
@@ -896,9 +912,10 @@ process preprocessSingleCellData{
 
     output:
         tuple val(sampleTag), val(sampleName), path("*_filtered_seurat_sce.rds.gz"), emit: basic_seurat_sce
-        tuple val(sampleTag), val(sampleName), path("*_filtered_sce.rds.gz"), emit: basic_sce
-        tuple val(sampleTag), val(sampleName), path("*_unfiltered_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce
-        tuple val(sampleTag), val(sampleName), path("*_unfiltered_sce.rds.gz"), emit: basic_raw_sce
+        tuple val(sampleTag), val(sampleName), path("*_filtered_sce.rds.gz"), emit: basic_sce, optional: true
+        tuple val(sampleTag), val(sampleName), path("*_unfiltered_seurat_sce.rds.gz"), emit: basic_raw_seurat_sce, optional: true
+        tuple val(sampleTag), val(sampleName), path("*_unfiltered_sce.rds.gz"), emit: basic_raw_sce, optional: true
+        tuple val(sampleTag), val(sampleName), path("*_unfiltered.h5ad"), emit: basic_raw_anndata, optional: true
         tuple val(sampleTag), val(sampleName), path("*.pdf"), emit: basic_sce_qc, optional: true
 
     script:
@@ -928,6 +945,10 @@ process preprocessSingleCellData{
        --max_mt ${params.maxmtpercent} \
        --min_features ${params.mindetectedfeatures} \
        --hvg_cutoff ${params.hvgcutoff} \
+       --output_seurat ${params.output_seurat} \
+       --output_sce ${params.output_sce} \
+       --output_anndata ${params.output_anndata} \
+       --run_sct ${params.run_sct} \
        --out ${outprefix} \
        --marker ${params.markerfile} \
        --libpath ${params.scriptDirR}
@@ -951,7 +972,8 @@ process annotateBarcodeIDs{
 
     publishDir "${params.absDir}/", mode: 'link',
     saveAs: {filename ->
-        if (filename.indexOf(".tsv") > 0)           "OUTPUT/DE/BarCodes/${file(filename).getName()}"
+        if (!params.output_seurat && filename.endsWith('_seurat_sce.rds.gz')) null
+        else if (filename.indexOf(".tsv") > 0)      "OUTPUT/DE/BarCodes/${file(filename).getName()}"
         else if(params.filter)                      "OUTPUT/SCE/filtered/${file(filename).getName()}"
         else                                        "OUTPUT/SCE/raw/${file(filename).getName()}"
     }
@@ -961,7 +983,8 @@ process annotateBarcodeIDs{
 
     output:
         tuple val(sampleTag), path("annotated/*_filtered_seurat_sce.rds.gz"), emit: seurat_sce
-        tuple val(sampleTag), path("annotated/*_filtered_sce.rds.gz"), emit: sce
+        tuple val(sampleTag), path("annotated/*_filtered_sce.rds.gz"), emit: sce, optional: true
+        tuple val(sampleTag), path("annotated/*_filtered.h5ad"), emit: anndata, optional: true
         path("*_CaTCH_barcode_IDs.tsv"), emit: bcids, optional: true
 
     script:
@@ -976,6 +999,7 @@ process annotateBarcodeIDs{
         --sce ${scelist} \
         --baseCond ${params.refName} \
         --outdir annotated \
+        --output_anndata ${params.output_anndata} \
         --out ${outname} \
         --libpath ${params.scriptDirR}
     """
@@ -1257,6 +1281,10 @@ workflow{
  |   max_mt_percent          : ${params.maxmtpercent}
  |   min_detected_features   : ${params.mindetectedfeatures}
  |   hvg_cutoff              : ${params.hvgcutoff}
+ |   output_seurat           : ${params.output_seurat}
+ |   output_sce              : ${params.output_sce}
+ |   output_anndata          : ${params.output_anndata}
+ |   run_sct                 : ${params.run_sct}
  |   pval_cutoff             : ${params.pvalcutoff}
  |   lfc_cutoff              : ${params.lfccutoff}
  |   de_method               : ${params.de_method}
