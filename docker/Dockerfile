@@ -93,3 +93,7 @@ RUN     pip install --break-system-packages --no-cache-dir multiqc
 LABEL   maintainer="joerg.fallmann@imp.ac.at"
 LABEL   version="4.0"
 LABEL   release-date="2026-08-26"
+ENV BASILISK_USE_SYSTEM_DIR=1
+RUN XDG_DATA_HOME=/opt \
+    PYENV_ROOT=/opt/r-reticulate/pyenv \
+    Rscript --vanilla -e 'env <- zellkonverter::zellkonverterAnnDataEnv(); basilisk::setupBasiliskEnv(file.path(system.file(package="zellkonverter"), "basilisk", methods::slot(env, "envname")), packages = zellkonverter::AnnDataDependencies()); sce <- SingleCellExperiment::SingleCellExperiment(assays = list(logcounts = matrix(1, 1, 1, dimnames = list("gene", "cell")))); path <- tempfile(fileext = ".h5ad"); zellkonverter::writeH5AD(sce, path, X_name = "logcounts"); stopifnot(file.info(path)$size > 0); unlink(path)'
