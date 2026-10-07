@@ -55,6 +55,7 @@ params.mindetectedfeatures = params.min_detected_features ?: params.minDetectedF
 params.hvgcutoff = params.hvg_cutoff ?: params.hvgCutoff
 params.pvalcutoff = params.pval_cutoff ?: params.pvalCutoff
 params.lfccutoff = params.lfc_cutoff ?: params.lfcCutoff
+params.refName = params.baseline ?: params.refName
 
 
 def objectFlag(value, name) {
@@ -101,7 +102,7 @@ def helpMessage() {
                 --reportsDir            specifies the reports directory.(default: ${params.reportsDir})
                 --scriptDirR            specifies the path to the R scripts directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /tools/scripts/R/ which is valid for docker instance; set to \${params.absDir}/CaTCHseq/docker/scripts/R/ for instances not running docker)
                 --scriptDirPy           specifies the path to the Python scripts directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /tools/scripts/python/ which is valid for docker instance; set to \${params.absDir}/CaTCHseq/docker/scripts/python/ for instances not running docker)
-                --binDir                specifies the path to the binary directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /usr/bin/local which is valid for docker instance; set to '' for instances not running docker)
+                --binDir                specifies the path to the binary directory, do not change if running with docker, otherwise set to path on CaTCHseq git repo.(default: /usr/local/bin/ which is valid for docker instance; set to '' for instances not running docker)
                 --mapper                Which mapper to run (default: CellRanger, optional: STAR)
                 --index                 Path to mapper index directory (default: ${params.mapindex}, NEEDS TO BE SET ALSO TO CREATE NEW INDEX, new index will be stored at given path)
                 --reference             Path to reference fasta.gz
@@ -1273,6 +1274,7 @@ workflow{
  |   clusterMethodCaTCH      : ${params.clusterMethodCaTCH}
  |   clusterMethodUMIs       : ${params.clusterMethodUMIs}
  |   majorityVote            : ${params.majorityVote}
+ |   stringency              : ${params.stringency}
  |   uniqueCaTCH             : ${params.uniqueCaTCH}
  |   min_detected_barcodes   : ${params.minBC}
  |   singlet_cutoff          : ${params.singletcutoff}

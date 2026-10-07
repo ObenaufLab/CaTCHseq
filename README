@@ -23,12 +23,21 @@ Key inputs
 
 Major parameters
 ----------------
+The authoritative list (including defaults) is `nextflow run nextflow/main.nf --help`; the same set is echoed at the start of every run. The full list:
+- Output locations and code paths
+	- `--outputDir` (default `./CaTCHseq_nf_OUTPUT`) and `--reportsDir` (default `./REPORTS`).
+	- `--scriptDirR`, `--scriptDirPy`, `--binDir`: script/binary paths; keep the defaults (`/tools/scripts/R/`, `/tools/scripts/python/`, `/usr/local/bin/`) when running with Docker, otherwise point them at the checked-out repo.
 - General
 	- `--mapper` (CellRanger|STAR) and mapper-specific params `--cellranger_params`, `--star_params`, `--idx_params`.
 	- `--withQC` to run FastQC/MultiQC; `--fastqc_params` for extra options.
 	- `--chunkSize` read chunking for barcode counting.
 	- `--minReads` minimum reads per CaTCH barcode; `--filter` to use filtered counts.
-	- `--min_detected_barcodes`, `--singlet_cutoff`, `--bc1_cutoff`, `--bc2_cutoff` for downstream classification.
+	- `--stopOnWarnings` stop the pipeline when a task warns (default true); `--help` prints the usage message.
+
+- Cell calling / CaTCH barcode classification
+	- `--min_detected_barcodes` (default 10) minimum CaTCH barcode reads per cell.
+	- `--singlet_cutoff` (default 0.8), `--bc1_cutoff` (default 0.4), `--bc2_cutoff` (default 0.3) classify cells as Singlet / Double_Integration.
+	- `--stringency` (default|stringent|lenient, default default) fixed-elements filter applied to the raw barcode sequence.
 
 - Barcode/UMI collapsing (umi_tools-backed)
 	- Distance cutoffs:
@@ -39,14 +48,22 @@ Major parameters
 		- `--clusterMethodCaTCH` (directional/adjacency/cluster, default directional).
 		- `--clusterMethodUMIs` (directional/adjacency/cluster, default directional).
 	- Uniqueness toggle: `--uniqueCaTCH` (true/false) to enable umi_tools-based collapsing; otherwise Hamming distance.
+	- `--majorityVote` (default 90) share of reads the most frequent barcode needs to resolve a multiplet.
+
+- Cell filtering, normalisation and object outputs
+	- `--max_mt_percent` (default 10), `--min_detected_features` (default 500), `--hvg_cutoff` (default 0.1) filter cells and call highly variable genes.
+	- `--output_seurat` (default true), `--output_sce` (default false), `--output_anndata` (default true) select which single-cell object types are produced and published.
+	- `--run_sct` (default false) run SCTransform normalisation and SCT reductions/clustering instead of LogNormalize.
+	- `--organism` (Human|Mouse) used for pathway analysis of DE genes; `--marker` RDS file with cell-cycle stage markers.
 
 - CaTCH barcode differential enrichment
 	- `--de_method` (barbieq|deseq2, default barbieq) selects the analysis method. `deseq2` runs the legacy DESeq2/edgeR analysis.
-	- barbieQ computes per-sample diversity (Shannon/Simpson) and dominance (Simpson's D, Berger-Parker) indices and tests differential barcode proportions of every condition against the reference condition (`--refName`).
+	- barbieQ computes per-sample diversity (Shannon/Simpson) and dominance (Simpson's D, Berger-Parker) indices and tests differential barcode proportions of every condition against the reference condition (`--baseline`, default `Day0`; the legacy param name `--refName` is still accepted).
 	- `--de_min_count` (default 10, 0 disables) drops barcodes whose summed count within the two contrasted conditions is below the cutoff; applied per comparison.
 	- `--de_min_replicates` (default 2) minimum replicates in a condition required to run differential testing.
 	- `--de_all_vs_all` additionally tests every condition against every other condition into a separate table.
 	- `--de_rds` optional precomputed barbieQ `.rds` to reuse instead of rebuilding the object, needs to be an absolute path accessible from the task.
+	- `--pval_cutoff` (default 0.1) and `--lfc_cutoff` (default 1) set the p-value and log-fold-change cutoffs for the DE plots and tables.
 	- As before, the barcode DE analysis runs once per sample tag over all its conditions and replicates, and is skipped entirely when fewer than two conditions are present.
 
 Pipeline steps (high level)
@@ -63,9 +80,17 @@ CLI mapping for collapse script
 - Nextflow params map to `collapseCaTCHbarcodes.py`:
 	- `--clusterMethodCaTCH` → `--cluster-method-catch`
 	- `--clusterMethodUMIs`  → `--cluster-method-umis`
+	- `--maxDist`            → `--maxdist`
 	- `--maxDistCaTCH`       → `--maxdist-catch`
 	- `--maxDistUMIs`        → `--maxdist-umis`
+	- `--uniqueCaTCH`        → `--unique`
+	- `--minReads`           → `--minsupport`
 - All default to the original behaviour (directional, distance 1) if not set.
+
+Helper scripts
+--------------
+- Every Python script in `docker/scripts/python/` and every R script in `docker/scripts/R/` (including `docker/scripts/R/optional/`) exposes its own `--help`/usage message listing all accepted options with defaults; run e.g. `collapseCaTCHbarcodes.py --help` or `Rscript preprocessData.R --help`.
+- The pipeline invokes these scripts with the option values derived from the Nextflow params listed above, so the Nextflow options are the user-facing interface.
 
 Outputs
 -------
