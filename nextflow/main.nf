@@ -445,6 +445,10 @@ process useCellrangerData{
         ln -fs ${sampleName}/filtered_feature_bc_matrix ${sampleName}_filtered_feature_bc_matrix
         ln -fs ${sampleName}/raw_feature_bc_matrix ${sampleName}_raw_feature_bc_matrix
         zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv 
+        PROJDIR=${sampleName}/analysis/tsne/gene_expression_2_components
+        if [ -f \${PROJDIR}/projection.csv.gz ] && [ ! -f \${PROJDIR}/projection.csv ]; then
+            zcat \${PROJDIR}/projection.csv.gz > \${PROJDIR}/projection.csv
+        fi
         """
 }
 
