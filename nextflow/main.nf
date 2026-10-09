@@ -422,12 +422,9 @@ process useCellrangerData{
     //label 'big_mem'
     tag "${sampleName}"
 
-    publishDir "${params.absDir}/", mode: 'link',
-    saveAs: {filename ->
-        if (filename.indexOf("feature_bc_matrix") >0)       "OUTPUT/CellRanger/${file(filename).getName()}"
-        else if (filename.indexOf("projection.csv") >0)     "OUTPUT/CellRanger/${sampleName}/tSNEs/gene_expression_2_components/projection.csv"
-        else                                                "OUTPUT/CellRanger/${file(filename).getName()}"
-    }
+    // No publishDir here: the source data the user points R1 at is, by definition,
+    // already where they want it. Republishing risked writing back onto that same
+    // path (via publishDir's default overwrite) and destroying the original.
 
     input:
         tuple val(sampleName), path("cr_data")
@@ -441,13 +438,25 @@ process useCellrangerData{
 
     script:
         """
-        mv cr_data ${sampleName}
+        # Materialize real, independent copies of only what we need. Never write
+        # into "cr_data" itself: it may be (or contain) a symlink straight back to
+        # the user's original, externally-owned CellRanger output directory.
+        mkdir -p ${sampleName}/analysis/tsne/gene_expression_2_components
+        cp -rL cr_data/filtered_feature_bc_matrix ${sampleName}/filtered_feature_bc_matrix
+        cp -rL cr_data/raw_feature_bc_matrix ${sampleName}/raw_feature_bc_matrix
         ln -fs ${sampleName}/filtered_feature_bc_matrix ${sampleName}_filtered_feature_bc_matrix
         ln -fs ${sampleName}/raw_feature_bc_matrix ${sampleName}_raw_feature_bc_matrix
-        zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv 
-        PROJDIR=${sampleName}/analysis/tsne/gene_expression_2_components
-        if [ -f \${PROJDIR}/projection.csv.gz ] && [ ! -f \${PROJDIR}/projection.csv ]; then
-            zcat \${PROJDIR}/projection.csv.gz > \${PROJDIR}/projection.csv
+        zcat ${sampleName}_raw_feature_bc_matrix/barcodes.tsv.gz > ${sampleName}_raw_feature_bc_matrix/barcodes.tsv
+
+        PROJDIR=cr_data/analysis/tsne/gene_expression_2_components
+        OUTPROJ=${sampleName}/analysis/tsne/gene_expression_2_components/projection.csv
+        if [ -f \${PROJDIR}/projection.csv.gz ]; then
+            zcat \${PROJDIR}/projection.csv.gz > \${OUTPROJ}
+        elif [ -f \${PROJDIR}/projection.csv ]; then
+            cp -L \${PROJDIR}/projection.csv \${OUTPROJ}
+        else
+            echo "ERROR: no projection.csv(.gz) found under \${PROJDIR}" >&2
+            exit 1
         fi
         """
 }
