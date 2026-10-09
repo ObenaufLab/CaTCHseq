@@ -28,10 +28,10 @@ anndata_transfer_object <- function(object) {
 }
 
 write_anndata <- function(object, path) {
-    if (!requireNamespace("zellkonverter", quietly = TRUE)) {
-        stop("AnnData output requires the Bioconductor package 'zellkonverter'; rebuild the CaTCHseq container")
+    if (!requireNamespace("anndataR", quietly = TRUE)) {
+        stop("AnnData output requires the Bioconductor package 'anndataR'; rebuild the CaTCHseq container")
     }
-    zellkonverter::writeH5AD(anndata_transfer_object(object), path,
-        X_name = "logcounts", compression = "gzip"
+    anndataR::write_h5ad(anndata_transfer_object(object), path,
+        x_mapping = "logcounts", compression = "gzip"
     )
 }

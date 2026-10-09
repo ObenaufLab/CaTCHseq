@@ -93,8 +93,4 @@ RUN     pip install --break-system-packages --no-cache-dir multiqc
 LABEL   maintainer="joerg.fallmann@imp.ac.at"
 LABEL   version="4.0"
 LABEL   release-date="2026-08-26"
-ENV BASILISK_USE_SYSTEM_DIR=1
-RUN XDG_DATA_HOME=/opt \
-    PYENV_ROOT=/opt/r-reticulate/pyenv \
-    Rscript --vanilla -e 'env <- zellkonverter::zellkonverterAnnDataEnv(); basilisk::setupBasiliskEnv(file.path(system.file(package="zellkonverter"), "basilisk", methods::slot(env, "envname")), packages = zellkonverter::AnnDataDependencies())'
-RUN Rscript --vanilla -e 'sce <- SingleCellExperiment::SingleCellExperiment(assays = list(logcounts = matrix(c(1, 0, 0, 1), 2, 2, dimnames = list(c("gene1", "gene2"), c("cell1", "cell2"))))); path <- tempfile(fileext = ".h5ad"); zellkonverter::writeH5AD(sce, path, X_name = "logcounts"); back <- zellkonverter::readH5AD(path); stopifnot(identical(dimnames(back), dimnames(sce)), isTRUE(all.equal(SummarizedExperiment::assay(back, "logcounts"), SummarizedExperiment::assay(sce, "logcounts")))); unlink(path)'
+RUN Rscript --vanilla -e 'sce <- SingleCellExperiment::SingleCellExperiment(assays = list(logcounts = matrix(c(1, 0, 0, 1), 2, 2, dimnames = list(c("gene1", "gene2"), c("cell1", "cell2"))))); path <- tempfile(fileext = ".h5ad"); anndataR::write_h5ad(sce, path, x_mapping = "logcounts"); back <- anndataR::read_h5ad(path)$as_SingleCellExperiment(); stopifnot(identical(dimnames(back), dimnames(sce)), isTRUE(all.equal(SummarizedExperiment::assay(back, "X"), SummarizedExperiment::assay(sce, "logcounts")))); unlink(path)'
