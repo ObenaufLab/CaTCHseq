@@ -12,7 +12,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO / "nextflow" / "conf" / "pipseq"
-PIPSPEAK_IMAGE = "catchseq-pipspeak:e2524c7"
+PIPSPEAK_IMAGE = "ghcr.io/obenauflab/pipspeak:latest"
 MAIN_IMAGE = "ghcr.io/obenauflab/catchseq:latest"
 GEX_ADAPTER = "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT"
 NEXTFLOW = os.environ.get("NEXTFLOW_BIN") or shutil.which("nextflow")
