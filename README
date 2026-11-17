@@ -16,23 +16,102 @@ nextflow run nextflow/main.nf \
 
 Key inputs
 ----------
-- `--libraries` (CSV, required): columns SampleName, Condition, Replicate, LibraryType (GEX|CaTCHseq), R1, R2, CellNumber, Chemistry.
+- `--libraries` (CSV, required): columns SampleName, Condition, Replicate, LibraryType (GEX|CaTCHseq), R1, R2, CellNumber, Chemistry (e.g. 10X, ScaleBio, PIPseq).
 - Reference inputs vary by mapper:
 	- CellRanger: `--index` (transcriptome), `--reference`, `--annotation` as needed for building indexes.
 	- STARsolo: `--index`, `--reference`, `--annotation`, optional `--whitelist`.
+
+PIPseq libraries
+----------------
+PIPseq libraries are converted to 10X compatible FASTQ with the `pipspeak` tool before mapping. The bundled configuration is the VBCF configuration `configs/20261107` of commit `e2524c786f33c1a73650c865eb82e5a0601a50d9` of the in-house repository https://ngs.vbcf.ac.at/repo/software/pipspeak.git, copied verbatim into `nextflow/conf/pipseq/pipspeak.yaml`. That repository derives from the MIT licensed upstream https://github.com/noamteyssier/pipspeak (Copyright (c) 2023 Noam Teyssier); the upstream licence and attribution apply to the derived source.
+
+- `pipspeak.yaml` (source name `20250716_config.yaml`) referencing `bc1_custom_primer.txt`, `bc2.txt` and `bc3.txt` (96 barcodes of 8 nt each, 24 nt concatenated barcode) with the spacers `AACC` and `ACAG`.
+- Read 1 layout: 8 nt phase, barcode 1, `AACC`, barcode 2, `ACAG`, barcode 3, `CCTATTCGAG`, 12 nt UMI. `--offset 8` is a search window of up to 8 nt from the start of R1 in which a barcode is accepted, not a required exactly 8 nt phase, so reads with a shorter phase still match. pipspeak runs with `--offset 8 --umi-offset 10 --umi-len 12` and emits `<prefix>_R1.fq.gz` with the corrected 24 nt barcode plus 12 nt UMI, the unchanged passing R2, `<prefix>_log.yaml`, `<prefix>_whitelist.txt` (barcode plus UMI, not the barcode alone) and the QC TSVs.
+
+Select PIPseq through the chemistry column of the samplesheet:
+
+```
+SampleName,Condition,Replicate,Lane,LibraryType,R1,R2,CellNumber,Chemistry
+PIPseqDay0,Day0,1,1,GEX,/data/pip_GEX_R1.fastq.gz,/data/pip_GEX_R2.fastq.gz,5000,PIPseq
+PIPseqDay0,Day0,1,1,CaTCHseq,/data/pip_CaTCH_R1.fastq.gz,/data/pip_CaTCH_R2.fastq.gz,NA,PIPseq
+```
+
+The samplesheet checker requires the same chemistry for all rows of a sample (GEX, CaTCHseq and lanes), paired `.fastq.gz` files for PIPseq rows and a library type of `GEX` or `CaTCHseq`.
+
+The `preprocessPipseq` process validates that every lane is paired and has the same number of R1/R2 records, merges the lanes in lane order, runs pipspeak on a task owned copy of the configuration and validates that the converted R1/R2 are non empty and paired before mapping. GEX libraries are additionally trimmed with `cutadapt -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT --minimum-length 20`; CaTCHseq R2 reads are passed on untrimmed.
+
+Settings (defaults in `nextflow/conf/default-params.config`):
+
+- `--pipseq_config` (optional, default `nextflow/conf/pipseq/pipspeak.yaml`). The default YAML ships with the barcode lists it references, so a run with the bundled chemistry needs no flag. Pass `--pipseq_config` only for a customized chemistry; every barcode list is resolved as a path relative to the directory of the selected YAML, so `../sibling/list.txt` and nested paths are allowed while absolute paths are rejected. Only the selected YAML and the lists it references are staged into the task work directory, each list under its own indexed directory, so the task reads a task owned copy, the originals are never modified and the Nextflow cache keys on the staged content. Barcode lists must have uniform length and sum to `--pipseq_cb_length`.
+- `--pipseq_cb_length` (24), `--pipseq_umi_length` (12), `--pipseq_offset` (8), `--pipseq_umi_offset` (10), `--pipseq_exact` (false). A `parameters.umi_len` in the YAML overrides the CLI value inside pipspeak, so the helper rejects a mismatch instead of silently using the YAML value.
+- `--pipseq_clip3p` (0) adds `--clip3pNbases` to STARsolo for PIPseq libraries.
+- `--pipseq_container` (default `catchseq-pipspeak:e2524c7`), built with `docker build -t catchseq-pipspeak:e2524c7 docker/pipspeak`. The image compiles pipspeak from `docker/pipspeak/source.tar.gz` with `--locked` against the tracked `docker/pipspeak/Cargo.lock` and adds cutadapt 5.0 and PyYAML 6.0.2.
+
+Building the PIPseq image
+-------------------------
+`docker/pipspeak/source.tar.gz` is a local build input and is not tracked; `.gitignore` excludes it. Regenerate it from an authorized checkout of the VBCF repository at the pinned commit and build the image:
+
+```bash
+git -C /path/to/vbcf-pipspeak archive e2524c786f33c1a73650c865eb82e5a0601a50d9 Cargo.toml src LICENSE README.md | gzip > docker/pipspeak/source.tar.gz
+docker build -t catchseq-pipspeak:e2524c7 docker/pipspeak
+```
+
+The archive does not need to carry `Cargo.lock`: the Dockerfile copies the tracked `docker/pipspeak/Cargo.lock` over the extracted source before `cargo build --release --locked`, so the checked-in lock is authoritative. The image is built locally and is not pushed to a public registry. Users without access to the VBCF repository cannot rebuild it from source and need a released image or an authorized checkout; reproducibility is not claimed without that source access.
+
+Running the PIPseq preprocessing without a container
+----------------------------------------------------
+`preprocessPipseq` calls `docker/scripts/python/preparePipseq.py`, which needs `pipspeak`, `cutadapt` and PyYAML. `pipspeak` is not packaged on conda-forge or bioconda (the package API returns 404 for both), so there is no `conda install pipspeak` and no `pip install pipspeak`; those dependencies are only available through the image or a source build. A conda-forge environment can supply the rest (`python=3.12`, `rust`, `pip`, then `pip install cutadapt==5.0 PyYAML==6.0.2` to match the image). For a pinned native build, export the source to a temporary directory, copy the tracked lock next to it and install into the environment prefix only:
+
+```bash
+git -C /path/to/vbcf-pipspeak archive e2524c786f33c1a73650c865eb82e5a0601a50d9 | tar -x -C /tmp/pipspeak-src
+cp docker/pipspeak/Cargo.lock /tmp/pipspeak-src/Cargo.lock
+cargo install --locked --path /tmp/pipspeak-src --root "$CONDA_PREFIX"
+```
+
+That installs `$CONDA_PREFIX/bin/pipspeak` without a global install or a change to the base environment; `preparePipseq.py --pipspeak-bin` points the helper at it.
+
+To run the pipeline natively, disable the container engines through a small external config instead of editing the tracked configs, and point the script paths at the checkout:
+
+```bash
+cat > /tmp/native.config <<'EOF'
+docker.enabled = false
+apptainer.enabled = false
+singularity.enabled = false
+podman.enabled = false
+shifter.enabled = false
+charliecloud.enabled = false
+EOF
+PYTHONPATH=/abs/repo/docker nextflow -c /tmp/native.config run nextflow/main.nf \
+	--libraries <libraries.csv> \
+	--scriptDirPy /abs/repo/docker/scripts/python/ \
+	--scriptDirR /abs/repo/docker/scripts/R/ \
+	--outputDir ./CaTCHseq_OUTPUT \
+	--reportsDir ./REPORTS
+```
+
+`--scriptDirPy` and `--scriptDirR` must end with a slash because the process scripts concatenate the file name. `PYTHONPATH=/abs/repo/docker` makes the shared `docker/` Python modules importable. `--binDir` only prefixes the `fastqc` and `multiqc` executables used by `--withQC`; set it to a directory that actually holds them, or leave `--withQC` off. Only the PIPseq preprocessing step has been exercised this way; the remaining steps still expect the tools and libraries of the main image, so a fully container-free run is not claimed as tested.
+
+Mapping and counting: PIPseq is mapped with STARsolo only (`--mapper STAR`); any other mapper stops the run with `PIPseq CellRanger integration not implemented/verified; use --mapper STAR`. STARsolo runs with `--soloCBstart 1 --soloCBlen 24 --soloUMIstart 25 --soloUMIlen 12 --soloStrand Forward --soloBarcodeReadLength 0 --soloCellFilter EmptyDrops_CR --soloUMIdedup 1MM_CR --soloUMIfiltering MultiGeneUMI_CR` and `--soloCBwhitelist None`; the pipspeak whitelist is not used for mapping. CaTCH barcode counting reuses the same geometry (barcode start 0, length 24, UMI start 24, length 12).
+
+Scope: PIPseq support in CaTCHseq is intended for paired GEX and CaTCHseq libraries. GEX-only analysis belongs in the standalone scRNA-seq pipeline, not in a separate CaTCHseq mode.
 
 Major parameters
 ----------------
 The authoritative list (including defaults) is `nextflow run nextflow/main.nf --help`; the same set is echoed at the start of every run. The full list:
 - Output locations and code paths
 	- `--outputDir` (default `./CaTCHseq_nf_OUTPUT`) and `--reportsDir` (default `./REPORTS`).
-	- `--scriptDirR`, `--scriptDirPy`, `--binDir`: script/binary paths; keep the defaults (`/tools/scripts/R/`, `/tools/scripts/python/`, `/usr/local/bin/`) when running with Docker, otherwise point them at the checked-out repo.
+	- `--scriptDirR`, `--scriptDirPy`, `--binDir`: script/binary paths; keep the defaults (`/tools/scripts/R/`, `/tools/scripts/python/`, `/usr/local/bin/`) when running with Docker, otherwise point `--scriptDirR` and `--scriptDirPy` at the checkout (`<repo>/docker/scripts/R/`, `<repo>/docker/scripts/python/`, trailing slash included). `--binDir` only prefixes the `fastqc` and `multiqc` executables.
 - General
 	- `--mapper` (CellRanger|STAR) and mapper-specific params `--cellranger_params`, `--star_params`, `--idx_params`.
 	- `--withQC` to run FastQC/MultiQC; `--fastqc_params` for extra options.
 	- `--chunkSize` read chunking for barcode counting.
 	- `--minReads` minimum reads per CaTCH barcode; `--filter` to use filtered counts.
 	- `--stopOnWarnings` stop the pipeline when a task warns (default true); `--help` prints the usage message.
+
+- PIPseq preprocessing (see the PIPseq section above)
+	- `--pipseq_config` (optional, default `nextflow/conf/pipseq/pipspeak.yaml`).
+	- `--pipseq_cb_length` (default 24), `--pipseq_umi_length` (default 12), `--pipseq_offset` (default 8), `--pipseq_umi_offset` (default 10), `--pipseq_exact` (default false).
+	- `--pipseq_clip3p` (default 0) and `--pipseq_container` (default `catchseq-pipspeak:e2524c7`).
 
 - Cell calling / CaTCH barcode classification
 	- `--min_detected_barcodes` (default 10) minimum CaTCH barcode reads per cell.
@@ -74,6 +153,8 @@ Pipeline steps (high level)
 4) **Collapse & filter**: Apply distance/method settings to deduplicate CaTCH barcodes and UMIs; remove background.
 5) **Multiplet resolution**: Majority-vote based merging of multiplets.
 6) **Reports & tables**: Generate CaTCH barcode and cell summaries plus analytics plots.
+
+PIPseq libraries get one extra step before QC and mapping: `preprocessPipseq` runs pipspeak on the merged lanes and adapter trims the GEX R2 reads.
 
 CLI mapping for collapse script
 -------------------------------

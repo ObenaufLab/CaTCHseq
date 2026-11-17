@@ -6,6 +6,7 @@
 
 import argparse
 import gzip
+import re
 import sys
 from datetime import datetime
 from typing import List, Tuple
@@ -48,14 +49,21 @@ def getFixedElements(stringency: str = "default") -> List[Tuple[int, int, str]]:
 
 def loadValidCellIDs(filenames: List[str]) -> List[str]:
     cellIDs = []
+    headerNames = ("barcodes", "barcode", "cell_id")
     for f in filenames:
         with (gzip.open if f.endswith(".gz") else open)(
             f, "rt"
         ) as hInput:  # Auto detect gzip based on extension
-            next(hInput)
+            first = True
             for line in hInput:
-                chunks = line.split(",")
+                if not line.strip():
+                    continue
+                chunks = re.split(r"[\t,]", line)
                 cellID = chunks[0].split("-")[0].rstrip()
+                if first:
+                    first = False
+                    if cellID.strip().lower() in headerNames:
+                        continue
                 cellIDs.append(cellID)
     return list(set(cellIDs))
 
@@ -168,10 +176,12 @@ def main():
     dt = datetime.now()
     print(f"[{dt}] Read {nProcessed:,} single cell entries")
     nRejected, stats = lib.getFilterStatistics()
-    print(f"Filtered out {nRejected:,} ({nRejected / nProcessed * 100:.2f}%) reads")
+    rejectedPct = (nRejected / nProcessed * 100) if nProcessed else 0.0
+    print(f"Filtered out {nRejected:,} ({rejectedPct:.2f}%) reads")
     print("   of those: ")
     for x in stats:
-        print(f"       {x[0]}: {x[1]:,} ({x[1] / nProcessed * 100:.2f}%)")
+        statPct = (x[1] / nProcessed * 100) if nProcessed else 0.0
+        print(f"       {x[0]}: {x[1]:,} ({statPct:.2f}%)")
     print(f"Found {lib.size:,} 10X cell IDs")
 
     lib.saveToJSON(opts.counts)

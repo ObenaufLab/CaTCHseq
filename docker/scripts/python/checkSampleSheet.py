@@ -28,6 +28,8 @@ class RowChecker:
     """
 
     VALID_FORMATS = (".fastq.gz",)
+    VALID_LIBRARY_TYPES = ("GEX", "CaTCHseq")
+    PIPSEQ = "PIPseq"
 
     def __init__(
         self,
@@ -89,6 +91,7 @@ class RowChecker:
         self._validate_R2(row)
         self._validate_cellnr(row)
         self._validate_chemistry(row)
+        self._validate_pipseq_pair(row)
         self._seen.add(
             (
                 row[self._sample_col],
@@ -141,7 +144,15 @@ class RowChecker:
         """Assert that the library type exists and is a valid value."""
         if len(row[self._lib_col]) <= 0:
             raise AssertionError("Library type input is required.")
-        # Add your validation logic for library type here.
+        value = row[self._lib_col].strip()
+        for candidate in self.VALID_LIBRARY_TYPES:
+            if value.lower() == candidate.lower():
+                row[self._lib_col] = candidate
+                return
+        raise AssertionError(
+            f"Library type '{value}' is not supported, use one of: "
+            f"{', '.join(self.VALID_LIBRARY_TYPES)}."
+        )
 
     def _validate_R1(self, row):
         """Assert that the R1 FASTQ file path exists and has the right format."""
@@ -165,7 +176,34 @@ class RowChecker:
         """Assert that the sequencing chemistry exists and is a valid value."""
         if len(row[self._chem_col]) <= 0:
             raise AssertionError("Sequencing chemistry input is required.")
-        # Add your validation logic for sequencing chemistry here.
+        value = row[self._chem_col].strip()
+        row[self._chem_col] = (
+            self.PIPSEQ if value.lower() == self.PIPSEQ.lower() else value
+        )
+
+    def _validate_pipseq_pair(self, row):
+        if row[self._chem_col].strip().lower() != self.PIPSEQ.lower():
+            return
+        if len(row[self._R2_col]) <= 0:
+            raise AssertionError("PIPseq libraries require a paired R2 FASTQ file.")
+        self._validate_fastq_format(row[self._R1_col])
+        self._validate_fastq_format(row[self._R2_col])
+
+    def validate_consistent_chemistry(self):
+        chemistries = {}
+        for row in self.modified:
+            key = (
+                row[self._sample_col],
+                row[self._cond_col],
+                row[self._rep_col],
+            )
+            chemistry = row[self._chem_col]
+            known = chemistries.setdefault(key, chemistry)
+            if known.lower() != chemistry.lower():
+                raise AssertionError(
+                    f"Sample '{key[0]}' condition '{key[1]}' replicate '{key[2]}' "
+                    f"mixes chemistries '{known}' and '{chemistry}'."
+                )
 
     def _validate_pair(self, row):
         """Assert that read pairs have the same file extension. Report pair status."""
@@ -286,6 +324,11 @@ def check_samplesheet(file_in):
             except AssertionError as error:
                 logger.critical(f"{str(error)} On line {i + 2}.")
                 sys.exit(1)
+        try:
+            checker.validate_consistent_chemistry()
+        except AssertionError as error:
+            logger.critical(f"{str(error)}")
+            sys.exit(1)
         checker.validate_unique_samples()
     header = list(reader.fieldnames)
     # See https://docs.python.org/3.9/library/csv.html#id3 to read up on `newline=""`.

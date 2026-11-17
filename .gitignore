@@ -2,3 +2,5 @@ CaTCHseq.tar.gz
 *buildlog
 *__pycache__
 .vscode*
+.nextflow/
+/docker/pipspeak/source.tar.gz

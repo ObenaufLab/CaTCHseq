@@ -18,6 +18,18 @@ def normalizeStr(value){
     return (value instanceof Boolean || value == null) ? '' : value.toString()
 }
 
+def canonicalLibraryType(value){
+    def text = value?.toString()?.trim()
+    if (text?.toLowerCase() == 'gex') return 'GEX'
+    if (text?.toLowerCase() == 'catchseq') return 'CaTCHseq'
+    return text
+}
+def canonicalChemistry(value){
+    def text = value?.toString()?.trim()
+    if (text?.toLowerCase() == 'pipseq') return 'PIPseq'
+    return text
+}
+
 //parse chemistry params into defined paramstring
 def chemistry_params_to_str(xtra){
     xtra = xtra.trim().replaceAll(" \n", "")
@@ -30,6 +42,72 @@ def chemistry_params_to_str(xtra){
     def map = ["bcStart" : tmpmap["soloCBstart"].toInteger()-1, "bcLength" : tmpmap["soloCBlen"].toInteger(), "umiStart" : tmpmap["soloUMIstart"].toInteger()-1, "umiLength" : tmpmap["soloUMIlen"].toInteger()]
     xtra = map.collect{ k, v -> v ? "--" + k + " " + v : "" }.join(" ")
     return xtra
+}
+
+def sq(value){
+    def text = value.toString()
+    if (text.contains("'")) error "path '${text}' must not contain a single quote"
+    return "'" + text + "'"
+}
+
+def validate_pipseq_geometry(){
+    def cbLen = params.pipseqCbLength.toString().toInteger()
+    def umiLen = params.pipseqUmiLength.toString().toInteger()
+    def offset = params.pipseqOffset.toString().toInteger()
+    def umiOffset = params.pipseqUmiOffset.toString().toInteger()
+    def clip3p = (params.pipseqClip3p != null) ? params.pipseqClip3p.toString().toInteger() : 0
+    if (cbLen <= 0) error "--pipseq_cb_length must be positive, got ${cbLen}"
+    if (umiLen < 1 || umiLen > 16) error "--pipseq_umi_length must be between 1 and 16, got ${umiLen}"
+    if (offset < 0) error "--pipseq_offset must not be negative, got ${offset}"
+    if (umiOffset < 0) error "--pipseq_umi_offset must not be negative, got ${umiOffset}"
+    if (clip3p < 0) error "--pipseq_clip3p must not be negative, got ${clip3p}"
+}
+
+def resolvePipspeakConfig(value){
+    def configFile = file(value, checkIfExists: true)
+    if (!configFile.isFile()) error "PIPseq config '${configFile}' is not a regular file"
+    def options = new org.yaml.snakeyaml.LoaderOptions()
+    options.setAllowDuplicateKeys(false)
+    def raw
+    try {
+        raw = new org.yaml.snakeyaml.Yaml(new org.yaml.snakeyaml.constructor.SafeConstructor(options)).load(configFile.text)
+    } catch (Throwable failure) {
+        error "PIPseq config '${configFile}' is not valid YAML: ${failure.message}"
+    }
+    if (!(raw instanceof Map)) error "PIPseq config '${configFile}' does not contain a YAML mapping"
+    def barcodes = raw['barcodes']
+    if (!(barcodes instanceof Map) || barcodes.isEmpty()) error "PIPseq config '${configFile}' has no 'barcodes' mapping"
+    def names = []
+    def lists = []
+    barcodes.each { name, reference ->
+        if (!(name instanceof CharSequence) || name.toString().trim().isEmpty()) {
+            error "PIPseq config '${configFile}' has a barcode set without a name"
+        }
+        if (!(reference instanceof CharSequence) || reference.toString().trim().isEmpty()) {
+            error "PIPseq config '${configFile}' barcode list '${name}' has no path"
+        }
+        def relative = reference.toString()
+        if (relative.startsWith('/')) {
+            error "PIPseq config '${configFile}' barcode list '${name}' path '${relative}' must be relative to the config file"
+        }
+        def listFile = configFile.parent.resolve(relative).normalize()
+        if (!listFile.isFile()) {
+            error "PIPseq config '${configFile}' barcode list '${name}' path '${relative}' does not resolve to a file (${listFile})"
+        }
+        names.add(name.toString())
+        lists.add(listFile)
+    }
+    return [configFile, names, lists]
+}
+
+def pipseq_star_params(){
+    def cbLen = (params.pipseqCbLength != null) ? params.pipseqCbLength.toString().toInteger() : 24
+    def umiLen = (params.pipseqUmiLength != null) ? params.pipseqUmiLength.toString().toInteger() : 12
+    def preset = params.star_pipseq
+    if (preset instanceof Closure){
+        return preset.call(cbLen, umiLen)
+    }
+    return preset.toString()
 }
 
 //Params from CL
@@ -95,7 +173,7 @@ def helpMessage() {
                                     R1              path to the R1 read
                                     R2              path to the R2 read (if available)
                                     CellNumber      number of expected cells (NA if not available, number for soft constraint, number! for hard constraint)
-                                    Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq), this may not set adequate parameters for mappers automatically, make sure you check them accordingly
+                                    Chemistry       chemistry used (e.g. 10X, DropIn, SmartSeq, PIPseq), this may not set adequate parameters for mappers automatically, make sure you check them accordingly
 
             Optional arguments:
                 --outputDir             specifies the output directory (default: ${params.outputDir})
@@ -145,6 +223,14 @@ def helpMessage() {
                 --organism              Identifier for organism (choice: ["Human", "Mouse"], default: ${params.organism})
                 --baseline              Name of reference day/condition (default: ${params.refName})
                 --marker                RDS file of cellcycle markers (default: ${params.markerfile}, NamedList with gene names for each stage [G1S, S, G2M, M, MG1, G0], S and G2M are needed)
+                --pipseq_config         PIPseq barcode configuration YAML, its barcode lists are resolved relative to the YAML file (default: ${params.pipseqConfig})
+                --pipseq_cb_length      Length of the concatenated PIPseq barcode (default: ${params.pipseqCbLength})
+                --pipseq_umi_length     Length of the PIPseq UMI (default: ${params.pipseqUmiLength})
+                --pipseq_offset         Barcode offset from the start of R1 (default: ${params.pipseqOffset})
+                --pipseq_umi_offset     UMI offset from the end of the barcode (default: ${params.pipseqUmiOffset})
+                --pipseq_exact          Use exact barcode matching in pipspeak (true/false, default: ${params.pipseqExact})
+                --pipseq_clip3p         STAR --clip3pNbases for PIPseq libraries (default: ${params.pipseqClip3p})
+                --pipseq_container      Container image for the PIPseq preprocessing (default: ${params.pipseqContainer})
                 --stopOnWarnings        Stop pipeline when warnings occur (default: ${params.stopOnWarnings})
                 --help                  print this help message
 
@@ -167,6 +253,7 @@ process check_samplesheet {
 
     input:
     path samplesheet
+    path checker
 
     output:
     path 'Valid_*.csv', emit: csv
@@ -174,9 +261,9 @@ process check_samplesheet {
 
     script: 
     """
-    ${params.scriptDirPy}checkSampleSheet.py \
+    python3 ${checker} \
         ${samplesheet} \
-    && mv ${samplesheet} Valid_${samplesheet}
+    && cp -L ${samplesheet} Valid_${samplesheet}
     """
 }
 
@@ -199,6 +286,50 @@ process concat_lanes {
     """
     cat inputs/R1_* > "${sampleName}_R1.fastq.gz"
     cat inputs/R2_* > "${sampleName}_R2.fastq.gz"
+    """
+}
+
+
+process preprocessPipseq {
+
+    cache 'deep'
+    tag "${meta.id}"
+
+    publishDir "${params.outputDir}/PIPseq", mode: 'copy'
+
+    input:
+    tuple val(meta), path(r1, stageAs: 'inputs/r1??/*'), path(r2, stageAs: 'inputs/r2??/*'), path(configYaml, stageAs: 'config/pipspeak.yaml'), val(barcodeNames), path(barcodeFiles, stageAs: 'barcodes/list??/*'), path(helper)
+
+    output:
+    tuple val(meta), path("${meta.id}_R1.fastq.gz"), path("${meta.id}_R2.fastq.gz"), emit: converted
+    path("pipspeak/*_log.yaml"), emit: logs, optional: true
+    path("pipspeak/*.tsv"), emit: qc, optional: true
+    path("pipspeak/*_whitelist.txt"), emit: whitelist, optional: true
+    path("pipspeak/*_cutadapt.log"), emit: cutadapt_log, optional: true
+
+    script:
+    def exactFlag = objectFlag(params.pipseqExact, 'pipseq_exact') ? '--exact' : ''
+    def r1Args = (r1 instanceof List ? r1 : [r1]).collect { sq(it) }.join(' ')
+    def r2Args = (r2 instanceof List ? r2 : [r2]).collect { sq(it) }.join(' ')
+    def stagedLists = (barcodeFiles instanceof List ? barcodeFiles : [barcodeFiles])
+    if (stagedLists.size() != barcodeNames.size()) {
+        error "PIPseq config lists ${stagedLists.size()} barcode files for ${barcodeNames.size()} barcode sets"
+    }
+    def barcodeArgs = [barcodeNames, stagedLists].transpose().collect { name, staged -> "--barcode-file ${sq(name)} ${sq(staged)}" }.join(' ')
+    """
+    python3 ${sq(helper)} \
+        --r1 ${r1Args} \
+        --r2 ${r2Args} \
+        --prefix ${sq(meta.id)} \
+        --config ${sq(configYaml)} \
+        ${barcodeArgs} \
+        --cb-len ${params.pipseqCbLength} \
+        --umi-len ${params.pipseqUmiLength} \
+        --offset ${params.pipseqOffset} \
+        --umi-offset ${params.pipseqUmiOffset} \
+        --threads ${task.cpus} \
+        --library-type ${sq(meta.librarytype)} \
+        ${exactFlag}
     """
 }
 
@@ -300,8 +431,8 @@ process Cellranger_idx{
     path anno
 
     output:
-    path "${file(params.mapindex).getName()}", emit: idx
-    path "${file(params.mapindex).getName()}*", emit: idx_extra
+    path "${IDX}", emit: idx
+    path "${IDX}*", emit: idx_extra
     path "star.idx", emit: idxlink
     path "*.out", emit: idxlog
 
@@ -560,7 +691,7 @@ process star_mapping{
     cells_expected = cells_expected.unique()[0]
     
     // Check whitelist
-    if( (whitelist.size() > 0 ) && (chemistry != 'ScaleBio')){
+    if( (whitelist.size() > 0 ) && (chemistry != 'ScaleBio') && (chemistry != 'PIPseq')){
         starparams = starparams + " --soloCBwhitelist ${whitelist}"
     }else{
         starparams = starparams + " --soloCBwhitelist None"
@@ -577,6 +708,8 @@ process star_mapping{
     } else if (chemistry == "Smart"){
         log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
         extraparams = params.star_smart
+    } else if (chemistry == 'PIPseq'){
+        extraparams = pipseq_star_params()
     } else{
         log.error("Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.")
         exit('Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.')
@@ -591,6 +724,10 @@ process star_mapping{
     
     // Build params
     starparams = starparams + ' ' + extraparams
+
+    if (chemistry == 'PIPseq' && params.pipseqClip3p != null && params.pipseqClip3p.toString().toInteger() > 0){
+        starparams = starparams + " --clip3pNbases ${params.pipseqClip3p}"
+    }
 
     //// Convert extraparams to barcode indices json for postprocessing tools
     //xtra = chemistry_params_to_map(extraparams)
@@ -663,6 +800,7 @@ process countBarcodesInChunks{
 
     input:
         tuple val(sampleName), path(r1), path(r2), val(chemistry), path(cellIDs)
+        path counter
 
     output:
         tuple val(sampleName), path('Counts'), path('Reads'), emit: counts_chunks_out
@@ -684,13 +822,16 @@ process countBarcodesInChunks{
     } else if (chemistry == "Smart"){
         extraparams = chemistry_params_to_str(params.star_smart)
         log.debug("${sampleName}: Counting Smart chemistry with following parameters: ${extraparams}")
+    } else if (chemistry == 'PIPseq'){
+        extraparams = chemistry_params_to_str(pipseq_star_params())
+        log.debug("${sampleName}: Counting PIPseq chemistry with following parameters: ${extraparams}")
     } else{
         extraparams = ''
         log.debug("${sampleName}: Counting unset chemistry with default 10X parameters: ${extraparams}")
     }
 
     """
-    ${params.scriptDirPy}countBarcodesInChunks.py \
+    python3 ${counter} \
         --r1 ${r1} \
         --r2 ${r2} \
         --cellIDs ${cellIDs} \
@@ -1232,10 +1373,17 @@ process identifyDEGenes{
 workflow{
     main:
 
+        objectFlag(params.pipseqExact, 'pipseq_exact')
+
         // Show the help message if --help is specified or if essential arguments are not provided
         if (params.help) {
             helpMessage()
             exit 0
+        }
+
+        def obsoletePipseqOptions = ['pipseq_config_dir', 'pipseq_config_yaml'].findAll { params.containsKey(it) }
+        if (obsoletePipseqOptions) {
+            error "Options --${obsoletePipseqOptions.join(', --')} were replaced by --pipseq_config"
         }
 
         if (!params.libraries) {
@@ -1310,6 +1458,14 @@ workflow{
  |   markerfile              : ${params.markerfile}
  |   organism                : ${params.organism}
  |   baseline                : ${params.refName}
+ |   pipseq_config           : ${params.pipseqConfig}
+ |   pipseq_cb_length        : ${params.pipseqCbLength}
+ |   pipseq_umi_length       : ${params.pipseqUmiLength}
+ |   pipseq_offset           : ${params.pipseqOffset}
+ |   pipseq_umi_offset       : ${params.pipseqUmiOffset}
+ |   pipseq_exact            : ${params.pipseqExact}
+ |   pipseq_clip3p           : ${params.pipseqClip3p}
+ |   pipseq_container        : ${params.pipseqContainer}
  |   stopOnWarnings          : ${params.stopOnWarnings}
  |
  ======================================================================
@@ -1343,14 +1499,63 @@ workflow{
             }
         }
 
-        check_samplesheet(Channel.fromPath(params.libraries))
+        check_samplesheet(Channel.fromPath(params.libraries), Channel.value(file("${projectDir}/../docker/scripts/python/checkSampleSheet.py", checkIfExists: true)))
+
+        def pipseqLibraries = file(params.libraries).splitCsv(header: true).findAll { row -> canonicalChemistry(row.Chemistry) == 'PIPseq' }
+        if (pipseqLibraries && params.mapperbin != 'STAR') {
+            error("PIPseq CellRanger integration not implemented/verified; use --mapper STAR")
+        }
+        if (pipseqLibraries) {
+            validate_pipseq_geometry()
+        }
+        def pipseqConfig = pipseqLibraries ? resolvePipspeakConfig(params.pipseqConfig) : null
 
         /**********************************************************
                 STEP 0: Prepare Input and Indices and run QC
         ***********************************************************/
         
-        Ch_csv = check_samplesheet.out.csv.splitCsv(sep: ",", header: true)
+        Ch_csv_raw = check_samplesheet.out.csv.splitCsv(sep: ",", header: true)
+            .map { row ->
+                row.LibraryType = canonicalLibraryType(row.LibraryType)
+                row.Chemistry = canonicalChemistry(row.Chemistry)
+                return row
+            }
         //Ch_csv.subscribe {  println "CSV: $it"  }
+
+        Ch_pipseq_input = Ch_csv_raw.filter { it.Chemistry == 'PIPseq' }
+            .map { row ->
+                def key = [row.SampleName, row.Condition, row.Replicate, row.LibraryType].join('|')
+                tuple(key, [lane: row.Lane.toString().trim().toInteger(), r1: row.R1, r2: row.R2, sample: row.SampleName, condition: row.Condition, replicate: row.Replicate, librarytype: row.LibraryType, cellnumber: row.CellNumber])
+            }
+            .groupTuple(by: 0)
+            .map { key, entries ->
+                def lanes = entries.sort { a, b -> a.lane <=> b.lane }
+                def first = lanes[0]
+                def id = "${first.sample.replaceAll('_','-')}_${first.condition.replaceAll('_','-')}_${first.replicate.replaceAll('_','-')}_${first.librarytype}"
+                def meta = [
+                    id: id,
+                    sample: first.sample,
+                    condition: first.condition,
+                    replicate: first.replicate,
+                    librarytype: first.librarytype,
+                    chemistry: 'PIPseq',
+                    cellnumber: first.cellnumber,
+                    lanes: lanes.collect { it.lane }
+                ]
+                tuple(meta, lanes.collect { file(it.r1) }, lanes.collect { file(it.r2) })
+            }
+
+        Ch_pipseq_config = pipseqConfig ? Channel.value(tuple(pipseqConfig[0], pipseqConfig[1], pipseqConfig[2])) : Channel.empty()
+
+        preprocessPipseq(Ch_pipseq_input
+            .combine(Ch_pipseq_config)
+            .combine(Channel.value(file("${projectDir}/../docker/scripts/python/preparePipseq.py", checkIfExists: true))))
+
+        Ch_pipseq_rows = preprocessPipseq.out.converted.map { meta, convertedR1, convertedR2 ->
+            [SampleName: meta.sample, Condition: meta.condition, Replicate: meta.replicate.toString(), Lane: meta.lanes[0].toString(), LibraryType: meta.librarytype, R1: convertedR1.toString(), R2: convertedR2.toString(), CellNumber: meta.cellnumber, Chemistry: 'PIPseq']
+        }
+
+        Ch_csv = Ch_csv_raw.filter { it.Chemistry != 'PIPseq' }.mix(Ch_pipseq_rows)
 
         Ch_csv_GEX_split = Ch_csv.filter { it.LibraryType == "GEX" }.branch{
                 raw: (new File(it.R1)).isFile()
@@ -1450,7 +1655,7 @@ workflow{
                 STEP 2: Count CaTCH barcodes in chunks separately
         ***************************************************************/
         
-        countBarcodesInChunks(Ch_count_input)
+        countBarcodesInChunks(Ch_count_input, Channel.value(file("${projectDir}/../docker/scripts/python/countBarcodesInChunks.py", checkIfExists: true)))
 
 
         /**************************************************************
@@ -1538,6 +1743,7 @@ workflow{
                                               .mix(preprocessSingleCellData.out.basic_sce)
                                               .map { sampleTag, sampleName, sce -> tuple(sampleTag, sce) }
                                               .toList()
+                                              .filter { rows -> rows.size() > 0 }
                                               .map { rows ->
                                                   // sorted so the task hash stays stable across resumes
                                                   def sorted = rows.sort { row -> "${row[1].getName()}" }
