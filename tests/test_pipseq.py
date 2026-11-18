@@ -762,13 +762,16 @@ class PipseqParamsTest(unittest.TestCase):
 
     def test_count_consumer_uses_canonical_geometry(self):
         script = (REPO / "nextflow" / "main.nf").read_text()
-        self.assertIn("chemistry_params_to_str(pipseq_star_params())", script)
+        self.assertIn(
+            "Chemistry.extractionArgs(Chemistry.resolve(chemistry, params))", script
+        )
         self.assertIn("params.pipseqCbLength.toString().toInteger()", script)
         self.assertIn("params.pipseqUmiLength.toString().toInteger()", script)
 
     def test_cellranger_idx_output_contract(self):
         launch = self.root / "idxrun"
         launch.mkdir()
+        (launch / "lib").symlink_to(REPO / "nextflow" / "lib")
         bindir = launch / "bin"
         bindir.mkdir()
         stub = bindir / "cellranger"
@@ -856,6 +859,7 @@ class PipseqStagingTest(PipseqTestCase):
         super().setUp()
         self.launch = self.workdir / "launch"
         self.launch.mkdir()
+        (self.launch / "lib").symlink_to(REPO / "nextflow" / "lib")
         self.work = self.workdir / "work"
         self.config_root = self.workdir / "config dir with spaces"
         (self.config_root / "configs").mkdir(parents=True)

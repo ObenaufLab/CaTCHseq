@@ -156,6 +156,28 @@ Pipeline steps (high level)
 
 PIPseq libraries get one extra step before QC and mapping: `preprocessPipseq` runs pipspeak on the merged lanes and adapter trims the GEX R2 reads.
 
+Chemistry presets
+------------------
+STARsolo options are defined once in `nextflow/conf/chemistry.config` under `params.chemistries` and resolved by `nextflow/lib/Chemistry.groovy`. Each entry declares a `mode`, a one-based `geometry` (`cbStart`, `cbLen`, `umiStart`, `umiLen`, plus `barcodeRead` where the barcode sits in R2) and an ordered `starOptions` map. The geometry is authoritative: the `--soloCBstart/--soloCBlen/--soloUMIstart/--soloUMIlen` options are taken from it, and `countBarcodesInChunks` derives its 0-based `--bcStart/--bcLength/--umiStart/--umiLength` from the same values, so mapping and counting cannot drift apart.
+
+Supported names in the `Chemistry` column: `10X` (generic, 16 bp CB + 12 bp UMI, the default for any name containing `10X` that is not listed below), `10Xv2` (16 + 10), `10Xv3` (16 + 12), `Droplet` (16 + 10), `ScaleBio` (29 + 8, barcode read 2), `Smart` (SmartSeq, no barcode geometry) and `PIPseq` (24 + 12). `10x`, `droplet`, `scalebio`, `smart`, `smartseq` and `pipseq` are accepted as aliases.
+
+Override a preset in a `-c` config; assignments merge into the defaults, so only the changed fields need to be given:
+
+```groovy
+params {
+    chemistries {
+        '10Xv2' {
+            geometry {
+                umiLen = 10
+            }
+        }
+    }
+}
+```
+
+The legacy overrides `star_10X`, `star_droplet`, `star_scalebio`, `star_smart` and `star_pipseq` default to `null` and are applied when set: a string replaces the preset options and its `--soloCB*`/`--soloUMI*` values also become the counting geometry; `star_pipseq` additionally accepts a `{ cbLen, umiLen -> ... }` closure. `--pipseq_cb_length` and `--pipseq_umi_length` change the converted PIPseq geometry and the UMI start follows the barcode length; the raw preprocessing geometry (`--pipseq_offset`, `--pipseq_umi_offset`) is separate and unchanged.
+
 CLI mapping for collapse script
 -------------------------------
 - Nextflow params map to `collapseCaTCHbarcodes.py`:

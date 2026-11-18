@@ -2,12 +2,12 @@
 
 /************************************************************************
 ===========================
-singlecell-catch-nf
+CaTCHseq
 ===========================
 
 Authors
-- Sergej Nowoshilow (sergej.nowoshilow@boehringer-ingelheim.com)
 - Joerg Fallmann (joerg.fallmann@imp.ac.at)
+- Sergej Nowoshilow (sergej.nowoshilow@boehringer-ingelheim.com)
 ************************************************************************/
 
 //Version Check
@@ -28,20 +28,6 @@ def canonicalChemistry(value){
     def text = value?.toString()?.trim()
     if (text?.toLowerCase() == 'pipseq') return 'PIPseq'
     return text
-}
-
-//parse chemistry params into defined paramstring
-def chemistry_params_to_str(xtra){
-    xtra = xtra.trim().replaceAll(" \n", "")
-    def tmpmap = xtra.tokenize("--").collectEntries{ 
-               it.split(" ",2).with{ 
-                   [ (it[0].replaceAll("--", "")): (it.size()<2) ? null : it[1] ?: null ] 
-                }
-            }
-    //print(tmpmap)
-    def map = ["bcStart" : tmpmap["soloCBstart"].toInteger()-1, "bcLength" : tmpmap["soloCBlen"].toInteger(), "umiStart" : tmpmap["soloUMIstart"].toInteger()-1, "umiLength" : tmpmap["soloUMIlen"].toInteger()]
-    xtra = map.collect{ k, v -> v ? "--" + k + " " + v : "" }.join(" ")
-    return xtra
 }
 
 def sq(value){
@@ -98,16 +84,6 @@ def resolvePipspeakConfig(value){
         lists.add(listFile)
     }
     return [configFile, names, lists]
-}
-
-def pipseq_star_params(){
-    def cbLen = (params.pipseqCbLength != null) ? params.pipseqCbLength.toString().toInteger() : 24
-    def umiLen = (params.pipseqUmiLength != null) ? params.pipseqUmiLength.toString().toInteger() : 12
-    def preset = params.star_pipseq
-    if (preset instanceof Closure){
-        return preset.call(cbLen, umiLen)
-    }
-    return preset.toString()
 }
 
 //Params from CL
@@ -697,23 +673,14 @@ process star_mapping{
         starparams = starparams + " --soloCBwhitelist None"
     }
     // Check chemistry specific settings
-    if (chemistry.contains("10X")){
-        extraparams = params.star_10X
-    }else if (chemistry == "Droplet"){
+    if (chemistry == "Droplet"){
         log.info("Running StarSolo on unspecified Droplet chemistry, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
-        extraparams = params.star_droplet
     } else if (chemistry == 'ScaleBio'){
         starparams = params.starMappingParamsScale
-        extraparams = params.star_scalebio
     } else if (chemistry == "Smart"){
         log.info("Running StarSolo on chemistry different than Droplet based, please ensure your STARsolo parameters fit the protocol, please check and adapt default settings in mappers.config file in the conf directory of the nextflow subdirectory of this pipeline. There is no automatic sanity check!")
-        extraparams = params.star_smart
-    } else if (chemistry == 'PIPseq'){
-        extraparams = pipseq_star_params()
-    } else{
-        log.error("Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.")
-        exit('Unknown chemistry! Please choose between Droplet (10X or ScaleBio) and Smart.')
     }
+    extraparams = Chemistry.starArgs(Chemistry.resolve(chemistry, params))
     // Check expected cell count
     if (cells_expected != "NA"){
         cellsexpCR = cells_expected.replaceAll('!', '') + ' 0.99 10'
@@ -810,24 +777,12 @@ process countBarcodesInChunks{
     extraparams = ''
     //chemistry = chemistry[0]
 
-    if (chemistry.contains("10X")){
-        extraparams = chemistry_params_to_str(params.star_10X)
-        log.debug("${sampleName}: Counting 10X chemistry with following parameters: ${extraparams}")
-    }else if (chemistry == "Droplet"){
-        extraparams = chemistry_params_to_str(params.star_droplet)
-        log.debug("${sampleName}: Counting Droplet chemistry with following parameters: ${extraparams}")
-    } else if (chemistry == 'ScaleBio'){
-        extraparams = chemistry_params_to_str(params.star_scalebio)
-        log.debug("${sampleName}: Counting ScaleBio chemistry with following parameters: ${extraparams}")
-    } else if (chemistry == "Smart"){
-        extraparams = chemistry_params_to_str(params.star_smart)
-        log.debug("${sampleName}: Counting Smart chemistry with following parameters: ${extraparams}")
-    } else if (chemistry == 'PIPseq'){
-        extraparams = chemistry_params_to_str(pipseq_star_params())
-        log.debug("${sampleName}: Counting PIPseq chemistry with following parameters: ${extraparams}")
-    } else{
+    if (chemistry == null || chemistry.toString().trim().isEmpty()){
         extraparams = ''
         log.debug("${sampleName}: Counting unset chemistry with default 10X parameters: ${extraparams}")
+    } else {
+        extraparams = Chemistry.extractionArgs(Chemistry.resolve(chemistry, params))
+        log.debug("${sampleName}: Counting ${chemistry} chemistry with following parameters: ${extraparams}")
     }
 
     """
