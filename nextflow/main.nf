@@ -830,7 +830,7 @@ process mergeBarcodesInChunks{
     find Counts -name "file*" > librarieslist
     find Reads -name "file*" > readcountslist
 
-    ${params.scriptDirPy}mergeChunkCounts.py \
+    python3 "${params.scriptDirPy}mergeChunkCounts.py" \
         --libraries librarieslist \
         --readcounts readcountslist \
         --outlib ${sampleName}.sclib \
@@ -873,7 +873,7 @@ process collapseAndFilterBarcodes{
     catchMethod = params.clusterMethodCaTCH ? "--cluster-method-catch ${params.clusterMethodCaTCH}" : ""
     umiMethod = params.clusterMethodUMIs ? "--cluster-method-umis ${params.clusterMethodUMIs}" : ""
     """
-    ${params.scriptDirPy}collapseCaTCHbarcodes.py \
+    python3 "${params.scriptDirPy}collapseCaTCHbarcodes.py" \
         --library ${library} \
         --maxdist ${params.maxDist} \
         --maxdist-catch ${catchMax} \
@@ -914,7 +914,7 @@ process resolveMultiplets{
 
     script:
     """
-    ${params.scriptDirPy}resolveMultiplets.py \
+    python3 "${params.scriptDirPy}resolveMultiplets.py" \
         --library ${library} \
         --majority ${params.majorityVote} \
         --outlib ${sampleName}.resolved_multiplets.sclib \
@@ -950,7 +950,7 @@ process generateTables{
 
     script:
     """
-    ${params.scriptDirPy}generateOutputTables.py \
+    python3 "${params.scriptDirPy}generateOutputTables.py" \
         --library ${library} \
         --CaTCH ${sampleName}.CaTCHbarcodes \
         --cells ${sampleName}.cells \
