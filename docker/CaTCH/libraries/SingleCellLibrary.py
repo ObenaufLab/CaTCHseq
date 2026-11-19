@@ -7,7 +7,7 @@ from CaTCH.base.Exceptions import InvalidCellRecordException
 from CaTCH.base.Filters import SingleCellRecordFilter
 from CaTCH.base.singlecell.SingleCell import SingleCell, SingleCellRecord
 from CaTCH.libraries.CaTCHBarcodeLibrary import CaTCHBarcodeLibrary
-from CaTCH.utils.Algorithms import Algorithms
+from CaTCH.utils.CellBarcodeLookup import CellBarcodeLookup
 
 
 class SingleCellLibrary:
@@ -19,9 +19,9 @@ class SingleCellLibrary:
             self._filter_stats = [0] * len(filters)
         else:
             self._filter_stats = None
-        self._whitelist = whitelist.copy()
-        self._nInvalid10XBarcodes = 0
-        self._nAmbiguous10XBarcodes = 0
+        self._lookup = CellBarcodeLookup(whitelist)
+        self._nInvalidCellBarcodes = 0
+        self._nAmbiguousCellBarcodes = 0
 
     def _get_size_(self) -> int:
         return len(self._cells)
@@ -38,25 +38,21 @@ class SingleCellLibrary:
                 self._filter_stats[idx] += 1
                 return False
 
-        # First, check if the cell ID is present in the list as is for performance reasons.
-        if record.barcode_10X not in self._whitelist:
-            # In case it is not, get the list of similar 10X barcodes with the Hamming distance of 1. If there are more than 1, then the barcode cannot be corrected confidently and, thus, must be ambiguous.
-            similar = Algorithms.findSimilarBarcodes(record.barcode_10X, self._whitelist, 1)
-            # No similar barcodes found
-            if len(similar) == 0:
-                self._nInvalid10XBarcodes += 1
-                return False
-            if len(similar) > 1:
-                self._nAmbiguous10XBarcodes += 1
-                return False
-            if len(similar) == 1:
-                record._10x_bc = similar[0][0]
+        outcome, barcode = self._lookup.resolve(record.barcode_cell)
+        if outcome == CellBarcodeLookup.INVALID:
+            self._nInvalidCellBarcodes += 1
+            return False
+        if outcome == CellBarcodeLookup.AMBIGUOUS:
+            self._nAmbiguousCellBarcodes += 1
+            return False
+        if barcode != record.barcode_cell:
+            record.barcode_cell = barcode
 
-        cell = self._cells.get(record.barcode_10X)
+        cell = self._cells.get(record.barcode_cell)
         if not cell:
-            cell = SingleCell(record.barcode_10X)
-            self._cells[record.barcode_10X] = cell
-        self._cells[cell.barcode_10X].addCellRecord(record)
+            cell = SingleCell(record.barcode_cell)
+            self._cells[record.barcode_cell] = cell
+        self._cells[cell.barcode_cell].addCellRecord(record)
         return True
 
     def getFilterStatistics(self) -> Tuple[int, List[Tuple[str, int]]]:
@@ -65,17 +61,17 @@ class SingleCellLibrary:
         for idx, f in enumerate(self._filters):
             stats.append((f.getName(), self._filter_stats[idx]))
             nTotal += self._filter_stats[idx]
-        # Invalid and ambiguous 10X cell barcodes
-        nTotal += (self._nInvalid10XBarcodes + self._nAmbiguous10XBarcodes)
-        stats.append(("Invalid 10X cell barcodes", self._nInvalid10XBarcodes))
-        stats.append(("Ambiguous 10X cell barcodes", self._nAmbiguous10XBarcodes))
+        # Invalid and ambiguous cell barcodes
+        nTotal += (self._nInvalidCellBarcodes + self._nAmbiguousCellBarcodes)
+        stats.append(("Invalid cell barcodes", self._nInvalidCellBarcodes))
+        stats.append(("Ambiguous cell barcodes", self._nAmbiguousCellBarcodes))
         return (nTotal, stats)
 
     def removeBackground(self, minCoverage: int = 10, inplace: bool = True) -> "SingleCellLibrary":
         _tmp = dict()
-        for bc10X in self._cells:
-            if self._cells[bc10X].removeBackground(minCoverage = minCoverage) > 0:
-                _tmp[bc10X] = self._cells[bc10X]
+        for cellBarcode in self._cells:
+            if self._cells[cellBarcode].removeBackground(minCoverage = minCoverage) > 0:
+                _tmp[cellBarcode] = self._cells[cellBarcode]
         if inplace:
             self._cells = _tmp
             return self
@@ -86,9 +82,9 @@ class SingleCellLibrary:
 
     def removeCollapsedBackground(self, minCoverage: int = 10, inplace: bool = True) -> "SingleCellLibrary":
         _tmp = dict()
-        for bc10X in self._cells:
-            if self._cells[bc10X].removeCollapsedBackground(minCoverage = minCoverage) > 0:
-                _tmp[bc10X] = self._cells[bc10X]
+        for cellBarcode in self._cells:
+            if self._cells[cellBarcode].removeCollapsedBackground(minCoverage = minCoverage) > 0:
+                _tmp[cellBarcode] = self._cells[cellBarcode]
         if inplace:
             self._cells = _tmp
             return self
@@ -159,13 +155,13 @@ class SingleCellLibrary:
                 result._cells[barcode] = tmp
             return result
 
-    def enumerateSingleCells(self, sort: Literal["None", "10X barcode"] = "None", reversed: bool = False):
+    def enumerateSingleCells(self, sort: Literal["None", "cell barcode"] = "None", reversed: bool = False):
         return SingleCellIterator(self._cells, sort = sort, reversed = reversed)
 
     def generateCaTCHBarcodesLibrary(self, useMultiplets: bool = False) -> "CaTCHBarcodeLibrary":
         lib = CaTCHBarcodeLibrary()
-        for bc10x in self._cells:
-            cell = self._cells[bc10x]
+        for cellBarcode in self._cells:
+            cell = self._cells[cellBarcode]
             bclib = cell.CaTCH_barcodes
             if bclib.distinct > 1 and not useMultiplets:
                 continue
@@ -177,8 +173,8 @@ class SingleCellLibrary:
         self, useMultiplets: bool = False
     ) -> "CaTCHBarcodeLibrary":
         lib = CaTCHBarcodeLibrary()
-        for bc10x in self._cells:
-            cell = self._cells[bc10x]
+        for cellBarcode in self._cells:
+            cell = self._cells[cellBarcode]
             bclib = cell.CaTCH_barcodes_unique
             if bclib.distinct > 1 and not useMultiplets:
                 continue
@@ -187,28 +183,28 @@ class SingleCellLibrary:
         return lib
 
     def merge(self, other: SingleCellLibrary):
-        self._nInvalid10XBarcodes += other._nInvalid10XBarcodes
-        self._nAmbiguous10XBarcodes += other._nAmbiguous10XBarcodes
-        # Iterate over the cells in the other library. If the 10X barcode
+        self._nInvalidCellBarcodes += other._nInvalidCellBarcodes
+        self._nAmbiguousCellBarcodes += other._nAmbiguousCellBarcodes
+        # Iterate over the cells in the other library. If the cell barcode
         # does not exist in the current library, simply copy all the data.
         # Otherwise, merge the cell content.
-        for bc10X in other._cells.keys():
-            if not self._cells.get(bc10X):
-                self._cells[bc10X] = other._cells[bc10X].copy()
+        for cellBarcode in other._cells.keys():
+            if not self._cells.get(cellBarcode):
+                self._cells[cellBarcode] = other._cells[cellBarcode].copy()
             else:
-                self._cells[bc10X].merge(other._cells[bc10X])
+                self._cells[cellBarcode].merge(other._cells[cellBarcode])
 
         # Merge the filter statistics
         for idx, val in enumerate(other._filter_stats):
             self._filter_stats[idx] += val
 
     def saveToJSON(self, filename: str):
-        tmp = {"invalid10XBarcodes": self._nInvalid10XBarcodes,
-               "ambiguous10XBarcodes": self._nAmbiguous10XBarcodes,
+        tmp = {"invalidCellBarcodes": self._nInvalidCellBarcodes,
+               "ambiguousCellBarcodes": self._nAmbiguousCellBarcodes,
                "filteredEntries": self._filter_stats,
                "cells": {}}
-        for bc10X in self._cells.keys():
-            tmp["cells"][bc10X] = self._cells[bc10X].toJSON()
+        for cellBarcode in self._cells.keys():
+            tmp["cells"][cellBarcode] = self._cells[cellBarcode].toJSON()
         with open(filename, "wt") as hOutput:
             json.dump(tmp, hOutput)
 
@@ -218,20 +214,28 @@ class SingleCellLibrary:
         hInput.close()
 
         scl = SingleCellLibrary()
-        scl._nInvalid10XBarcodes = data["invalid10XBarcodes"]
-        scl._nAmbiguous10XBarcodes = data["ambiguous10XBarcodes"]
+        scl._nInvalidCellBarcodes = (
+            data["invalidCellBarcodes"]
+            if "invalidCellBarcodes" in data
+            else data["invalid10XBarcodes"]
+        )
+        scl._nAmbiguousCellBarcodes = (
+            data["ambiguousCellBarcodes"]
+            if "ambiguousCellBarcodes" in data
+            else data["ambiguous10XBarcodes"]
+        )
         scl._filter_stats = data["filteredEntries"]
-        for bc10X in data["cells"].keys():
-            cell = SingleCell.loadFromJSON(data["cells"][bc10X])
-            scl._cells[bc10X] = cell
+        for cellBarcode in data["cells"].keys():
+            cell = SingleCell.loadFromJSON(data["cells"][cellBarcode])
+            scl._cells[cellBarcode] = cell
         return scl
 
 
 class SingleCellIterator:
 
-    def __init__(self, cells: Dict[str, SingleCell], sort: Literal["None", "10X barcode"] = "None", reversed: bool = False):
+    def __init__(self, cells: Dict[str, SingleCell], sort: Literal["None", "cell barcode"] = "None", reversed: bool = False):
         self._cells = cells
-        if sort == "10X barcode":
+        if sort in ("cell barcode", "10X barcode"):
             self._keys = sorted(list(cells.keys()), reverse = reversed)
         else:
             self._keys = list(cells.keys())

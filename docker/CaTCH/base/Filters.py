@@ -49,7 +49,7 @@ class SingleCellRecordFilter(CaTCHFilter):
     """
     Base class for all Single Cell Records, i.e. individual
     records from the FastQ file.
-    Single Cell Records have a single 10X barcode, a single UMI and
+    Single Cell Records have a single cell barcode, a single UMI and
     a single CaTCH barcode.
     """
 
@@ -63,7 +63,7 @@ class SingleCellFilter(CaTCHFilter):
     """
     Base class for all Single Cell Objects, i.e. objects representing
     single cells in a CaTCH dataset.
-    Single cell objects have a single 10X barcode, but can have multiple
+    Single cell objects have a single cell barcode, but can have multiple
     CaTCH barcodes and UMIs.
     """
 

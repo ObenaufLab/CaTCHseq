@@ -53,8 +53,8 @@ class SingleCellDataReader:
         return SingleCellRecord(
             recR1,
             recR2,
-            bc_10x_start=self.bcStart,
-            bc_10x_length=self.bcLength,
+            bc_cell_start=self.bcStart,
+            bc_cell_length=self.bcLength,
             umi_start=self.umiStart,
             umi_length=self.umiLength,
         )

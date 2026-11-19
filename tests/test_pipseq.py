@@ -590,6 +590,72 @@ class CountBarcodesTest(PipseqTestCase):
         )
         self.assertIn(barcode, counts["cells"])
 
+    def test_unique_cell_barcode_correction(self):
+        first, second = self.write_count_lane()
+        corrected = first[:-1] + ("A" if first[-1] != "A" else "C")
+        write_fastq(
+            self.workdir / "lane1_R1.fastq.gz",
+            [("a", corrected + UMI)],
+        )
+        write_fastq(
+            self.workdir / "lane1_R2.fastq.gz",
+            [("a", catrch_r2())],
+        )
+        counts = self.run_counter(f"{first}\n{second}\n")
+        self.assertEqual(list(counts["cells"]), [first])
+        self.assertEqual(counts["invalidCellBarcodes"], 0)
+        self.assertEqual(counts["ambiguousCellBarcodes"], 0)
+        cell = json.loads(counts["cells"][first])
+        self.assertEqual(cell["cellBarcode"], first)
+        self.assertEqual(list(cell["CaTCH"].values()), [[UMI]])
+
+    def test_ambiguous_cell_barcode_rejected(self):
+        first = "AAAACCCCGGGGTTTT"
+        third = "AAAACCCCGGGGTTTC"
+        query = "AAAACCCCGGGGTTTA"
+        write_fastq(
+            self.workdir / "lane1_R1.fastq.gz",
+            [("a", query + UMI)],
+        )
+        write_fastq(
+            self.workdir / "lane1_R2.fastq.gz",
+            [("a", catrch_r2())],
+        )
+        counts = self.run_counter(f"{first}\n{third}\n")
+        self.assertEqual(counts["cells"], {})
+        self.assertEqual(counts["invalidCellBarcodes"], 0)
+        self.assertEqual(counts["ambiguousCellBarcodes"], 1)
+
+    def test_repeated_queries_aggregate(self):
+        first, second = self.write_count_lane()
+        corrected = first[:-1] + ("A" if first[-1] != "A" else "C")
+        write_fastq(
+            self.workdir / "lane1_R1.fastq.gz",
+            [
+                ("a", first + UMI),
+                ("b", corrected + UMI),
+                ("c", first + UMI),
+                ("d", corrected + "ACGTACGTACGA"),
+            ],
+        )
+        write_fastq(
+            self.workdir / "lane1_R2.fastq.gz",
+            [
+                ("a", catrch_r2()),
+                ("b", catrch_r2()),
+                ("c", catrch_r2()),
+                ("d", catrch_r2()),
+            ],
+        )
+        counts = self.run_counter(f"{first}\n{second}\n")
+        self.assertEqual(list(counts["cells"]), [first])
+        self.assertEqual(counts["invalidCellBarcodes"], 0)
+        self.assertEqual(counts["ambiguousCellBarcodes"], 0)
+        cell = json.loads(counts["cells"][first])
+        self.assertEqual(
+            list(cell["CaTCH"].values()), [[UMI, UMI, UMI, "ACGTACGTACGA"]]
+        )
+
 
 class PipseqParamsTest(unittest.TestCase):
     @classmethod

@@ -182,7 +182,7 @@ def main():
     for x in stats:
         statPct = (x[1] / nProcessed * 100) if nProcessed else 0.0
         print(f"       {x[0]}: {x[1]:,} ({statPct:.2f}%)")
-    print(f"Found {lib.size:,} 10X cell IDs")
+    print(f"Found {lib.size:,} cell IDs")
 
     lib.saveToJSON(opts.counts)
 

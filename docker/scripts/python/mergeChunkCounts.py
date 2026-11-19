@@ -61,7 +61,7 @@ def main():
     print("   of those: ")
     for x in stats:
         print(f"       {x[0]}: {x[1]:,} ({x[1] / nTotalReads * 100:.2f}%)")
-    print(f"Found {scl.size:,} 10X cell IDs")
+    print(f"Found {scl.size:,} cell IDs")
     
     scl.saveToJSON(opts.outlib)
 

@@ -11,18 +11,18 @@ from CaTCH.utils.Algorithms import Algorithms
 
 """
 The class SingleCell represents a cell in the experiment. Each cell has a
-single 10X cell barcode and one or more CaTCH barcodes with their respective UMIs. 
+single cell barcode and one or more CaTCH barcodes with their respective UMIs.
 """
 
 
 class SingleCell:
 
-    def __init__(self, barcode_10X: str):
-        self._barcode_10X = barcode_10X
+    def __init__(self, barcode_cell: str):
+        self._barcode_cell = barcode_cell
         self._catch_umi_rel = dict()  # CaTCH => [UMI1, UMI2, UMI3, UMI4,...]
 
-    def _get_barcode_10X_(self) -> str:
-        return self._barcode_10X
+    def _get_barcode_cell_(self) -> str:
+        return self._barcode_cell
 
     def _get_umis_(self) -> List[str]:
         result = list()
@@ -48,22 +48,22 @@ class SingleCell:
             bclib.addBarcode(bc, len(set(self._catch_umi_rel[bc])))
         return bclib
 
-    barcode_10X = property(_get_barcode_10X_)
+    barcode_cell = property(_get_barcode_cell_)
     umis = property(_get_umis_)
     CaTCH_barcodes = property(_get_catch_barcodes_)
     CaTCH_barcodes_unique = property(_get_unique_catch_barcodes_)
 
     def copy(self) -> SingleCell:
-        _copy = SingleCell(self._barcode_10X)
+        _copy = SingleCell(self._barcode_cell)
         _copy._catch_umi_rel = self._catch_umi_rel.copy()
         return _copy
 
     def merge(self, other: SingleCell):
         """
-        Merges two cells with the same 10X barcode.
+        Merges two cells with the same cell barcode.
         """
-        if other._barcode_10X != self._barcode_10X:
-            raise BarcodeMismatchException(f"Cannot merge the cell {self._barcode_10X} with the cell {other._barcode_10X}")
+        if other._barcode_cell != self._barcode_cell:
+            raise BarcodeMismatchException(f"Cannot merge the cell {self._barcode_cell} with the cell {other._barcode_cell}")
         for catch_bc in other._catch_umi_rel.keys():
             if not self._catch_umi_rel.get(catch_bc):
                 self._catch_umi_rel[catch_bc] = other._catch_umi_rel[catch_bc].copy()
@@ -75,15 +75,15 @@ class SingleCell:
     def addCellRecord(self, record: SingleCellRecord):
         if not record:
             raise InvalidCellRecordException()
-        if self._barcode_10X != record.barcode_10X:
-            raise BarcodeMismatchException(self._barcode_10X, record.barcode_10X)
+        if self._barcode_cell != record.barcode_cell:
+            raise BarcodeMismatchException(self._barcode_cell, record.barcode_cell)
 
         bc = record.barcode_CaTCH
         umis = self._catch_umi_rel.get(bc)
         if umis:
-            self._catch_umi_rel[bc].append(record.umi_10X)
+            self._catch_umi_rel[bc].append(record.umi_cell)
         else:
-            self._catch_umi_rel[bc] = [record.umi_10X]
+            self._catch_umi_rel[bc] = [record.umi_cell]
 
     def removeBackground(self, minCoverage: int = 10) -> int:
         _tmp = dict()
@@ -136,7 +136,7 @@ class SingleCell:
             self._catch_umi_rel = collapsed
             return self
         else:
-            result = SingleCell(self._barcode_10X)
+            result = SingleCell(self._barcode_cell)
             result._catch_umi_rel = collapsed
             return result
 
@@ -186,7 +186,7 @@ class SingleCell:
             self._catch_umi_rel = collapsedBCs
             return self
         else:
-            result = SingleCell(self._barcode_10X)
+            result = SingleCell(self._barcode_cell)
             result._catch_umi_rel = collapsedBCs
             return result
 
@@ -227,7 +227,7 @@ class SingleCell:
             if inplace:
                 self._catch_umi_rel[CaTCHbc] = umis
             else:
-                result = SingleCell(self._barcode_10X)
+                result = SingleCell(self._barcode_cell)
                 result._catch_umi_rel[CaTCHbc] = umis
         if inplace:
             return self
@@ -248,7 +248,7 @@ class SingleCell:
             self._catch_umi_rel = catch_umi_rel
             return self
         else:
-            result = SingleCell(self._barcode_10X)
+            result = SingleCell(self._barcode_cell)
             result._catch_umi_rel = catch_umi_rel
             return result
 
@@ -299,11 +299,11 @@ class SingleCell:
         # import pdb
         # pdb.set_trace()
 
-    def correct10XBarcode(self, barcode: str):
-        self._barcode_10X = barcode
+    def correctCellBarcode(self, barcode: str):
+        self._barcode_cell = barcode
 
     def toJSON(self) -> str:
-        result = {"10X": self._barcode_10X,
+        result = {"cellBarcode": self._barcode_cell,
                   "CaTCH": {}}
         for bc in self._catch_umi_rel.keys():
             result["CaTCH"][bc.seq] = self._catch_umi_rel[bc]
@@ -311,7 +311,8 @@ class SingleCell:
 
     def loadFromJSON(jsonString: str) -> SingleCell:
         data = json.loads(jsonString)
-        cell = SingleCell(data["10X"])
+        barcode = data["cellBarcode"] if "cellBarcode" in data else data["10X"]
+        cell = SingleCell(barcode)
         for bc in data["CaTCH"].keys():
             cell._catch_umi_rel[CaTCHBarcode(bc)] = data["CaTCH"][bc]
         return cell

@@ -21,14 +21,14 @@ def generateCellsTable(scl: SingleCellLibrary, filename: str):
 
     with(open(filename, "wt")) as hOutput:
         print("CellID\tCaTCH barcodes\tBarcode counts", file = hOutput)
-        for cell in scl.enumerateSingleCells(sort = "10X barcode"):
+        for cell in scl.enumerateSingleCells(sort = "cell barcode"):
             cell_bclib = cell.CaTCH_barcodes
             bclist = []
             bccounts = []
             for bc in cell_bclib.listBarcodes(sort = "Count", reversed = True):
                 bclist.append(bc.seq)
                 bccounts.append(str(cell_bclib.getBarcodeCount(bc)))
-            print(f"{cell.barcode_10X}\t{';'.join(bclist)}\t{';'.join(bccounts)}", file = hOutput)
+            print(f"{cell.barcode_cell}\t{';'.join(bclist)}\t{';'.join(bccounts)}", file = hOutput)
 
 
 def generateCaTCHTable(scl: SingleCellLibrary, filename: str, unique: bool):
