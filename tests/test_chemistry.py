@@ -41,7 +41,7 @@ SMART_OPTIONS = (
 PIPSEQ_OPTIONS = (
     "--soloType CB_UMI_Simple --soloBarcodeReadLength 0 --soloCBstart 1 "
     "--soloCBlen 24 --soloUMIstart 25 --soloUMIlen 12 --soloStrand Forward "
-    "--soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR "
+    "--soloUMIfiltering MultiGeneUMI_CR "
     "--soloUMIdedup 1MM_CR --soloCellFilter EmptyDrops_CR"
 )
 

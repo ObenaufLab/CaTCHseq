@@ -690,6 +690,9 @@ process star_mapping{
     } else if (chemistry == 'PIPseq'){
         extraparams = extraparams.replaceAll('EmptyDrops_CR', 'EmptyDrops_CR 5000 0.99 10 45000 90000 500 0.01 20000 0.001 10000')
     }
+    if (chemistry == 'PIPseq'){
+        starparams = starparams.replaceAll(/--soloMultiMappers\s+\S+/, '')
+    }
     
     // Build params
     starparams = starparams + ' ' + extraparams

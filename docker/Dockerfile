@@ -41,7 +41,7 @@ RUN		R -e "source('/tools/scripts/R/setup_R_env.R')"
 
 
 # Install STAR mapper for STARsolo mapping option
-ARG STAR_VERSION=2.7.11a
+ARG STAR_VERSION=2.7.11b
 
 ENV PACKAGES build-essential g++ wget zlib1g-dev unzip default-jre xxd
 
