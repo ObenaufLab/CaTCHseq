@@ -282,26 +282,27 @@ toplot <- seurat_sce[[]] %>%
     group_by(CaTCH.BCs) %>%
     filter(n() > 1)
 
-a <- ggplot(toplot, aes(x = Condition, y = CaTCH.BC1 / CaTCH.Sum)) +
-    geom_violin() +
-    scale_y_log10(guide = "axis_logticks") +
-    theme_bw()
+ratio_violin <- function(df, ratio) {
+    df$ratio <- ratio
+    df <- df[is.finite(df$ratio) & df$ratio > 0, , drop = FALSE]
+    if (nrow(df) < 2) {
+        return(ggplot() + theme_void() + labs(title = "Not enough cells with CaTCH barcode ratios to plot"))
+    }
+    ggplot(df, aes(x = Condition, y = ratio)) +
+        geom_violin() +
+        scale_y_log10(guide = "axis_logticks") +
+        theme_bw()
+}
 
-b <- ggplot(toplot, aes(x = Condition, y = CaTCH.BC2 / CaTCH.Sum)) +
-    geom_violin() +
-    scale_y_log10(guide = "axis_logticks") +
-    theme_bw()
-
-c <- ggplot(toplot, aes(x = Condition, y = (CaTCH.BC1 + CaTCH.BC2) / CaTCH.Sum)) +
-    geom_violin() +
-    scale_y_log10(guide = "axis_logticks") +
-    theme_bw()
+a <- ratio_violin(toplot, toplot$CaTCH.BC1 / toplot$CaTCH.Sum)
+b <- ratio_violin(toplot, toplot$CaTCH.BC2 / toplot$CaTCH.Sum)
+c <- ratio_violin(toplot, (toplot$CaTCH.BC1 + toplot$CaTCH.BC2) / toplot$CaTCH.Sum)
 
 pdf(file = paste0(opt$out, "_QC_Barcode_Ratio_Distribution.pdf"), width = 10, height = 30)
 print(a | b | c)
 dev.off()
 
-rm(a, b, c, toplot)
+rm(a, b, c, toplot, ratio_violin)
 
 #### Run PCA and UMAP ####
 if (opt$output_sce) {
