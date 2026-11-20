@@ -688,7 +688,7 @@ process star_mapping{
         starparams = starparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexpCR).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexpED)
         extraparams = extraparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexpCR).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexpED)
     } else if (chemistry == 'PIPseq'){
-        extraparams = extraparams.replaceAll('EmptyDrops_CR', 'EmptyDrops_CR 5000 0.99 10 45000 90000 500 0.01 20000 0.01 10000')
+        extraparams = extraparams.replaceAll('EmptyDrops_CR', 'EmptyDrops_CR 5000 0.99 10 45000 90000 500 0.01 20000 0.001 10000')
     }
     
     // Build params
