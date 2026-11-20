@@ -687,6 +687,8 @@ process star_mapping{
         cellsexpED = cells_expected.replaceAll('!', '') + ' 0.99 10 45000 90000 500 0.01 20000 0.01 10000'
         starparams = starparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexpCR).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexpED)
         extraparams = extraparams.replaceAll('CellRanger2.2', 'CellRanger2.2 '+cellsexpCR).replaceAll('EmptyDrops_CR', 'EmptyDrops_CR '+cellsexpED)
+    } else if (chemistry == 'PIPseq'){
+        extraparams = extraparams.replaceAll('EmptyDrops_CR', 'EmptyDrops_CR 5000 0.99 10 45000 90000 500 0.01 20000 0.01 10000')
     }
     
     // Build params
@@ -721,7 +723,9 @@ process star_mapping{
     }
 
     //Get specific Feature counts, we use the first feature in --soloFeatures as default
-    if ( starparams.contains('--soloFeatures') ){
+    if ( chemistry == 'PIPseq' ){
+        sfeature = 'GeneFull'
+    }else if ( starparams.contains('--soloFeatures') ){
         sfeature = starparams.split('--soloFeatures')[1].split(' ')[1]
     }else{
         sfeature = 'Gene'
